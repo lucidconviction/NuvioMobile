@@ -37,7 +37,7 @@ Nuvio now has a built-in IPTV player with M3U and Xtream Codes support:
 https://github.com/Robbdeeze/NuvioMobile/raw/cmp-rewrite/assets/iptv-demo.mp4
 
 - **12,000+ free channels** — one-tap add from iptv-org
-- **Multiple M3U playlists + Xtream Codes** — add, toggle, refresh, delete
+- **M3U playlists, Xtream Codes, Stalker Portal** — add, toggle, refresh, delete
 - **Group/category headers** — channels auto-sorted into collapsible sections
 - **Favorites & history** — heart toggles, last 15 channels, persisted
 - **In-player overlay** — search, browse, favorite, and switch channels without leaving playback
