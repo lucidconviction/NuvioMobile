@@ -17,7 +17,14 @@
 
 ## About
 
-Nuvio is the current Kotlin Multiplatform rewrite of the original React Native app. It delivers a shared Compose UI for Android and iOS while keeping the playback-focused experience, collection tools, watch progress flows, downloads, and Stremio addon ecosystem integration that shaped the earlier app.
+This is a fork of [NuvioMedia/NuvioMobile](https://github.com/NuvioMedia/NuvioMobile) with a focus on adding a full-featured IPTV player. The original project is a Kotlin Multiplatform rewrite of the React Native app — a modern media hub for Android and iOS with Stremio addon ecosystem integration, playback, collection tools, watch progress, and downloads.
+
+**What this fork adds:**
+- IPTV player tab with M3U playlist and Xtream Codes API support
+- Built-in iptv-org source (12,000+ free channels)
+- In-player channel overlay with search, favorites, history, and one-tap switching
+- EPG (XMLTV) with inline now/next programs and name-based channel matching
+- Multi-source selection, collapsible groups, channel favorites, and playback history
 
 The mobile app is built from a single shared codebase in [composeApp](./composeApp), with native platform entry points for Android and iOS.
 
