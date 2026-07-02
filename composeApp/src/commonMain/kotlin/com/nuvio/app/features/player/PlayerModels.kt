@@ -52,6 +52,15 @@ data class PlayerLaunch(
     val initialPositionMs: Long = 0L,
     val initialProgressFraction: Float? = null,
     val contentLanguage: String? = null,
+    val channelNames: List<String>? = null,
+    val channelUrls: List<String>? = null,
+    val channelLogos: List<String>? = null,
+    val channelIds: List<String>? = null,
+    val currentChannelIndex: Int = 0,
+    val historyChannelNames: List<String>? = null,
+    val historyChannelUrls: List<String>? = null,
+    val historyChannelLogos: List<String>? = null,
+    val historyChannelIds: List<String>? = null,
 )
 
 object PlayerLaunchStore {

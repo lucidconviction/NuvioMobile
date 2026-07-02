@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lumina IPTV - Obsidian Stream</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b1326;
+            color: #dae2fd;
+            -webkit-font-smoothing: antialiased;
+        }
+        .glass-panel {
+            background: rgba(19, 27, 46, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(149, 141, 161, 0.1);
+        }
+        .glow-purple {
+            box-shadow: 0 0 15px rgba(124, 58, 237, 0.3);
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .epg-grid {
+            display: grid;
+            grid-template-columns: 80px 1fr;
+        }
+        .shimmer {
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0) 100%);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-primary-fixed-variant": "#5a00c6",
+                      "primary": "#d2bbff",
+                      "primary-fixed": "#eaddff",
+                      "on-tertiary-container": "#ffe0cd",
+                      "background": "#0b1326",
+                      "surface-container-low": "#131b2e",
+                      "primary-container": "#7c3aed",
+                      "secondary-container": "#00a2e6",
+                      "surface-container": "#171f33",
+                      "on-surface": "#dae2fd",
+                      "on-surface-variant": "#ccc3d8",
+                      "tertiary-fixed": "#ffdcc6",
+                      "secondary-fixed": "#c9e6ff",
+                      "on-tertiary": "#4f2500",
+                      "on-secondary-fixed-variant": "#004c6e",
+                      "on-secondary": "#00344d",
+                      "inverse-primary": "#732ee4",
+                      "surface-variant": "#2d3449",
+                      "on-primary-fixed": "#25005a",
+                      "surface-container-highest": "#2d3449",
+                      "outline": "#958da1",
+                      "secondary": "#89ceff",
+                      "on-tertiary-fixed": "#301400",
+                      "inverse-surface": "#dae2fd",
+                      "error-container": "#93000a",
+                      "surface-container-lowest": "#060e20",
+                      "primary-fixed-dim": "#d2bbff",
+                      "inverse-on-surface": "#283044",
+                      "on-tertiary-fixed-variant": "#713700",
+                      "tertiary": "#ffb784",
+                      "outline-variant": "#4a4455",
+                      "surface": "#0b1326",
+                      "on-primary": "#3f008e",
+                      "on-primary-container": "#ede0ff",
+                      "on-background": "#dae2fd",
+                      "tertiary-container": "#a15100",
+                      "surface-container-high": "#222a3d",
+                      "surface-dim": "#0b1326",
+                      "error": "#ffb4ab",
+                      "on-secondary-fixed": "#001e2f",
+                      "on-secondary-container": "#00344e",
+                      "tertiary-fixed-dim": "#ffb784",
+                      "surface-tint": "#d2bbff",
+                      "secondary-fixed-dim": "#89ceff",
+                      "surface-bright": "#31394d",
+                      "on-error": "#690005",
+                      "on-error-container": "#ffdad6"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "unit": "4px",
+                      "margin-desktop": "48px",
+                      "epg-slot-width": "180px",
+                      "margin-mobile": "16px",
+                      "gutter": "16px"
+              },
+              "fontFamily": {
+                      "label-caps": ["Inter"],
+                      "headline-sm": ["Inter"],
+                      "display-lg": ["Inter"],
+                      "headline-md-mobile": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "body-sm": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "epg-time": ["Inter"]
+              },
+              "fontSize": {
+                      "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                      "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                      "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                      "headline-md-mobile": ["20px", {"lineHeight": "28px", "fontWeight": "700"}],
+                      "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                      "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "epg-time": ["13px", {"lineHeight": "18px", "letterSpacing": "0.01em", "fontWeight": "500"}]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background overflow-x-hidden pb-32">
+<!-- Top App Bar -->
+<header class="bg-background/80 dark:bg-background/80 backdrop-blur-xl text-primary font-headline-md-mobile text-headline-md-mobile fixed top-0 w-full border-b border-surface-variant/30 flex items-center justify-between px-margin-mobile h-16 z-50">
+<div class="flex items-center gap-3">
+<button class="material-symbols-outlined text-primary p-2 hover:bg-primary/10 rounded-full transition-all duration-300 active:scale-95">menu</button>
+<span class="font-display-lg text-headline-md-mobile tracking-tight text-primary">Lumina IPTV</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="material-symbols-outlined text-primary p-2 hover:bg-primary/10 rounded-full transition-all duration-300 active:scale-95">search</button>
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-[10px] font-bold text-on-primary-container">PU</div>
+</div>
+</header>
+<main class="mt-20 px-margin-mobile space-y-8">
+<!-- Quick Access Section -->
+<section>
+<div class="flex items-center justify-between mb-4">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Quick Access</h2>
+<button class="text-primary font-label-caps text-label-caps">VIEW ALL</button>
+</div>
+<div class="flex gap-4 overflow-x-auto hide-scrollbar pb-2">
+<!-- Channel Item -->
+<div class="flex-shrink-0 w-32 space-y-2 group cursor-pointer">
+<div class="aspect-video rounded-xl bg-surface-container overflow-hidden border border-outline-variant/20 relative">
+<img class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" data-alt="A high-quality 16:9 movie poster showing a futuristic cyberpunk cityscape at night, with neon purple and electric blue lighting illuminating the rain-slicked streets. The visual style is cinematic and high-fidelity, matching a premium IPTV dark mode aesthetic with deep obsidian shadows and glowing highlights." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB7VGIqgEWoB4Dob2QPU_Va1jTF0tN0oM8ob-DnnoltT5tk4OM-qc9vaUTdYhbyst26FP-TxxRUtY7Qr52b9svyVsaWv6TExcvvz_0ubC-thCyU_ioKmK3b_X54faM50IK7tVD_j5COUVCFAgBN2tf0QaoydRI9VZOaHr_VUaaP2i_fdcftdafUhW1EPKNGt3okM9J3lAGTVZPX1jJKgD1pJSZZFgM9MsShXnxay21YiyTOb41_F-JTeSVvDKCsYy_t2iYI3zlN5QuM"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent"></div>
+<div class="absolute bottom-2 left-2 flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-error animate-pulse"></span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Live</span>
+</div>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate px-1">HBO Max HD</p>
+</div>
+<!-- Channel Item -->
+<div class="flex-shrink-0 w-32 space-y-2 group cursor-pointer">
+<div class="aspect-video rounded-xl bg-surface-container overflow-hidden border border-outline-variant/20 relative">
+<img class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" data-alt="A cinematic 16:9 landscape shot of a lush, mystical forest at twilight, featuring bioluminescent plants in shades of vibrant blue and purple. The atmosphere is mysterious and immersive, designed for a luxury entertainment interface with deep layering and soft glow effects." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3jgC7WpMZvBJtbA4JkuFgRX9PLGPcKujqZyMeRqbSrgppWHrhm_RIWlNpl08s5GmQUmQls_yRerNiQh7ybhtJ6_xEDCk6oIT89BQ5OaR1KdXjlm_y459jQOuE2CqUTkHPon41EV9BqYjBGKDrfbITn15NGV9J2fv4plPCgGiCOcIyY8C0-9lxhPLD_rgkjDmExgCztdYTxZilRMyrAM6Ldtce8C1eP4dUzFNqxgD0iAZ2cwndU10tO_r-77cX13T16D1WrdNdpemM"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent"></div>
+<div class="absolute bottom-2 left-2 flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Sports</span>
+</div>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate px-1">Sky Sports Premiere</p>
+</div>
+<!-- Channel Item -->
+<div class="flex-shrink-0 w-32 space-y-2 group cursor-pointer">
+<div class="aspect-video rounded-xl bg-surface-container overflow-hidden border border-outline-variant/20 relative">
+<img class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" data-alt="A high-definition shot of an astrophysical nebula with swirling clouds of cosmic dust in deep purples and bright electric blues, scattered with brilliant white stars. The style is grand and cinematic, perfectly suited for a high-end streaming service's dark theme." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDLfgP6BeaDQds7XffATef1UD7JfQ765Z_b5IcCWp4rkfWR1usDT1VidIyubA31DuldZ9hekr1cU_PGs-yJteijlbPh75RMip5hAJ8enY9IuxJGhqjRXWyy8WEkXNgKWGEYsMWRoNF6V0R76tpSzdG65de3LQAojRXQVruQlp2sK3TBnt3ez-Yf1uFnEnLBUSXI-69TAH5FoxXrZ9NWxvuoQi-HSMf0Go_hlycOByLClSRYS4TRPD0FHHQmRWeqOO6-TANcY_iQgv-M"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent"></div>
+<div class="absolute bottom-2 left-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">history</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Recap</span>
+</div>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate px-1">Discovery Sci-Fi</p>
+</div>
+</div>
+</section>
+<!-- Playlists Section -->
+<section>
+<div class="flex items-center justify-between mb-4">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Your Playlists</h2>
+<button class="flex items-center gap-2 bg-primary-container text-on-primary-container px-4 py-2 rounded-xl font-label-caps text-label-caps transition-all active:scale-95 shadow-[0_0_12px_rgba(124,58,237,0.3)]" onclick="toggleAddSource()">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                    ADD SOURCE
+                </button>
+</div>
+<div class="space-y-3">
+<!-- Playlist Card -->
+<div class="glass-panel p-4 rounded-2xl flex items-center justify-between border-l-4 border-l-primary">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-surface-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-3xl">cloud_queue</span>
+</div>
+<div>
+<h3 class="font-body-lg text-body-lg font-bold text-on-surface">Premium Xtreme</h3>
+<p class="text-body-sm text-on-surface-variant/70">8,420 Channels • 22k VOD</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-secondary">check_circle</span>
+</div>
+<!-- Playlist Card -->
+<div class="glass-panel p-4 rounded-2xl flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-surface-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant text-3xl">list_alt</span>
+</div>
+<div>
+<h3 class="font-body-lg text-body-lg font-bold text-on-surface">Sports Bundle M3U</h3>
+<p class="text-body-sm text-on-surface-variant/70">150 Channels • Expired</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline">error_outline</span>
+</div>
+</div>
+</section>
+<!-- EPG Section -->
+<section>
+<div class="flex items-center justify-between mb-4">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Live TV Guide</h2>
+<span class="text-secondary font-label-caps text-label-caps flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary shadow-[0_0_8px_rgba(0,162,230,0.6)]"></span>
+                    21:45 PM
+                </span>
+</div>
+<div class="space-y-4">
+<!-- EPG Item -->
+<div class="glass-panel rounded-2xl overflow-hidden">
+<div class="flex items-center gap-4 p-4 border-b border-outline-variant/10">
+<div class="w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center p-2">
+<img class="w-full object-contain grayscale brightness-150" data-alt="A clean, minimalist vector logo of a major television network featuring bold, geometric typography in white against a transparent background. The logo is framed within a professional, high-end streaming service UI context." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDj7lwIecG8N1bnR3SylS32qs97PfNT4rHhDp6PbTxnQEWieMe4JvtvmB2g6-sOiIjalPonLSgqVbCmLThqmn8xuhhVQgCSFGbEc8eV2_jDDBZUx9qDOKsfAHBQSsQQATkDQb2UB3nQUh8CJx5ajBcOMIbIXXNyeNaOQMQbCr_lqu1POdOc1aD-voow3S7c6I9NunS9poUMWjg8-vnsaKe4VOydU93-EUE7O-KSh-6bPtDKyt2P_4bogsWq_aXoPUJ9pMUvtkh50jah"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-center mb-1">
+<h4 class="font-body-lg text-body-lg font-bold">Interstellar Voyage</h4>
+<span class="text-secondary font-epg-time text-epg-time">75%</span>
+</div>
+<div class="w-full h-1 bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-3/4 shadow-[0_0_8px_rgba(0,162,230,0.4)]"></div>
+</div>
+<div class="flex justify-between mt-2">
+<span class="text-body-sm text-on-surface-variant">21:00 - 23:00</span>
+<span class="text-body-sm text-primary font-bold">Up Next: News</span>
+</div>
+</div>
+</div>
+</div>
+<!-- EPG Item -->
+<div class="glass-panel rounded-2xl overflow-hidden opacity-80">
+<div class="flex items-center gap-4 p-4">
+<div class="w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center p-2">
+<img class="w-full object-contain grayscale brightness-150" data-alt="A sleek, modern sports channel logo with sharp angles and a high-performance aesthetic. The design is clean and professional, rendered in a way that fits perfectly within a luxury dark mode IPTV application." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDc91tpohAIHFt4Z-SUIpBxW1s-wMMqUZKG3bKD_AD9rbMv_oOiIjPK9RdU11tZbWdKV8YLguxsNMagycgduiOpugZfcUvo1o2VrnSmxg1Nh1GNGkdnOzfaQr2b66T3qTFe-iEy0HI93d2L48-_G4NC5HAQnxpEEtiy8A9IR59jTNdxc5CRoMyCoCVKTZPR-ZIL077P8AvncvW3N929PJmAUH-aWZ1VtuhfOygrfkxyy2tykSayKLKasCYU7GcScuDouQDfY0PJegCW"/>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-center mb-1">
+<h4 class="font-body-lg text-body-lg font-bold">Champions League Live</h4>
+<span class="text-secondary font-epg-time text-epg-time">20%</span>
+</div>
+<div class="w-full h-1 bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-1/5 shadow-[0_0_8px_rgba(0,162,230,0.4)]"></div>
+</div>
+<div class="flex justify-between mt-2">
+<span class="text-body-sm text-on-surface-variant">21:30 - 23:30</span>
+<span class="text-body-sm text-on-surface-variant">Half-Time Report</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="bg-surface-container-lowest/90 dark:bg-surface-container-lowest/90 backdrop-blur-2xl fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-2 border-t border-outline-variant/20 shadow-[0_-4px_20px_rgba(124,58,237,0.15)]">
+<a class="flex flex-col items-center justify-center text-primary bg-primary-container/20 rounded-xl px-4 py-1 shadow-[0_0_12px_rgba(210,187,255,0.3)] scale-105 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-caps text-label-caps">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary-fixed transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">grid_view</span>
+<span class="font-label-caps text-label-caps">Guide</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary-fixed transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">featured_play_list</span>
+<span class="font-label-caps text-label-caps">Playlists</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary-fixed transition-transform duration-200" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-caps text-label-caps">Settings</span>
+</a>
+</nav>
+<!-- Modal: Add Source -->
+<div class="fixed inset-0 z-[100] hidden items-end sm:items-center justify-center p-0 sm:p-6 transition-all duration-300" id="addSourceModal">
+<div class="absolute inset-0 bg-background/80 backdrop-blur-md" onclick="toggleAddSource()"></div>
+<div class="relative glass-panel w-full max-w-lg rounded-t-[32px] sm:rounded-3xl overflow-hidden transform transition-transform translate-y-full duration-500 ease-out" id="modalContent">
+<div class="w-12 h-1.5 bg-outline-variant/40 rounded-full mx-auto my-4 sm:hidden"></div>
+<div class="p-8">
+<div class="flex items-center justify-between mb-8">
+<h2 class="font-headline-md text-headline-md text-on-surface">Add Source</h2>
+<button class="material-symbols-outlined text-on-surface-variant" onclick="toggleAddSource()">close</button>
+</div>
+<div class="flex gap-2 mb-8 bg-surface-container-low p-1 rounded-xl">
+<button class="flex-1 py-2 rounded-lg font-label-caps text-label-caps bg-primary text-on-primary" id="xtremeBtn" onclick="switchMode('xtreme')">XTREME</button>
+<button class="flex-1 py-2 rounded-lg font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-variant" id="m3uBtn" onclick="switchMode('m3u')">M3U URL</button>
+</div>
+<div class="space-y-6" id="xtremeFields">
+<div class="space-y-1">
+<label class="font-label-caps text-label-caps text-primary ml-1">PORTAL URL</label>
+<input class="w-full bg-[#0F172A] border border-outline-variant/30 focus:border-primary rounded-xl px-4 py-3 outline-none text-on-surface transition-colors" placeholder="http://provider-url.com:8080" type="text"/>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="space-y-1">
+<label class="font-label-caps text-label-caps text-primary ml-1">USERNAME</label>
+<input class="w-full bg-[#0F172A] border border-outline-variant/30 focus:border-primary rounded-xl px-4 py-3 outline-none text-on-surface transition-colors" placeholder="User123" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-caps text-label-caps text-primary ml-1">PASSWORD</label>
+<input class="w-full bg-[#0F172A] border border-outline-variant/30 focus:border-primary rounded-xl px-4 py-3 outline-none text-on-surface transition-colors" placeholder="••••••••" type="password"/>
+</div>
+</div>
+</div>
+<div class="hidden space-y-6" id="m3uFields">
+<div class="space-y-1">
+<label class="font-label-caps text-label-caps text-primary ml-1">M3U PLAYLIST URL</label>
+<input class="w-full bg-[#0F172A] border border-outline-variant/30 focus:border-primary rounded-xl px-4 py-3 outline-none text-on-surface transition-colors" placeholder="https://domain.com/playlist.m3u" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="font-label-caps text-label-caps text-primary ml-1">PLAYLIST NAME (OPTIONAL)</label>
+<input class="w-full bg-[#0F172A] border border-outline-variant/30 focus:border-primary rounded-xl px-4 py-3 outline-none text-on-surface transition-colors" placeholder="My Favorite Channels" type="text"/>
+</div>
+</div>
+<button class="w-full mt-10 bg-primary-container text-on-primary-container py-4 rounded-xl font-headline-sm text-headline-sm hover:brightness-110 active:scale-95 transition-all shadow-[0_0_20px_rgba(124,58,237,0.4)]">
+                    CONNECT SOURCE
+                </button>
+</div>
+</div>
+</div>
+<script>
+        function toggleAddSource() {
+            const modal = document.getElementById('addSourceModal');
+            const content = document.getElementById('modalContent');
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                setTimeout(() => {
+                    content.classList.remove('translate-y-full');
+                    content.classList.add('translate-y-0');
+                }, 10);
+            } else {
+                content.classList.remove('translate-y-0');
+                content.classList.add('translate-y-full');
+                setTimeout(() => {
+                    modal.classList.remove('flex');
+                    modal.classList.add('hidden');
+                }, 500);
+            }
+        }
+
+        function switchMode(mode) {
+            const xtremeFields = document.getElementById('xtremeFields');
+            const m3uFields = document.getElementById('m3uFields');
+            const xtremeBtn = document.getElementById('xtremeBtn');
+            const m3uBtn = document.getElementById('m3uBtn');
+
+            if (mode === 'xtreme') {
+                xtremeFields.classList.remove('hidden');
+                m3uFields.classList.add('hidden');
+                xtremeBtn.className = "flex-1 py-2 rounded-lg font-label-caps text-label-caps bg-primary text-on-primary";
+                m3uBtn.className = "flex-1 py-2 rounded-lg font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-variant";
+            } else {
+                xtremeFields.classList.add('hidden');
+                m3uFields.classList.remove('hidden');
+                m3uBtn.className = "flex-1 py-2 rounded-lg font-label-caps text-label-caps bg-primary text-on-primary";
+                xtremeBtn.className = "flex-1 py-2 rounded-lg font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-variant";
+            }
+        }
+    </script>
+</body></html>

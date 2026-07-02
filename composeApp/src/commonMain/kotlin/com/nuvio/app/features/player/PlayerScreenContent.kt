@@ -19,6 +19,7 @@ import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.watched.WatchedRepository
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
+import com.nuvio.app.core.ui.PlatformBackHandler
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_player_airs_prefix
 import nuvio.composeapp.generated.resources.compose_player_downloaded
@@ -71,6 +72,11 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
 
     val runtime = remember { PlayerScreenRuntime(args) }
     runtime.args = args
+
+    PlatformBackHandler(enabled = true) {
+        runtime.flushWatchProgress()
+        args.onBack()
+    }
 
     BoxWithConstraints(
         modifier = args.modifier

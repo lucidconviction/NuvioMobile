@@ -134,6 +134,8 @@ import com.nuvio.app.features.tmdb.TmdbEntityKind
 import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.home.HomeScreen
 import com.nuvio.app.features.home.MetaPreview
+import com.nuvio.app.features.iptv.IptvScreen
+import com.nuvio.app.features.iptv.IptvRepository
 import com.nuvio.app.features.library.LibraryItem
 import com.nuvio.app.features.library.LibraryRepository
 import com.nuvio.app.features.library.LibrarySection
@@ -341,6 +343,7 @@ enum class AppScreenTab {
     Search,
     Library,
     Settings,
+    Iptv,
 }
 
 private fun AppScreenTab.toNativeNavigationTab(): NativeNavigationTab = when (this) {
@@ -348,6 +351,7 @@ private fun AppScreenTab.toNativeNavigationTab(): NativeNavigationTab = when (th
     AppScreenTab.Search -> NativeNavigationTab.Search
     AppScreenTab.Library -> NativeNavigationTab.Library
     AppScreenTab.Settings -> NativeNavigationTab.Settings
+    AppScreenTab.Iptv -> NativeNavigationTab.Iptv
 }
 
 private fun NativeNavigationTab.toAppScreenTab(): AppScreenTab = when (this) {
@@ -355,6 +359,7 @@ private fun NativeNavigationTab.toAppScreenTab(): AppScreenTab = when (this) {
     NativeNavigationTab.Search -> AppScreenTab.Search
     NativeNavigationTab.Library -> AppScreenTab.Library
     NativeNavigationTab.Settings -> AppScreenTab.Settings
+    NativeNavigationTab.Iptv -> AppScreenTab.Iptv
 }
 
 private fun PlayerLaunch.toExternalPlayerPlaybackRequest(): ExternalPlayerPlaybackRequest =
@@ -664,6 +669,7 @@ private fun MainAppContent(
         val searchScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val libraryScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val settingsRootActionRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
+        val iptvScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         var nativeProfileSwitcherVisible by remember { mutableStateOf(false) }
         val currentBackStackEntry by navController.currentBackStackEntryAsState()
         val liquidGlassNativeTabBarEnabled by remember {
@@ -719,6 +725,10 @@ private fun MainAppContent(
         DownloadsRepository.ensureLoaded()
         DownloadsRepository.uiState
     }.collectAsStateWithLifecycle()
+    val iptvUiState by remember {
+        IptvRepository.ensureLoaded()
+        IptvRepository.uiState
+    }.collectAsStateWithLifecycle()
     val networkStatusUiState by remember {
         NetworkStatusRepository.uiState
     }.collectAsStateWithLifecycle()
@@ -753,6 +763,7 @@ private fun MainAppContent(
             }
             AppScreenTab.Library -> libraryScrollToTopRequests.tryEmit(Unit)
             AppScreenTab.Settings -> settingsRootActionRequests.tryEmit(Unit)
+            AppScreenTab.Iptv -> iptvScrollToTopRequests.tryEmit(Unit)
         }
     }
 
@@ -783,6 +794,7 @@ private fun MainAppContent(
             search = nativeTabSearchTitle,
             library = nativeTabLibraryTitle,
             profile = nativeTabProfileTitle,
+            iptv = "IPTV",
         )
     }
 
@@ -1465,6 +1477,12 @@ private fun MainAppContent(
                                             contentDescription = stringResource(Res.string.compose_nav_library),
                                         )
                                         NavItem(
+                                            selected = selectedTab == AppScreenTab.Iptv,
+                                            onClick = { handleRootTabClick(AppScreenTab.Iptv) },
+                                            icon = Res.drawable.sidebar_iptv,
+                                            contentDescription = "IPTV",
+                                        )
+                                        NavItem(
                                             selected = selectedTab == AppScreenTab.Settings,
                                             onClick = { handleRootTabClick(AppScreenTab.Settings) },
                                         ) {
@@ -1494,6 +1512,7 @@ private fun MainAppContent(
                                         searchScrollToTopRequests = searchScrollToTopRequests,
                                         libraryScrollToTopRequests = libraryScrollToTopRequests,
                                         settingsRootActionRequests = settingsRootActionRequests,
+                                        iptvScrollToTopRequests = iptvScrollToTopRequests,
                                         animateHomeCollectionGifs = tabsRouteActive,
                                         onCatalogClick = onCatalogClick,
                                         onPosterClick = { meta ->
@@ -1572,6 +1591,10 @@ private fun MainAppContent(
                                         onCollectionsSettingsClick = { navController.navigate(CollectionsRoute) },
                                         onFolderClick = { collectionId, folderId ->
                                             navController.navigate(FolderDetailRoute(collectionId = collectionId, folderId = folderId))
+                                        },
+                                        onIptvPlayChannel = { launch ->
+                                            val id = PlayerLaunchStore.put(launch)
+                                            navController.navigate(PlayerRoute(id))
                                         },
                                         requestedSettingsPageName = requestedSettingsPageName,
                                         onRequestedSettingsPageConsumed = {
@@ -2454,11 +2477,25 @@ private fun MainAppContent(
                         initialPositionMs = launch.initialPositionMs,
                         initialProgressFraction = launch.initialProgressFraction,
                         contentLanguage = launch.contentLanguage,
+                        launchId = route.launchId,
                         onBack = {
                             ResumePromptRepository.markPlayerExitedNormally()
                             PlayerLaunchStore.remove(route.launchId)
                             navController.popBackStack()
                         },
+                        onSwitchIptvChannel = { newLaunchId: Long ->
+                            ResumePromptRepository.markPlayerExitedNormally()
+                            PlayerLaunchStore.remove(route.launchId)
+                            navController.popBackStack()
+                            navController.navigate(PlayerRoute(launchId = newLaunchId))
+                        },
+                        iptvChannelIds = launch.channelIds,
+                        iptvFavoriteIds = launch.channelIds?.filter { IptvRepository.isFavorite(it) }?.toSet(),
+                        onToggleIptvFavorite = { channelId -> IptvRepository.toggleFavorite(channelId) },
+                        iptvHistoryNames = launch.historyChannelNames,
+                        iptvHistoryUrls = launch.historyChannelUrls,
+                        iptvHistoryLogos = launch.historyChannelLogos,
+                        iptvHistoryIds = launch.historyChannelIds,
                         onOpenInExternalPlayer = { request ->
                             val playerLaunch = PlayerLaunch(
                                 profileId = launch.profileId,
@@ -2967,6 +3004,7 @@ private fun AppTabHost(
     searchScrollToTopRequests: Flow<Unit>,
     libraryScrollToTopRequests: Flow<Unit>,
     settingsRootActionRequests: Flow<Unit>,
+    iptvScrollToTopRequests: Flow<Unit>,
     animateHomeCollectionGifs: Boolean = true,
     onCatalogClick: ((HomeCatalogSection) -> Unit)? = null,
     onPosterClick: ((MetaPreview) -> Unit)? = null,
@@ -2994,6 +3032,7 @@ private fun AppTabHost(
     requestedSettingsPageName: String? = null,
     onRequestedSettingsPageConsumed: () -> Unit = {},
     onInitialHomeContentRendered: () -> Unit = {},
+    onIptvPlayChannel: ((PlayerLaunch) -> Unit)? = null,
 ) {
     val tabStateHolder = rememberSaveableStateHolder()
 
@@ -3034,6 +3073,14 @@ private fun AppTabHost(
                         onSectionViewAllClick = onLibrarySectionViewAllClick,
                         onCloudFilePlay = onCloudFilePlay,
                         onConnectCloudClick = onConnectCloudClick,
+                    )
+                }
+
+                AppScreenTab.Iptv -> {
+                    IptvScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        onPlayChannel = onIptvPlayChannel,
+                        scrollToTopRequests = iptvScrollToTopRequests,
                     )
                 }
 
@@ -3126,15 +3173,15 @@ private fun TabletFloatingTopBar(
                     },
                 )
                 TabletTopPillItem(
-                    label = stringResource(Res.string.compose_nav_library),
-                    selected = selectedTab == AppScreenTab.Library,
-                    onClick = { onTabSelected(AppScreenTab.Library) },
+                    label = "IPTV",
+                    selected = selectedTab == AppScreenTab.Iptv,
+                    onClick = { onTabSelected(AppScreenTab.Iptv) },
                     icon = {
                         Icon(
-                            painter = painterResource(Res.drawable.sidebar_library),
-                            contentDescription = stringResource(Res.string.compose_nav_library),
+                            painter = painterResource(Res.drawable.sidebar_iptv),
+                            contentDescription = "IPTV",
                             modifier = Modifier.size(NuvioTokens.Space.s18),
-                            tint = if (selectedTab == AppScreenTab.Library) {
+                            tint = if (selectedTab == AppScreenTab.Iptv) {
                                 tokens.colors.textPrimary
                             } else {
                                 tokens.colors.textMuted

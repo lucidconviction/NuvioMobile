@@ -38,4 +38,13 @@ internal data class PlayerScreenArgs(
     val initialPositionMs: Long,
     val initialProgressFraction: Float?,
     val contentLanguage: String? = null,
+    val launchId: Long = 0L,
+    val onSwitchIptvChannel: ((Long) -> Unit)? = null,
+    val iptvChannelIds: List<String>? = null,
+    val iptvFavoriteIds: Set<String>? = null,
+    val onToggleIptvFavorite: ((String) -> Unit)? = null,
+    val iptvHistoryNames: List<String>? = null,
+    val iptvHistoryUrls: List<String>? = null,
+    val iptvHistoryLogos: List<String>? = null,
+    val iptvHistoryIds: List<String>? = null,
 )

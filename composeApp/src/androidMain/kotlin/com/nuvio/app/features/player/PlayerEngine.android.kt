@@ -322,15 +322,33 @@ private fun ExoPlayerSurface(
             }
         }
 
-        val loadControl = DefaultLoadControl.Builder()
-            .setTargetBufferBytes(100 * 1024 * 1024)
-            .setBufferDurationsMs(
-                15_000,
-                70_000,
-                DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
-                5_000
-            )
-            .build()
+        val isLiveStream = sourceUrl.endsWith(".ts", ignoreCase = true) ||
+                sourceUrl.endsWith(".m3u8", ignoreCase = true) ||
+                sourceUrl.contains("/live/") ||
+                sourceUrl.contains("output=ts") ||
+                sourceUrl.contains("output=m3u8")
+
+        val loadControl = if (isLiveStream) {
+            DefaultLoadControl.Builder()
+                .setTargetBufferBytes(8 * 1024 * 1024) // 8 MB instead of 100 MB
+                .setBufferDurationsMs(
+                    1_500, // minBufferMs
+                    5_000, // maxBufferMs
+                    1_000, // bufferForPlaybackMs
+                    1_500 // bufferForPlaybackAfterRebufferMs
+                )
+                .build()
+        } else {
+            DefaultLoadControl.Builder()
+                .setTargetBufferBytes(100 * 1024 * 1024)
+                .setBufferDurationsMs(
+                    15_000,
+                    70_000,
+                    DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
+                    5_000
+                )
+                .build()
+        }
 
         val player = if (useLibass) {
             ExoPlayer.Builder(context)

@@ -334,6 +334,7 @@
     <string name="compose_nav_library">Library</string>
     <string name="compose_nav_profile">Profile</string>
     <string name="compose_nav_search">Search</string>
+    <string name="compose_nav_iptv">IPTV</string>
     <string name="compose_player_audio_tracks">Audio Tracks</string>
     <string name="compose_player_audio">Audio</string>
     <string name="compose_player_auto_sync">Auto Sync</string>

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import com.nuvio.app.features.p2p.P2pStreamingState
@@ -305,6 +306,18 @@ private fun BoxScope.RenderPlaybackOverlays(
     p2pRebufferProgress: Float?,
 ) {
     runtime.run {
+        val iptvLaunch = remember(args.launchId) { PlayerLaunchStore.get(args.launchId) }
+        val iptvChannelNames = iptvLaunch?.channelNames
+        val iptvChannelUrls = iptvLaunch?.channelUrls
+        val iptvChannelLogos = iptvLaunch?.channelLogos
+        val iptvChannelIds = args.iptvChannelIds
+        val iptvFavoriteIds = args.iptvFavoriteIds
+        val iptvHistoryNames = args.iptvHistoryNames
+        val iptvHistoryUrls = args.iptvHistoryUrls
+        val iptvHistoryLogos = args.iptvHistoryLogos
+        val iptvHistoryIds = args.iptvHistoryIds
+        val iptvCurrentChannelIndex = iptvLaunch?.currentChannelIndex ?: 0
+
         PlayerPlaybackOverlays(
             playerControlsLocked = playerControlsLocked,
             lockedOverlayVisible = lockedOverlayVisible,
@@ -362,6 +375,44 @@ private fun BoxScope.RenderPlaybackOverlays(
             onDismissError = {
                 flushWatchProgress()
                 args.onBack()
+            },
+            channelNames = iptvChannelNames,
+            channelUrls = iptvChannelUrls,
+            channelLogos = iptvChannelLogos,
+            channelIds = iptvChannelIds,
+            favoriteIds = iptvFavoriteIds,
+            historyNames = iptvHistoryNames,
+            historyUrls = iptvHistoryUrls,
+            historyLogos = iptvHistoryLogos,
+            historyIds = iptvHistoryIds,
+            currentChannelIndex = iptvCurrentChannelIndex,
+            onToggleFavorite = args.onToggleIptvFavorite,
+            onSwitchChannel = { index ->
+                if (iptvChannelUrls != null && iptvChannelNames != null && index < iptvChannelUrls.size) {
+                    val newLogo = iptvChannelLogos?.getOrNull(index).takeIf { !it.isNullOrBlank() }
+                    val newLaunch = iptvLaunch?.copy(
+                        title = iptvChannelNames[index],
+                        sourceUrl = iptvChannelUrls[index],
+                        streamTitle = iptvChannelNames[index],
+                        logo = newLogo,
+                        poster = newLogo,
+                        initialPositionMs = 0L,
+                        initialProgressFraction = null,
+                        channelNames = iptvChannelNames,
+                        channelUrls = iptvChannelUrls,
+                        channelLogos = iptvChannelLogos,
+                        channelIds = iptvChannelIds,
+                        currentChannelIndex = index,
+                        historyChannelNames = iptvHistoryNames,
+                        historyChannelUrls = iptvHistoryUrls,
+                        historyChannelLogos = iptvHistoryLogos,
+                        historyChannelIds = iptvHistoryIds,
+                    )
+                    if (newLaunch != null) {
+                        flushWatchProgress()
+                        args.onSwitchIptvChannel?.invoke(PlayerLaunchStore.put(newLaunch))
+                    }
+                }
             },
         )
     }

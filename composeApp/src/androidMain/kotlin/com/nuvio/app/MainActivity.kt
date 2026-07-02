@@ -19,6 +19,7 @@ import com.nuvio.app.features.debrid.DebridSettingsStorage
 import com.nuvio.app.features.downloads.DownloadsLiveStatusPlatform
 import com.nuvio.app.features.downloads.DownloadsPlatformDownloader
 import com.nuvio.app.features.downloads.DownloadsStorage
+import com.nuvio.app.features.iptv.IptvStorage
 import com.nuvio.app.features.library.LibraryStorage
 import com.nuvio.app.features.details.MetaScreenSettingsStorage
 import com.nuvio.app.features.home.HomeCatalogSettingsStorage
@@ -109,6 +110,7 @@ class MainActivity : AppCompatActivity() {
         PlatformLocalAccountDataCleaner.initialize(applicationContext)
         EpisodeReleaseNotificationPlatform.initialize(applicationContext)
         EpisodeReleaseNotificationPlatform.bindActivity(this)
+        IptvStorage.initialize(applicationContext)
         handleIncomingAppIntent(intent)
 
         setContent {

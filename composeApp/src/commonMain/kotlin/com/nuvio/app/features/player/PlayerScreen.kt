@@ -20,6 +20,7 @@ fun PlayerScreen(
     pauseDescription: String? = null,
     onBack: () -> Unit,
     onOpenInExternalPlayer: ((ExternalPlayerPlaybackRequest) -> Unit)? = null,
+    onSwitchIptvChannel: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier,
     logo: String? = null,
     poster: String? = null,
@@ -40,6 +41,14 @@ fun PlayerScreen(
     initialPositionMs: Long = 0L,
     initialProgressFraction: Float? = null,
     contentLanguage: String? = null,
+    launchId: Long = 0L,
+    iptvChannelIds: List<String>? = null,
+    iptvFavoriteIds: Set<String>? = null,
+    onToggleIptvFavorite: ((String) -> Unit)? = null,
+    iptvHistoryNames: List<String>? = null,
+    iptvHistoryUrls: List<String>? = null,
+    iptvHistoryLogos: List<String>? = null,
+    iptvHistoryIds: List<String>? = null,
 ) {
     PlayerScreenContent(
         PlayerScreenArgs(
@@ -78,6 +87,15 @@ fun PlayerScreen(
             initialPositionMs = initialPositionMs,
             initialProgressFraction = initialProgressFraction,
             contentLanguage = contentLanguage,
+            launchId = launchId,
+            onSwitchIptvChannel = onSwitchIptvChannel,
+            iptvChannelIds = iptvChannelIds,
+            iptvFavoriteIds = iptvFavoriteIds,
+            onToggleIptvFavorite = onToggleIptvFavorite,
+            iptvHistoryNames = iptvHistoryNames,
+            iptvHistoryUrls = iptvHistoryUrls,
+            iptvHistoryLogos = iptvHistoryLogos,
+            iptvHistoryIds = iptvHistoryIds,
         )
     )
 }
