@@ -32,6 +32,8 @@ The mobile app is built from a single shared codebase in [composeApp](./composeA
 
 Nuvio now has a built-in IPTV player with M3U and Xtream Codes support:
 
+### 📺 Demo
+
 https://github.com/Robbdeeze/NuvioMobile/raw/cmp-rewrite/assets/iptv-demo.mp4
 
 - **12,000+ free channels** — one-tap add from iptv-org
