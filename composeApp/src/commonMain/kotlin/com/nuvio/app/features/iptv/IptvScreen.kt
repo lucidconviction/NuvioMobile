@@ -729,7 +729,7 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
 
         AnimatedVisibility(visible = uiState.playlistsExpanded) {
             Column {
-                if (uiState.m3uPlaylists.isEmpty() && uiState.xtreamAccounts.isEmpty() && uiState.epgSources.isEmpty()) {
+                if (uiState.m3uPlaylists.isEmpty() && uiState.xtreamAccounts.isEmpty() && uiState.stalkerAccounts.isEmpty() && uiState.epgSources.isEmpty()) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -765,6 +765,20 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
                             isRefreshing = account.id in uiState.refreshingSourceIds,
                             onRefresh = { IptvRepository.refreshXtreamChannels(account.id) },
                             onDelete = { IptvRepository.removeXtreamAccount(account.id) },
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+
+                    uiState.stalkerAccounts.forEach { account ->
+                        PlaylistCard(
+                            name = account.name,
+                            subtitle = "${account.channels.size} Channels",
+                            status = if (account.channels.isNotEmpty()) "Connected" else "Pending",
+                            statusColor = if (account.channels.isNotEmpty()) ElectricBlue else OutlineVariant,
+                            iconLabel = "SK",
+                            isRefreshing = account.id in uiState.refreshingSourceIds,
+                            onRefresh = { IptvRepository.refreshStalkerChannels(account.id) },
+                            onDelete = { IptvRepository.removeStalkerAccount(account.id) },
                         )
                         Spacer(Modifier.height(8.dp))
                     }
@@ -940,6 +954,16 @@ private fun AddSourceBottomSheet(
                         Text("EPG", color = if (mode == "epg") Color.White else OnSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.6.sp)
                     }
                 }
+                Surface(
+                    onClick = { mode = "stalker" },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (mode == "stalker") NeonPurple else Color.Transparent,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+                        Text("STALKER", color = if (mode == "stalker") Color.White else OnSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.6.sp)
+                    }
+                }
             }
             Spacer(Modifier.height(24.dp))
 
@@ -947,6 +971,7 @@ private fun AddSourceBottomSheet(
                 "xtreme" -> XtreamForm(onSuccess = onSuccess)
                 "m3u" -> M3uForm(onSuccess = onSuccess)
                 "epg" -> EpgForm(onSuccess = onSuccess)
+                "stalker" -> StalkerForm(onSuccess = onSuccess)
             }
 
             Spacer(Modifier.height(16.dp))
@@ -1039,6 +1064,36 @@ private fun EpgForm(onSuccess: () -> Unit) {
             enabled = url.isNotBlank() && name.isNotBlank(),
         ) {
             Text("ADD EPG SOURCE", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        }
+    }
+}
+
+@Composable
+private fun StalkerForm(onSuccess: () -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var server by remember { mutableStateOf("") }
+    var macAddress by remember { mutableStateOf("") }
+
+    Column {
+        InputField(label = "ACCOUNT NAME", value = name, onValueChange = { name = it }, placeholder = "My Stalker Portal")
+        Spacer(Modifier.height(16.dp))
+        InputField(label = "PORTAL URL", value = server, onValueChange = { server = it }, placeholder = "http://portal-url.com")
+        Spacer(Modifier.height(16.dp))
+        InputField(label = "MAC ADDRESS", value = macAddress, onValueChange = { macAddress = it }, placeholder = "00:1A:79:XX:XX:XX")
+        Spacer(Modifier.height(24.dp))
+        Button(
+            onClick = {
+                if (name.isNotBlank() && server.isNotBlank() && macAddress.isNotBlank()) {
+                    IptvRepository.addStalkerAccount(name, server, macAddress)
+                    onSuccess()
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = NeonPurple),
+            enabled = name.isNotBlank() && server.isNotBlank() && macAddress.isNotBlank(),
+        ) {
+            Text("CONNECT SOURCE", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
         }
     }
 }

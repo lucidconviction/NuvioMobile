@@ -35,20 +35,26 @@ Ghost CH button (transparent bg, accent on tap), slide-up channel list with all 
 - Group/category headers, channel count badges, EPG empty state, popup timeout, grid collapse fix, refresh spinner, popup transparency
 
 ### Phase 8 — Logo Switch Fix, EPG Name Matching, Brace Fix
-- **Logo changing on channel switch** — added `logo = newLogo, poster = newLogo` to `PlayerLaunch.copy()` in `onSwitchChannel` callback so the new channel's logo appears in the player loading splash
-- **EPG name-based matching** — `EpgParser` now parses `<channel>` elements for display names; `refreshEpg()` builds both `epgPrograms` (by channel ID) and `epgProgramsByName` (by lowercase display name); `ChannelCard` tries ID match first, then falls back to name-based lookup
-- **EPG match count** — repository counts matched channels (ID + name) and shows "X channels matched" on EPG source cards in the playlists section
-- **Error logging** — removed empty `catch (_: Exception)` in `refreshEpg()`, now logs `println("EPG fetch error: ...")`  
-- **Brace fix** — fixed missing closing `}` in IptvScreen that caused all private composable functions to be treated as local functions
+- Logo fix, EPG name matching, EPG match count, error logging, brace fix
 
-## Modified Files (Phase 4–8)
-- `PlayerModels.kt` — channel data, history fields, episode fields
-- `PlayerScreenArgs.kt` — iptv params, history params, onToggleIptvFavorite
-- `PlayerScreen.kt` — plumb all params
-- `PlayerScreenRuntimeUi.kt` — read channel/history data, wire switching with logo copy
-- `PlayerPlaybackOverlays.kt` — popup menu, OutlinedTextField, half-height, modes, ChannelListItem, PopupOption, timeout
-- `App.kt` — channel switch nav, favorite + history wiring
-- `IptvScreen.kt` — group headers, source badges, collapsible grids, history pass, refresh spinner, EPG states with name fallback, brace fix
-- `IptvRepository.kt` — toggle methods, auto EPG refresh, addToHistory, getHistoryChannels, refreshingSourceIds, name-based EPG matching
-- `IptvModels.kt` — channelsExpanded, favoritesExpanded, channelHistory, refreshingSourceIds, epgProgramsByName, epgMatchCount
-- `EpgParser.kt` — changed return type to `EpgParseResult` with programsByChannelId + channelDisplayNames map; parses `<channel>` elements
+### Phase 9 — Stalker Portal Support
+- **Stalker Portal** as a 4th source type in Add Source bottom sheet (XTREME / M3U / EPG / STALKER)
+- `StalkerAccount` model with `id`, `name`, `server`, `macAddress`, `channels`
+- `StalkerClient.kt` — HTTP handshake: get token → authenticate MAC → fetch channels JSON
+- Form fields: Account Name, Portal URL, MAC Address
+- Full CRUD: `addStalkerAccount`, `removeStalkerAccount`, `refreshStalkerChannels` with refresh spinner
+- Persisted via JSON, shows as "SK" source cards in playlists
+- `SourceType.Stalker` enum variant, auto-included in all filtering/persistence
+
+## Modified Files (Phase 4–9)
+- `PlayerModels.kt` — channel data, history fields
+- `PlayerScreenArgs.kt` — iptv + history params
+- `PlayerScreen.kt` — plumb params
+- `PlayerScreenRuntimeUi.kt` — logo copy, channel/history wiring
+- `PlayerPlaybackOverlays.kt` — popup, search, half-height, modes, ChannelListItem
+- `App.kt` — nav, favorites, history
+- `IptvScreen.kt` — group headers, source badges, collapsible grids, EPG states, Stalker tab + form, stalker cards in playlists
+- `IptvRepository.kt` — stalker CRUD, name-based EPG, history, toggle methods
+- `IptvModels.kt` — stalkerAccounts, channelsExpanded, favoritesExpanded, channelHistory, epgProgramsByName
+- `EpgParser.kt` — EpgParseResult with channelDisplayNames
+- `StalkerClient.kt` — NEW: Stalker Portal API client

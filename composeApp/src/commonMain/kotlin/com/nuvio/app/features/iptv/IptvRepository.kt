@@ -149,6 +149,42 @@ object IptvRepository {
         }
     }
 
+    fun addStalkerAccount(name: String, server: String, macAddress: String) {
+        scope.launch {
+            val id = nextId("stalker")
+            val account = StalkerAccount(id = id, name = name, server = server, macAddress = macAddress)
+            settings = settings.copy(stalkerAccounts = settings.stalkerAccounts + account)
+            saveToStorage()
+            refreshUi()
+            refreshStalkerChannels(id)
+        }
+    }
+
+    fun removeStalkerAccount(id: String) {
+        settings = settings.copy(stalkerAccounts = settings.stalkerAccounts.filter { it.id != id })
+        saveToStorage()
+        refreshUi()
+    }
+
+    fun refreshStalkerChannels(id: String) {
+        scope.launch {
+            val account = settings.stalkerAccounts.find { it.id == id } ?: return@launch
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null, refreshingSourceIds = _uiState.value.refreshingSourceIds + id)
+            try {
+                val channels = StalkerClient.fetchChannels(account.server, account.macAddress, id)
+                val updated = account.copy(channels = channels)
+                settings = settings.copy(
+                    stalkerAccounts = settings.stalkerAccounts.map { if (it.id == id) updated else it }
+                )
+                saveToStorage()
+                _uiState.value = _uiState.value.copy(refreshingSourceIds = _uiState.value.refreshingSourceIds - id)
+                refreshUi()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoading = false, error = "Failed to load Stalker: ${e.message}", refreshingSourceIds = _uiState.value.refreshingSourceIds - id)
+            }
+        }
+    }
+
     fun addEpgSource(name: String, url: String) {
         val id = nextId("epg")
         settings = settings.copy(epgSources = settings.epgSources + EpgSource(id = id, name = name, url = url))
@@ -227,11 +263,11 @@ object IptvRepository {
     }
 
     fun getAllSourceNames(): List<String> {
-        return settings.m3uPlaylists.map { it.name } + settings.xtreamAccounts.map { it.name }
+        return settings.m3uPlaylists.map { it.name } + settings.xtreamAccounts.map { it.name } + settings.stalkerAccounts.map { it.name }
     }
 
     fun getAllSourceIds(): List<String> {
-        return settings.m3uPlaylists.map { it.id } + settings.xtreamAccounts.map { it.id }
+        return settings.m3uPlaylists.map { it.id } + settings.xtreamAccounts.map { it.id } + settings.stalkerAccounts.map { it.id }
     }
 
     fun toggleFavorite(channelId: String) {
@@ -295,7 +331,8 @@ object IptvRepository {
     private fun getAllChannels(): List<IptvChannel> {
         val m3uChannels = settings.m3uPlaylists.flatMap { it.channels }
         val xtreamChannels = settings.xtreamAccounts.flatMap { it.channels }
-        return m3uChannels + xtreamChannels
+        val stalkerChannels = settings.stalkerAccounts.flatMap { it.channels }
+        return m3uChannels + xtreamChannels + stalkerChannels
     }
 
     private fun applyFilters() {
@@ -325,6 +362,7 @@ object IptvRepository {
             _uiState.value = _uiState.value.copy(
                 m3uPlaylists = settings.m3uPlaylists,
                 xtreamAccounts = settings.xtreamAccounts,
+                stalkerAccounts = settings.stalkerAccounts,
                 epgSources = settings.epgSources,
                 favoriteChannelIds = settings.favoriteChannelIds,
                 channels = filtered,
@@ -347,6 +385,7 @@ object IptvRepository {
 private data class StoredIptvSettings(
     val m3uPlaylists: List<StoredM3uPlaylist> = emptyList(),
     val xtreamAccounts: List<StoredXtreamAccount> = emptyList(),
+    val stalkerAccounts: List<StoredStalkerAccount> = emptyList(),
     val epgSources: List<StoredEpgSource> = emptyList(),
     val favoriteChannelIds: List<String> = emptyList(),
     val channelHistory: List<String> = emptyList(),
@@ -354,6 +393,7 @@ private data class StoredIptvSettings(
     fun toSettings() = IptvPlaylistSettings(
         m3uPlaylists = m3uPlaylists.map { it.toPlaylist() },
         xtreamAccounts = xtreamAccounts.map { it.toAccount() },
+        stalkerAccounts = stalkerAccounts.map { it.toAccount() },
         epgSources = epgSources.map { EpgSource(id = it.id, name = it.name, url = it.url) },
         favoriteChannelIds = favoriteChannelIds.toSet(),
         channelHistory = channelHistory,
@@ -363,6 +403,7 @@ private data class StoredIptvSettings(
         fun fromSettings(s: IptvPlaylistSettings) = StoredIptvSettings(
             m3uPlaylists = s.m3uPlaylists.map { StoredM3uPlaylist.fromPlaylist(it) },
             xtreamAccounts = s.xtreamAccounts.map { StoredXtreamAccount.fromAccount(it) },
+            stalkerAccounts = s.stalkerAccounts.map { StoredStalkerAccount.fromAccount(it) },
             epgSources = s.epgSources.map { StoredEpgSource(id = it.id, name = it.name, url = it.url) },
             favoriteChannelIds = s.favoriteChannelIds.toList(),
             channelHistory = s.channelHistory,
@@ -408,6 +449,27 @@ private data class StoredXtreamAccount(
             id = a.id, name = a.name, server = a.server, username = a.username, password = a.password,
             channels = a.channels.map { StoredIptvChannel.fromChannel(it) },
             categories = a.categories.map { StoredXtreamCategory(it.id, it.name) },
+        )
+    }
+}
+
+@Serializable
+private data class StoredStalkerAccount(
+    val id: String,
+    val name: String,
+    val server: String,
+    val macAddress: String,
+    val channels: List<StoredIptvChannel> = emptyList(),
+) {
+    fun toAccount() = StalkerAccount(
+        id = id, name = name, server = server, macAddress = macAddress,
+        channels = channels.map { it.toChannel() },
+    )
+
+    companion object {
+        fun fromAccount(a: StalkerAccount) = StoredStalkerAccount(
+            id = a.id, name = a.name, server = a.server, macAddress = a.macAddress,
+            channels = a.channels.map { StoredIptvChannel.fromChannel(it) },
         )
     }
 }

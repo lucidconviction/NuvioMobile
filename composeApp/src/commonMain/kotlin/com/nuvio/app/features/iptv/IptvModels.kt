@@ -22,6 +22,15 @@ data class XtreamAccount(
 )
 
 @Serializable
+data class StalkerAccount(
+    val id: String,
+    val name: String,
+    val server: String,
+    val macAddress: String,
+    val channels: List<IptvChannel> = emptyList(),
+)
+
+@Serializable
 data class XtreamCategory(
     val id: String,
     val name: String,
@@ -39,7 +48,7 @@ data class IptvChannel(
     val sourceId: String,
 )
 
-enum class SourceType { M3U, Xtream }
+enum class SourceType { M3U, Xtream, Stalker }
 
 @Serializable
 data class EpgSource(
@@ -61,6 +70,7 @@ data class EpgProgram(
 data class IptvUiState(
     val m3uPlaylists: List<M3uPlaylist> = emptyList(),
     val xtreamAccounts: List<XtreamAccount> = emptyList(),
+    val stalkerAccounts: List<StalkerAccount> = emptyList(),
     val epgSources: List<EpgSource> = emptyList(),
     val selectedSourceIds: Set<String> = emptySet(),
     val selectedCategory: String? = null,
@@ -82,6 +92,7 @@ data class IptvUiState(
 data class IptvPlaylistSettings(
     val m3uPlaylists: List<M3uPlaylist> = emptyList(),
     val xtreamAccounts: List<XtreamAccount> = emptyList(),
+    val stalkerAccounts: List<StalkerAccount> = emptyList(),
     val epgSources: List<EpgSource> = emptyList(),
     val favoriteChannelIds: Set<String> = emptySet(),
     val channelHistory: List<String> = emptyList(),
