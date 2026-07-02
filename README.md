@@ -4,11 +4,8 @@
   <br />
   <br />
 
-  [![Contributors][contributors-shield]][contributors-url]
-  [![Forks][forks-shield]][forks-url]
-  [![Stargazers][stars-shield]][stars-url]
+  [![Stars][stars-shield]][stars-url]
   [![Issues][issues-shield]][issues-url]
-  [![License][license-shield]][license-url]
 
   <p>
     A modern media hub for Android and iOS built with Kotlin Multiplatform and Compose Multiplatform.
@@ -24,11 +21,24 @@ Nuvio is the current Kotlin Multiplatform rewrite of the original React Native a
 
 The mobile app is built from a single shared codebase in [composeApp](./composeApp), with native platform entry points for Android and iOS.
 
+## IPTV (New)
+
+Nuvio now has a built-in IPTV player with M3U and Xtream Codes support:
+
+<video src="./assets/iptv-demo.mp4" controls="controls" style="max-width: 100%; height: auto;"></video>
+
+- **12,000+ free channels** — one-tap add from iptv-org
+- **Multiple M3U playlists + Xtream Codes** — add, toggle, refresh, delete
+- **Group/category headers** — channels auto-sorted into collapsible sections
+- **Favorites & history** — heart toggles, last 15 channels, persisted
+- **In-player overlay** — search, browse, favorite, and switch channels without leaving playback
+- **EPG inline** — now/next programs with progress bar on channel cards
+
 ## Installation
 
 ### Android
 
-Download the latest Android build from [GitHub Releases](https://github.com/NuvioMedia/NuvioMobile/releases/latest).
+Download the latest Android build from [GitHub Releases](https://github.com/Robbdeeze/NuvioMobile/releases/latest).
 
 ### iOS
 
@@ -37,7 +47,7 @@ Download the latest Android build from [GitHub Releases](https://github.com/Nuvi
 ## Development
 
 ```bash
-git clone https://github.com/NuvioMedia/NuvioMobile.git
+git clone https://github.com/Robbdeeze/NuvioMobile.git
 cd NuvioMobile
 ./scripts/run-mobile.sh android
 # or
@@ -80,11 +90,11 @@ For comprehensive legal information, including our full disclaimer, third-party 
 
 ## Star History
 
-<a href="https://www.star-history.com/#NuvioMedia/NuvioMobile&type=date&legend=top-left">
+<a href="https://www.star-history.com/#Robbdeeze/NuvioMobile&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=NuvioMedia/NuvioMobile&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=NuvioMedia/NuvioMobile&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=NuvioMedia/NuvioMobile&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Robbdeeze/NuvioMobile&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Robbdeeze/NuvioMobile&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Robbdeeze/NuvioMobile&type=date&legend=top-left" />
  </picture>
 </a>
 
@@ -93,9 +103,9 @@ For comprehensive legal information, including our full disclaimer, third-party 
 [contributors-url]: https://github.com/NuvioMedia/NuvioMobile/graphs/contributors
 [forks-shield]: https://img.shields.io/github/forks/NuvioMedia/NuvioMobile.svg?style=for-the-badge
 [forks-url]: https://github.com/NuvioMedia/NuvioMobile/network/members
-[stars-shield]: https://img.shields.io/github/stars/NuvioMedia/NuvioMobile.svg?style=for-the-badge
-[stars-url]: https://github.com/NuvioMedia/NuvioMobile/stargazers
-[issues-shield]: https://img.shields.io/github/issues/NuvioMedia/NuvioMobile.svg?style=for-the-badge
-[issues-url]: https://github.com/NuvioMedia/NuvioMobile/issues
+[stars-shield]: https://img.shields.io/github/stars/Robbdeeze/NuvioMobile.svg?style=for-the-badge
+[stars-url]: https://github.com/Robbdeeze/NuvioMobile/stargazers
+[issues-shield]: https://img.shields.io/github/issues/Robbdeeze/NuvioMobile.svg?style=for-the-badge
+[issues-url]: https://github.com/Robbdeeze/NuvioMobile/issues
 [license-shield]: https://img.shields.io/github/license/NuvioMedia/NuvioMobile.svg?style=for-the-badge
 [license-url]: https://github.com/NuvioMedia/NuvioMobile/blob/main/LICENSE
