@@ -45,6 +45,14 @@ Ghost CH button (transparent bg, accent on tap), slide-up channel list with all 
 - Full CRUD: `addStalkerAccount`, `removeStalkerAccount`, `refreshStalkerChannels` with refresh spinner
 - Persisted via JSON, shows as "SK" source cards in playlists
 - `SourceType.Stalker` enum variant, auto-included in all filtering/persistence
+- **Full-screen overlay** — changed from `fillMaxHeight(0.5f)` to `fillMaxSize()` for better landscape scrolling
+- **Stalker Portal** as a 4th source type in Add Source bottom sheet (XTREME / M3U / EPG / STALKER)
+- `StalkerAccount` model with `id`, `name`, `server`, `macAddress`, `channels`
+- `StalkerClient.kt` — HTTP handshake: get token → authenticate MAC → fetch channels JSON
+- Form fields: Account Name, Portal URL, MAC Address
+- Full CRUD: `addStalkerAccount`, `removeStalkerAccount`, `refreshStalkerChannels` with refresh spinner
+- Persisted via JSON, shows as "SK" source cards in playlists
+- `SourceType.Stalker` enum variant, auto-included in all filtering/persistence
 
 ## Modified Files (Phase 4–9)
 - `PlayerModels.kt` — channel data, history fields

@@ -323,7 +323,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .fillMaxHeight(0.5f)
+                        .fillMaxSize()
                         .background(Color(0xFF0B1326).copy(alpha = 0.35f))
                         .padding(bottom = overlayBottomPadding),
                 ) {
