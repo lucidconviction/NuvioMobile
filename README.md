@@ -47,9 +47,7 @@ https://github.com/Robbdeeze/NuvioMobile/raw/cmp-rewrite/assets/iptv-demo.mp4
 
 ### Android
 
-**Latest IPTV build:** Download from [GitHub Releases](https://github.com/Robbdeeze/NuvioMobile/releases/latest) (debug APK, ~230 MB)
-
-Or download the stock release from [NuvioMedia releases](https://github.com/NuvioMedia/NuvioMobile/releases/latest).
+Download the latest Android build from [GitHub Releases](https://github.com/NuvioMedia/NuvioMobile/releases/latest).
 
 ### iOS
 
@@ -58,7 +56,7 @@ Or download the stock release from [NuvioMedia releases](https://github.com/Nuvi
 ## Development
 
 ```bash
-git clone https://github.com/Robbdeeze/NuvioMobile.git
+git clone https://github.com/NuvioMedia/NuvioMobile.git
 cd NuvioMobile
 ./scripts/run-mobile.sh android
 # or
