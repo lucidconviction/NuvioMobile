@@ -239,7 +239,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
 
         if (showPopup) {
             LaunchedEffect(showPopup) {
-                kotlinx.coroutines.delay(30_000)
+                kotlinx.coroutines.delay(5_000)
                 showPopup = false
             }
             Column(
@@ -278,7 +278,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                 }
                 LaunchedEffect(overlayMode) {
                     if (overlayMode != null) {
-                        kotlinx.coroutines.delay(30_000)
+                        kotlinx.coroutines.delay(5_000)
                         overlayMode = null
                         searchQuery = ""
                     }

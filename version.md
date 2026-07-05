@@ -37,32 +37,30 @@ Ghost CH button (transparent bg, accent on tap), slide-up channel list with all 
 ### Phase 8 — Logo Switch Fix, EPG Name Matching, Brace Fix
 - Logo fix, EPG name matching, EPG match count, error logging, brace fix
 
-### Phase 9 — Stalker Portal Support
-- **Stalker Portal** as a 4th source type in Add Source bottom sheet (XTREME / M3U / EPG / STALKER)
-- `StalkerAccount` model with `id`, `name`, `server`, `macAddress`, `channels`
-- `StalkerClient.kt` — HTTP handshake: get token → authenticate MAC → fetch channels JSON
-- Form fields: Account Name, Portal URL, MAC Address
-- Full CRUD: `addStalkerAccount`, `removeStalkerAccount`, `refreshStalkerChannels` with refresh spinner
-- Persisted via JSON, shows as "SK" source cards in playlists
-- `SourceType.Stalker` enum variant, auto-included in all filtering/persistence
-- **Full-screen overlay** — changed from `fillMaxHeight(0.5f)` to `fillMaxSize()` for better landscape scrolling
-- **Stalker Portal** as a 4th source type in Add Source bottom sheet (XTREME / M3U / EPG / STALKER)
-- `StalkerAccount` model with `id`, `name`, `server`, `macAddress`, `channels`
-- `StalkerClient.kt` — HTTP handshake: get token → authenticate MAC → fetch channels JSON
-- Form fields: Account Name, Portal URL, MAC Address
-- Full CRUD: `addStalkerAccount`, `removeStalkerAccount`, `refreshStalkerChannels` with refresh spinner
-- Persisted via JSON, shows as "SK" source cards in playlists
-- `SourceType.Stalker` enum variant, auto-included in all filtering/persistence
+### Phase 9 — Stalker Portal Support & Full-Screen Overlay
+- Stalker Portal as 4th source type (XTREME / M3U / EPG / STALKER), full-screen overlay
 
-## Modified Files (Phase 4–9)
+### Phase 10 — Sports Integration, History Bar, Full-Bleed Logos, Timeouts
+- **Live Sports section** — fetches today's events from TheSportsDB free API (`eventsday.php`), matches broadcast channel names to user's IPTV channels via `SportsClient.matchEventsToChannels()`
+- `SportsClient.kt` — HTTP client for `thesportsdb.com/api/v1/json/123/`, parses `SportEvent` JSON (teams, scores, time, channel, thumbnail)
+- `SportsModels.kt` — `SportEvent` and `MatchedSportEvent` data classes
+- **Sports cards** — horizontal scroll row with green live dot, event thumbnail, team names, live scores (green), channel name, tap to play
+- **Auto-refresh** — `IptvRepository.refreshSports()` called on load, channel name matching via `SportsClient.matchEventsToChannels()`
+- **History bar** — horizontal scroll of last 15 channels under Favorites
+- **Full-bleed logos** — channel logos now fill entire card as `ContentScale.Crop` background with dark gradient overlay; fallback to gradient + LiveTv icon when no logo
+- **5s overlay timeout** — popup and channel list both auto-dismiss after 5s instead of 30s
+
+## Modified Files (Phase 4–10)
 - `PlayerModels.kt` — channel data, history fields
 - `PlayerScreenArgs.kt` — iptv + history params
 - `PlayerScreen.kt` — plumb params
 - `PlayerScreenRuntimeUi.kt` — logo copy, channel/history wiring
-- `PlayerPlaybackOverlays.kt` — popup, search, half-height, modes, ChannelListItem
+- `PlayerPlaybackOverlays.kt` — popup, search, half-height, modes, ChannelListItem, 5s timeout
 - `App.kt` — nav, favorites, history
-- `IptvScreen.kt` — group headers, source badges, collapsible grids, EPG states, Stalker tab + form, stalker cards in playlists
-- `IptvRepository.kt` — stalker CRUD, name-based EPG, history, toggle methods
-- `IptvModels.kt` — stalkerAccounts, channelsExpanded, favoritesExpanded, channelHistory, epgProgramsByName
+- `IptvScreen.kt` — group headers, source badges, collapsible grids, EPG states, Stalker tab/form, Live Sports section, History section, full-bleed logos
+- `IptvRepository.kt` — stalker CRUD, name-based EPG, history, toggle methods, refreshSports
+- `IptvModels.kt` — stalkerAccounts, sportEvents, sportLoading, expanded states, epgProgramsByName
 - `EpgParser.kt` — EpgParseResult with channelDisplayNames
-- `StalkerClient.kt` — NEW: Stalker Portal API client
+- `StalkerClient.kt` — Stalker Portal API client
+- `SportsClient.kt` — NEW: TheSportsDB API client
+- `SportsModels.kt` — NEW: SportEvent/MatchedSportEvent models

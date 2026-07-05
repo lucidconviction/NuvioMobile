@@ -48,6 +48,7 @@ object IptvRepository {
             }
         }
         refreshUi()
+        refreshSports()
     }
 
     private fun saveToStorage() {
@@ -62,6 +63,7 @@ object IptvRepository {
             saveToStorage()
             refreshUi()
             refreshM3uChannels(id)
+            refreshSports()
         }
     }
 
@@ -113,6 +115,7 @@ object IptvRepository {
             saveToStorage()
             refreshUi()
             refreshXtreamChannels(id)
+            refreshSports()
         }
     }
 
@@ -328,6 +331,69 @@ object IptvRepository {
 
     fun getLastFilteredChannels(): List<IptvChannel> = _uiState.value.channels
 
+    fun refreshSports() {
+        scope.launch {
+            var dbg = ""
+            _uiState.value = _uiState.value.copy(sportLoading = true)
+            val allCh = getAllChannels()
+            dbg += "Channels: ${allCh.size}\n"
+
+            try {
+                val espnProcessed = EspnClient.fetchAll()
+                dbg += "ESPN events: ${espnProcessed.size}\n"
+                val espnSportEvents = EspnClient.toSportEvents(espnProcessed)
+                val espnMatched = EspnClient.matchSportEventsToChannels(espnSportEvents, allCh)
+                dbg += "ESPN matches: ${espnMatched.size}\n"
+
+                val today = TraktPlatformClock.nowEpochMs()
+                val totalSeconds = today / 1000L
+                val rawDays = totalSeconds / 86400L
+                var y = 1970
+                var remaining = rawDays
+                while (remaining >= 365 + (if (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) 1 else 0)) {
+                    remaining -= 365 + (if (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) 1 else 0)
+                    y++
+                }
+                val daysInMonth = listOf(31, if (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) 29 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+                var m = 0
+                var d = remaining
+                while (m < 12 && d >= daysInMonth[m]) { d -= daysInMonth[m]; m++ }
+                m++
+                d++
+                val dateStr = "${y}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}"
+                val tdbEvents = SportsClient.fetchTodaysEvents(dateStr)
+                dbg += "SportsDB: ${tdbEvents.size}\n"
+                val tdbMatched = EspnClient.matchSportEventsToChannels(tdbEvents, allCh)
+                dbg += "SportsDB matches: ${tdbMatched.size}\n"
+
+                try {
+                    val tvEpisodes = TvMazeClient.fetchSchedule("US")
+                    dbg += "TV episodes: ${tvEpisodes.size}\n"
+                    val tvMatched = TvMazeClient.matchToChannels(tvEpisodes, allCh)
+                    dbg += "TV matches: ${tvMatched.size}\n"
+                    val ufc = espnProcessed.filter { it.sport == "Fighting" && it.league.contains("ufc", ignoreCase = true) }
+                    dbg += "UFC events: ${ufc.size}\n"
+
+                    _uiState.value = _uiState.value.copy(
+                        sportEvents = espnMatched + tdbMatched,
+                        espnEvents = espnProcessed,
+                        tvShows = tvMatched,
+                        ufcEvents = ufc,
+                        sportLoading = false,
+                        tvLoading = false,
+                        debugText = dbg,
+                    )
+                } catch (e: Exception) {
+                    dbg += "TV/UFC error: ${e.message}\n"
+                    _uiState.value = _uiState.value.copy(sportLoading = false, debugText = dbg)
+                }
+            } catch (e: Exception) {
+                dbg += "Sports error: ${e.message}\n"
+                _uiState.value = _uiState.value.copy(sportLoading = false, debugText = dbg)
+            }
+        }
+    }
+
     private fun getAllChannels(): List<IptvChannel> {
         val m3uChannels = settings.m3uPlaylists.flatMap { it.channels }
         val xtreamChannels = settings.xtreamAccounts.flatMap { it.channels }
@@ -372,6 +438,13 @@ object IptvRepository {
                 epgProgramsByName = _uiState.value.epgProgramsByName,
                 epgLoading = _uiState.value.epgLoading,
                 epgMatchCount = _uiState.value.epgMatchCount,
+                sportEvents = _uiState.value.sportEvents,
+                espnEvents = _uiState.value.espnEvents,
+                sportLoading = _uiState.value.sportLoading,
+                tvShows = _uiState.value.tvShows,
+                tvLoading = _uiState.value.tvLoading,
+                ufcEvents = _uiState.value.ufcEvents,
+                debugText = _uiState.value.debugText,
             )
         } catch (_: Exception) { }
     }
