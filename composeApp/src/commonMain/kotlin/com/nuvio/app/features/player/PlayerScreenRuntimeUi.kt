@@ -236,6 +236,7 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                 null
             },
             onSourcesClick = if (activeVideoId != null) { { openSourcesPanel() } } else null,
+            onChannelsClick = if (args.parentMetaId == "iptv") { { channelOverlayTrigger++ } } else null,
             onEpisodesClick = if (isSeries) { { openEpisodesPanel() } } else null,
             onOpenInExternalPlayer = args.onOpenInExternalPlayer?.let { openExternal ->
                 {
@@ -319,6 +320,7 @@ private fun BoxScope.RenderPlaybackOverlays(
         val iptvCurrentChannelIndex = iptvLaunch?.currentChannelIndex ?: 0
 
         PlayerPlaybackOverlays(
+            channelOverlayTrigger = channelOverlayTrigger,
             playerControlsLocked = playerControlsLocked,
             lockedOverlayVisible = lockedOverlayVisible,
             playbackSnapshot = playbackSnapshot,

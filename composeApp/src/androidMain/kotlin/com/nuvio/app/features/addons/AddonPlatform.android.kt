@@ -239,6 +239,28 @@ actual suspend fun httpPostJsonWithHeaders(
         body = body,
     )
 
+actual suspend fun httpGetTextChunked(
+    url: String,
+    headers: Map<String, String>,
+    onChunk: suspend (String) -> Boolean,
+) = withContext(Dispatchers.IO) {
+    val sanitizedHeaders = headers.withoutAcceptEncoding()
+    val builder = Request.Builder().url(url)
+    sanitizedHeaders.forEach { (key, value) -> builder.header(key, value) }
+    val request = builder.build()
+    addonHttpClient.newCall(request).execute().use { response ->
+        val body = response.body ?: error("Empty response body")
+        val charset = body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
+        body.byteStream().bufferedReader(charset).use { reader ->
+            val buf = CharArray(8192)
+            var read: Int
+            while (reader.read(buf).also { read = it } != -1) {
+                if (!onChunk(String(buf, 0, read))) break
+            }
+        }
+    }
+}
+
 actual suspend fun httpRequestRaw(
     method: String,
     url: String,

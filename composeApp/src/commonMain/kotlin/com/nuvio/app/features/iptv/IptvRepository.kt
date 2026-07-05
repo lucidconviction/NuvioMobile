@@ -1,14 +1,18 @@
 package com.nuvio.app.features.iptv
 
 import com.nuvio.app.features.addons.httpGetText
+import com.nuvio.app.features.addons.httpGetTextChunked
+import com.nuvio.app.features.addons.httpGetTextWithHeaders
 import com.nuvio.app.features.trakt.TraktPlatformClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
@@ -19,6 +23,8 @@ object IptvRepository {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private var idCounter = 0L
 
+    private var epgJob: Job? = null
+
     private val _uiState = MutableStateFlow(IptvUiState())
     val uiState: StateFlow<IptvUiState> = _uiState.asStateFlow()
 
@@ -27,6 +33,8 @@ object IptvRepository {
 
     private val IPTV_ORG_URL = "https://iptv-org.github.io/iptv/index.m3u"
     private val IPTV_ORG_NAME = "iptv-org"
+    private val MJH_EPG_URL = "https://raw.githubusercontent.com/matthuisman/i.mjh.nz/master/all/epg.xml"
+    private val MJH_EPG_NAME = "i.mjh.nz EPG"
 
     private fun nextId(prefix: String): String {
         return "${prefix}_${++idCounter}_${TraktPlatformClock.nowEpochMs()}"
@@ -48,7 +56,10 @@ object IptvRepository {
             }
         }
         refreshUi()
-        refreshSports()
+        if (settings.epgSources.isNotEmpty()) {
+            loadCachedEpg()
+            refreshEpg()
+        }
     }
 
     private fun saveToStorage() {
@@ -63,7 +74,6 @@ object IptvRepository {
             saveToStorage()
             refreshUi()
             refreshM3uChannels(id)
-            refreshSports()
         }
     }
 
@@ -115,7 +125,6 @@ object IptvRepository {
             saveToStorage()
             refreshUi()
             refreshXtreamChannels(id)
-            refreshSports()
         }
     }
 
@@ -202,43 +211,67 @@ object IptvRepository {
     }
 
     fun refreshEpg() {
-        scope.launch {
-            _uiState.value = _uiState.value.copy(epgLoading = true)
-            val allPrograms = mutableMapOf<String, List<EpgProgram>>()
-            val programsByName = mutableMapOf<String, List<EpgProgram>>()
-            for (source in settings.epgSources) {
-                try {
-                    val xmlContent = httpGetText(source.url)
-                    val result = EpgParser.parseXmltv(xmlContent)
-                    allPrograms.putAll(result.programsByChannelId)
-                    for ((chId, progs) in result.programsByChannelId) {
-                        val displayName = result.channelDisplayNames[chId]
-                        if (displayName != null) {
-                            val key = displayName.lowercase().trim()
-                            programsByName.merge(key, progs) { old, new -> (old + new).sortedBy { it.startTime } }
+        epgJob?.cancel()
+        epgJob = scope.launch {
+            _uiState.value = _uiState.value.copy(epgLoading = true, epgError = null)
+            try {
+                withTimeout(180_000L) {
+                    val allPrograms = mutableMapOf<String, List<EpgProgram>>()
+                    val programsByName = mutableMapOf<String, List<EpgProgram>>()
+                    var lastError: String? = null
+                    for (source in settings.epgSources) {
+                        try {
+                            val result = EpgParser.parseXmltvStream { emit ->
+                                httpGetTextChunked(
+                                    source.url,
+                                    mapOf("Accept" to "application/xml, text/xml, */*"),
+                                ) { chunk ->
+                                    emit(chunk)
+                                    true
+                                }
+                            }
+                            allPrograms.putAll(result.programsByChannelId)
+                            for ((chId, progs) in result.programsByChannelId) {
+                                val displayName = result.channelDisplayNames[chId]
+                                if (displayName != null) {
+                                    val key = displayName.lowercase().trim()
+                                    programsByName.merge(key, progs) { old, new -> (old + new).sortedBy { it.startTime } }
+                                }
+                            }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            lastError = e.message ?: "Unknown EPG error"
                         }
                     }
-                } catch (e: Exception) {
-                    println("EPG fetch error: ${e.message}")
+                    val allCh = getAllChannels()
+                    val matchedIds = allCh.count { ch -> ch.epgChannelId != null && allPrograms.containsKey(ch.epgChannelId) }
+                    val matchedNames = allCh.count { ch ->
+                        ch.epgChannelId == null || !allPrograms.containsKey(ch.epgChannelId)
+                    }.let { total ->
+                        allCh.count { ch ->
+                            val byId = ch.epgChannelId != null && allPrograms.containsKey(ch.epgChannelId)
+                            val byName = !byId && programsByName.containsKey(ch.name.lowercase().trim())
+                            byName
+                        }
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        epgPrograms = allPrograms,
+                        epgProgramsByName = programsByName,
+                        epgLoading = false,
+                        epgError = lastError,
+                        epgMatchCount = matchedIds + matchedNames,
+                    )
+                    saveEpgCache(allPrograms, programsByName)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    epgLoading = false,
+                    epgError = if (e is kotlinx.coroutines.TimeoutCancellationException) "EPG loading timed out" else "EPG error: ${e.message}",
+                )
             }
-            val allCh = getAllChannels()
-            val matchedIds = allCh.count { ch -> ch.epgChannelId != null && allPrograms.containsKey(ch.epgChannelId) }
-            val matchedNames = allCh.count { ch ->
-                ch.epgChannelId == null || !allPrograms.containsKey(ch.epgChannelId)
-            }.let { total ->
-                allCh.count { ch ->
-                    val byId = ch.epgChannelId != null && allPrograms.containsKey(ch.epgChannelId)
-                    val byName = !byId && programsByName.containsKey(ch.name.lowercase().trim())
-                    byName
-                }
-            }
-            _uiState.value = _uiState.value.copy(
-                epgPrograms = allPrograms,
-                epgProgramsByName = programsByName,
-                epgLoading = false,
-                epgMatchCount = matchedIds + matchedNames,
-            )
         }
     }
 
@@ -310,6 +343,13 @@ object IptvRepository {
         if (!exists) {
             addM3uPlaylist(IPTV_ORG_NAME, IPTV_ORG_URL)
         }
+        val epgExists = settings.epgSources.any { it.url == MJH_EPG_URL }
+        if (!epgExists) {
+            val id = nextId("epg")
+            settings = settings.copy(epgSources = settings.epgSources + EpgSource(id = id, name = MJH_EPG_NAME, url = MJH_EPG_URL))
+            saveToStorage()
+            refreshUi()
+        }
     }
 
     fun hasPredefinedPlaylist(): Boolean =
@@ -330,69 +370,6 @@ object IptvRepository {
     }
 
     fun getLastFilteredChannels(): List<IptvChannel> = _uiState.value.channels
-
-    fun refreshSports() {
-        scope.launch {
-            var dbg = ""
-            _uiState.value = _uiState.value.copy(sportLoading = true)
-            val allCh = getAllChannels()
-            dbg += "Channels: ${allCh.size}\n"
-
-            try {
-                val espnProcessed = EspnClient.fetchAll()
-                dbg += "ESPN events: ${espnProcessed.size}\n"
-                val espnSportEvents = EspnClient.toSportEvents(espnProcessed)
-                val espnMatched = EspnClient.matchSportEventsToChannels(espnSportEvents, allCh)
-                dbg += "ESPN matches: ${espnMatched.size}\n"
-
-                val today = TraktPlatformClock.nowEpochMs()
-                val totalSeconds = today / 1000L
-                val rawDays = totalSeconds / 86400L
-                var y = 1970
-                var remaining = rawDays
-                while (remaining >= 365 + (if (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) 1 else 0)) {
-                    remaining -= 365 + (if (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) 1 else 0)
-                    y++
-                }
-                val daysInMonth = listOf(31, if (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) 29 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
-                var m = 0
-                var d = remaining
-                while (m < 12 && d >= daysInMonth[m]) { d -= daysInMonth[m]; m++ }
-                m++
-                d++
-                val dateStr = "${y}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}"
-                val tdbEvents = SportsClient.fetchTodaysEvents(dateStr)
-                dbg += "SportsDB: ${tdbEvents.size}\n"
-                val tdbMatched = EspnClient.matchSportEventsToChannels(tdbEvents, allCh)
-                dbg += "SportsDB matches: ${tdbMatched.size}\n"
-
-                try {
-                    val tvEpisodes = TvMazeClient.fetchSchedule("US")
-                    dbg += "TV episodes: ${tvEpisodes.size}\n"
-                    val tvMatched = TvMazeClient.matchToChannels(tvEpisodes, allCh)
-                    dbg += "TV matches: ${tvMatched.size}\n"
-                    val ufc = espnProcessed.filter { it.sport == "Fighting" && it.league.contains("ufc", ignoreCase = true) }
-                    dbg += "UFC events: ${ufc.size}\n"
-
-                    _uiState.value = _uiState.value.copy(
-                        sportEvents = espnMatched + tdbMatched,
-                        espnEvents = espnProcessed,
-                        tvShows = tvMatched,
-                        ufcEvents = ufc,
-                        sportLoading = false,
-                        tvLoading = false,
-                        debugText = dbg,
-                    )
-                } catch (e: Exception) {
-                    dbg += "TV/UFC error: ${e.message}\n"
-                    _uiState.value = _uiState.value.copy(sportLoading = false, debugText = dbg)
-                }
-            } catch (e: Exception) {
-                dbg += "Sports error: ${e.message}\n"
-                _uiState.value = _uiState.value.copy(sportLoading = false, debugText = dbg)
-            }
-        }
-    }
 
     private fun getAllChannels(): List<IptvChannel> {
         val m3uChannels = settings.m3uPlaylists.flatMap { it.channels }
@@ -438,14 +415,42 @@ object IptvRepository {
                 epgProgramsByName = _uiState.value.epgProgramsByName,
                 epgLoading = _uiState.value.epgLoading,
                 epgMatchCount = _uiState.value.epgMatchCount,
-                sportEvents = _uiState.value.sportEvents,
-                espnEvents = _uiState.value.espnEvents,
-                sportLoading = _uiState.value.sportLoading,
-                tvShows = _uiState.value.tvShows,
-                tvLoading = _uiState.value.tvLoading,
-                ufcEvents = _uiState.value.ufcEvents,
                 debugText = _uiState.value.debugText,
             )
+        } catch (_: Exception) { }
+    }
+
+    private fun loadCachedEpg() {
+        val cached = IptvStorage.loadEpgCache() ?: return
+        try {
+            val data = json.decodeFromString<EpgCacheData>(cached)
+            val age = TraktPlatformClock.nowEpochMs() - data.timestamp
+            if (data.timestamp > 0 && age in 0..3_600_000L) {
+                val allCh = getAllChannels()
+                val matchedIds = allCh.count { ch -> ch.epgChannelId != null && data.programsByChannelId.containsKey(ch.epgChannelId) }
+                val matchedNames = allCh.count { ch ->
+                    val byId = ch.epgChannelId != null && data.programsByChannelId.containsKey(ch.epgChannelId)
+                    val byName = !byId && data.programsByName.containsKey(ch.name.lowercase().trim())
+                    byName
+                }
+                _uiState.value = _uiState.value.copy(
+                    epgPrograms = data.programsByChannelId,
+                    epgProgramsByName = data.programsByName,
+                    epgLoading = false,
+                    epgMatchCount = matchedIds + matchedNames,
+                )
+            }
+        } catch (_: Exception) { }
+    }
+
+    private fun saveEpgCache(programs: Map<String, List<EpgProgram>>, programsByName: Map<String, List<EpgProgram>>) {
+        try {
+            val data = json.encodeToString(EpgCacheData(
+                programsByChannelId = programs,
+                programsByName = programsByName,
+                timestamp = TraktPlatformClock.nowEpochMs(),
+            ))
+            IptvStorage.saveEpgCache(data)
         } catch (_: Exception) { }
     }
 
@@ -453,6 +458,13 @@ object IptvRepository {
         applyFilters()
     }
 }
+
+@kotlinx.serialization.Serializable
+private data class EpgCacheData(
+    val programsByChannelId: Map<String, List<EpgProgram>>,
+    val programsByName: Map<String, List<EpgProgram>>,
+    val timestamp: Long,
+)
 
 @Serializable
 private data class StoredIptvSettings(

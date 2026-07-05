@@ -37,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +59,7 @@ import com.nuvio.app.features.player.skip.SkipInterval
 
 @Composable
 internal fun BoxScope.PlayerPlaybackOverlays(
+    channelOverlayTrigger: Long = 0L,
     playerControlsLocked: Boolean,
     lockedOverlayVisible: Boolean,
     playbackSnapshot: PlayerPlaybackSnapshot,
@@ -222,19 +224,12 @@ internal fun BoxScope.PlayerPlaybackOverlays(
         val hasFavorites = favoriteIds != null && favoriteIds.isNotEmpty()
         val activeOverlay = overlayMode != null
 
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = sliderEdgePadding, bottom = overlayBottomPadding + 60.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(accentPurple.copy(alpha = if (activeOverlay || showPopup) 0.9f else 0.15f))
-                .clickable { showPopup = !showPopup; if (!showPopup && !activeOverlay) overlayMode = null; searchQuery = "" }
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("CH", color = if (activeOverlay || showPopup) Color.White else onSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            Spacer(Modifier.width(4.dp))
-            Text("$currentChannelIndex", color = if (activeOverlay || showPopup) Color.White else onSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        LaunchedEffect(channelOverlayTrigger) {
+            if (channelOverlayTrigger > 0L) {
+                showPopup = !showPopup
+                if (!showPopup) overlayMode = null
+                searchQuery = ""
+            }
         }
 
         if (showPopup) {
@@ -246,9 +241,9 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = sliderEdgePadding, bottom = overlayBottomPadding + 110.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF0B1326).copy(alpha = 0.4f))
-                    .padding(4.dp),
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF0B1326).copy(alpha = 0.45f))
+                    .padding(6.dp),
             ) {
                 PopupOption("📋  Channel List", onClick = { showPopup = false; overlayMode = "list"; searchQuery = "" })
                 if (hasFavorites) PopupOption("⭐  Favorites", onClick = { showPopup = false; overlayMode = "favorites"; searchQuery = "" })
@@ -271,6 +266,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                 modifier = Modifier.align(Alignment.BottomCenter),
             ) {
                 val listState = rememberLazyListState()
+                var lastScrollTime by remember(overlayMode) { mutableStateOf(0L) }
                 LaunchedEffect(overlayMode) {
                     if (currentChannelIndex > 0 && overlayMode == "list") {
                         listState.animateScrollToItem(currentChannelIndex)
@@ -278,9 +274,27 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                 }
                 LaunchedEffect(overlayMode) {
                     if (overlayMode != null) {
-                        kotlinx.coroutines.delay(5_000)
-                        overlayMode = null
-                        searchQuery = ""
+                        lastScrollTime = System.currentTimeMillis()
+                    }
+                }
+                LaunchedEffect(overlayMode, listState) {
+                    if (overlayMode == null) return@LaunchedEffect
+                    snapshotFlow {
+                        listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+                    }.collect {
+                        lastScrollTime = System.currentTimeMillis()
+                    }
+                }
+                LaunchedEffect(overlayMode) {
+                    if (overlayMode == null) return@LaunchedEffect
+                    while (true) {
+                        delay(500)
+                        val idleMs = System.currentTimeMillis() - lastScrollTime
+                        if (idleMs >= 8_000L) {
+                            overlayMode = null
+                            searchQuery = ""
+                            break
+                        }
                     }
                 }
 
@@ -332,7 +346,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(Color(0xFF000000).copy(alpha = 0.25f))
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -344,20 +358,20 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                 },
                                 color = onSurface,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
+                                fontSize = 18.sp,
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     "${if (showingHistory) filteredHistoryIndices.size else filteredListIndices.size}",
                                     color = onSurfaceVariant.copy(alpha = 0.6f),
                                     fontWeight = FontWeight.Medium,
-                                    fontSize = 12.sp,
+                                    fontSize = 14.sp,
                                 )
-                                Spacer(Modifier.width(12.dp))
+                                Spacer(Modifier.width(16.dp))
                                 Text(
                                     "✕",
                                     color = onSurfaceVariant,
-                                    fontSize = 18.sp,
+                                    fontSize = 22.sp,
                                     modifier = Modifier.clickable { overlayMode = null; searchQuery = "" },
                                 )
                             }
@@ -366,13 +380,13 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search...", color = onSurfaceVariant.copy(alpha = 0.3f), fontSize = 13.sp) },
+                            placeholder = { Text("Search...", color = onSurfaceVariant.copy(alpha = 0.3f), fontSize = 14.sp) },
                             singleLine = true,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                            textStyle = androidx.compose.ui.text.TextStyle(color = onSurface, fontSize = 13.sp),
-                            shape = RoundedCornerShape(8.dp),
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(color = onSurface, fontSize = 14.sp),
+                            shape = RoundedCornerShape(10.dp),
                             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = accentPurple,
                                 unfocusedBorderColor = onSurfaceVariant.copy(alpha = 0.2f),
@@ -385,7 +399,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                         if (showingHistory) {
                             LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                                 if (filteredHistoryIndices.isEmpty()) {
-                                    item { Text("No history", color = onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(16.dp)) }
+                                    item { Text("No history", color = onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(20.dp)) }
                                 }
                                 filteredHistoryIndices.forEach { idx ->
                                     item(key = "hist_$idx") {
@@ -416,7 +430,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                             LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                                 if (showingFavorites) {
                                     if (filteredListIndices.isEmpty()) {
-                                        item { Text("No favorites yet", color = onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(16.dp)) }
+                                        item { Text("No favorites yet", color = onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(20.dp)) }
                                     }
                                     filteredListIndices.forEach { idx ->
                                         item(key = "fav_$idx") {
@@ -437,7 +451,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                 } else {
                                     if (favIndices.isNotEmpty()) {
                                         item {
-                                            Text("★ Favorites", color = accentPurpleLight, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                                            Text("★ Favorites", color = accentPurpleLight, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                                         }
                                         favIndices.forEach { idx ->
                                             item(key = "fav_$idx") {
@@ -454,8 +468,8 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                         }
                                         if (nonFavIndices.isNotEmpty()) {
                                             item {
-                                                HorizontalDivider(color = onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-                                                Text("All Channels", color = onSurfaceVariant.copy(alpha = 0.6f), fontWeight = FontWeight.SemiBold, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                                                HorizontalDivider(color = onSurfaceVariant.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+                                                Text("All Channels", color = onSurfaceVariant.copy(alpha = 0.6f), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
                                             }
                                         }
                                     }
@@ -474,7 +488,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                         }
                                     }
                                     if (filteredListIndices.isEmpty()) {
-                                        item { Text("No channels match \"$searchQuery\"", color = onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(16.dp)) }
+                                        item { Text("No channels match \"$searchQuery\"", color = onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(20.dp)) }
                                     }
                                 }
                             }
@@ -496,13 +510,13 @@ private fun PopupOption(text: String, onClick: () -> Unit) {
     Text(
         text = text,
         color = Color(0xFFDAE2FD),
-        fontSize = 13.sp,
+        fontSize = 14.sp,
         fontWeight = FontWeight.Medium,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 18.dp, vertical = 14.dp),
     )
 }
 
@@ -526,13 +540,13 @@ private fun ChannelListItem(
             .fillMaxWidth()
             .clickable(onClick = onTap)
             .background(if (isCurrent) selectedBg else Color.Transparent)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(28.dp)
-                .clip(RoundedCornerShape(6.dp))
+                .size(36.dp)
+                .clip(RoundedCornerShape(8.dp))
                 .background(accentPurple.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center,
         ) {
@@ -541,18 +555,18 @@ private fun ChannelListItem(
                     model = logo,
                     contentDescription = name,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(28.dp),
                 )
             } else {
-                Text("${index + 1}", color = accentPurpleLight.copy(alpha = 0.5f), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Text("${index + 1}", color = accentPurpleLight.copy(alpha = 0.5f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(12.dp))
         Text(
             text = name,
             color = if (isCurrent) accentPurpleLight else onSurface.copy(alpha = 0.85f),
             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-            fontSize = 13.sp,
+            fontSize = 15.sp,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
@@ -560,12 +574,12 @@ private fun ChannelListItem(
             Text(
                 if (isFavorite) "♥" else "♡",
                 color = if (isFavorite) Color(0xFFE91E63) else onSurfaceVariant.copy(alpha = 0.4f),
-                fontSize = 16.sp,
-                modifier = Modifier.padding(horizontal = 4.dp).clickable(onClick = onToggleFav),
+                fontSize = 20.sp,
+                modifier = Modifier.padding(horizontal = 8.dp).clickable(onClick = onToggleFav),
             )
         }
         if (isCurrent) {
-            Text("NOW", color = accentPurpleLight, fontWeight = FontWeight.Bold, fontSize = 10.sp, modifier = Modifier.padding(start = 4.dp))
+            Text("NOW", color = accentPurpleLight, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp))
         }
     }
     HorizontalDivider(color = onSurfaceVariant.copy(alpha = 0.06f))

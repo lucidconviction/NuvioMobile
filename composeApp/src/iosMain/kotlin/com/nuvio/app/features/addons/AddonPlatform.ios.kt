@@ -10,6 +10,8 @@ import io.ktor.client.request.post
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
+import io.ktor.client.request.prepareGet
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -135,6 +137,25 @@ actual suspend fun httpGetTextWithHeaders(
             }
             payload
         }
+
+actual suspend fun httpGetTextChunked(
+    url: String,
+    headers: Map<String, String>,
+    onChunk: suspend (String) -> Boolean,
+) {
+    addonHttpClient.prepareGet(url) {
+        headers.forEach { (key, value) -> header(key, value) }
+    }.execute { response ->
+        val channel = response.bodyAsChannel()
+        while (!channel.isClosedForRead) {
+            val packet = channel.readRemaining(8192)
+            if (packet != null) {
+                val text = packet.readText()
+                if (!onChunk(text)) break
+            }
+        }
+    }
+}
 
 actual suspend fun httpPostJsonWithHeaders(
     url: String,

@@ -149,8 +149,6 @@ fun IptvScreen(
 
             item { HistorySection(uiState = uiState, onPlayChannel = onPlayChannel) }
 
-            item { UfcSection(uiState = uiState, onPlayChannel = onPlayChannel) }
-
             item { PlaylistsSection(uiState = uiState, onAddClick = { showAddSourceSheet = true }) }
 
             item { SourceChipsSection(uiState = uiState) }
@@ -420,249 +418,6 @@ private fun HistorySection(
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(history.take(15), key = { "hist_" + it.id + it.sourceId }) { channel ->
                 QuickAccessCard(channel = channel, onPlay = { playChannel(channel, onPlayChannel) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun NowOnTvSection(
-    uiState: IptvUiState,
-    onPlayChannel: ((PlayerLaunch) -> Unit)?,
-) {
-    Column {
-        if (uiState.tvShows.isEmpty()) {
-            if (!uiState.tvLoading) {
-                Text("No TV matches found", color = OnSurfaceVariant.copy(alpha = 0.4f), fontSize = 11.sp)
-            }
-            return
-        }
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Text("Now on TV", color = OnSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
-        }
-        Spacer(Modifier.height(8.dp))
-
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(uiState.tvShows, key = { "tv_" + it.episode.id }) { matched ->
-                TvShowCard(matched = matched, onPlay = { playChannel(matched.channel, onPlayChannel) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun TvShowCard(matched: MatchedTvShow, onPlay: () -> Unit) {
-    val ep = matched.episode
-    val show = ep.show
-    val networkName = show?.network?.name ?: show?.webChannel?.name ?: ""
-    val parts = ep.airtime.split(":").map { it.toIntOrNull() ?: 0 }
-    val epStart = parts.getOrElse(0) { 0 } * 60 + parts.getOrElse(1) { 0 }
-    val nowMin = (TraktPlatformClock.nowEpochMs() / 60000).toInt() % 1440
-    val epEnd = epStart + (ep.runtime ?: 30).coerceIn(15, 240)
-    val isNow = nowMin in epStart until epEnd
-    Card(
-        modifier = Modifier.width(180.dp).clickable(onClick = onPlay),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceLow),
-    ) {
-        Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
-            if (show?.image?.medium != null) {
-                coil3.compose.AsyncImage(
-                    model = show.image.medium,
-                    contentDescription = show.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().align(Alignment.Center),
-                )
-            }
-            Box(modifier = Modifier.fillMaxSize().background(
-                if (show?.image?.medium != null)
-                    Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.8f)))
-                else
-                    Brush.verticalGradient(listOf(SurfaceVariant.copy(alpha = 0.3f), SurfaceLow))
-            ))
-            Box(modifier = Modifier.align(Alignment.TopStart).padding(6.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Surface(shape = RoundedCornerShape(4.dp), color = if (isNow) Color(0xFFFF0000) else NeonPurple) {
-                        Text(ep.airtime.take(5), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                    }
-                    if (isNow) {
-                        Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFFFF0000)) {
-                            Text("NOW", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
-                        }
-                    }
-                }
-            }
-            Column(modifier = Modifier.fillMaxWidth().align(Alignment.BottomStart).padding(8.dp)) {
-                Text(show?.name ?: "", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(networkName, color = OnSurfaceVariant, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (ep.name.isNotBlank()) {
-                    Text("S${ep.season}E${ep.number ?: "?"} - ${ep.name.take(20)}", color = OnSurfaceVariant.copy(alpha = 0.6f), fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun UfcSection(
-    uiState: IptvUiState,
-    onPlayChannel: ((PlayerLaunch) -> Unit)?,
-) {
-    val espnUfc = uiState.ufcEvents
-    if (espnUfc.isEmpty()) return
-
-    Column {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Text("🥊 UFC", color = OnSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
-        }
-        Spacer(Modifier.height(8.dp))
-
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(espnUfc, key = { "ufc_" + it.id }) { event ->
-                UfcCard(event = event, onPlay = {
-                    val chName = event.channel
-                    val found = IptvRepository.getLastFilteredChannels().firstOrNull { ch ->
-                        ch.name.lowercase().contains(chName.lowercase())
-                    }
-                    if (found != null) playChannel(found, onPlayChannel)
-                })
-            }
-        }
-    }
-}
-
-@Composable
-private fun UfcCard(event: EspnProcessedEvent, onPlay: () -> Unit) {
-    Card(
-        modifier = Modifier.width(220.dp).clickable(onClick = onPlay),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceLow),
-    ) {
-        Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
-            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF1A0033), SurfaceLow))))
-            Column(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.Bottom) {
-                val isLive = event.isLive
-                if (isLive) {
-                    Text("LIVE", color = Color(0xFFFF0000), fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                    Spacer(Modifier.height(4.dp))
-                }
-                Text(event.title.take(50), color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (event.homeScore != null) {
-                        Text("${event.homeTeam} vs ${event.awayTeam}", color = OnSurfaceVariant, fontSize = 11.sp)
-                    } else {
-                        Text(event.detail.take(20), color = ElectricBlueLight, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
-                    }
-                }
-                Spacer(Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(event.channel.ifBlank { event.sport }, color = OnSurfaceVariant, fontSize = 10.sp)
-                    if (event.isPpv) {
-                        Spacer(Modifier.width(4.dp))
-                        Text("PPV", color = Color(0xFFFF9800), fontWeight = FontWeight.Bold, fontSize = 8.sp,
-                            modifier = Modifier.clip(RoundedCornerShape(3.dp)).background(Color(0xFFFF9800).copy(alpha = 0.2f)).padding(horizontal = 4.dp, vertical = 1.dp))
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun LiveSportsSection(
-    uiState: IptvUiState,
-    onPlayChannel: ((PlayerLaunch) -> Unit)?,
-) {
-    Column {
-        if (uiState.sportLoading) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = NeonPurple, strokeWidth = 2.dp)
-                Spacer(Modifier.width(8.dp))
-                Text("Loading sports...", color = OnSurfaceVariant, fontSize = 12.sp)
-            }
-            return
-        }
-        if (uiState.sportEvents.isEmpty()) {
-            if (!uiState.sportLoading) {
-                Text("No sports match your channels", color = OnSurfaceVariant.copy(alpha = 0.4f), fontSize = 11.sp, modifier = Modifier.padding(vertical = 2.dp))
-            }
-            return
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF00FF00)))
-                Spacer(Modifier.width(8.dp))
-                Text("Live Sports", color = OnSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(uiState.sportEvents, key = { "sport_" + it.event.idEvent + it.channel.id }) { matched ->
-                SportEventCard(matched = matched, onPlay = { playChannel(matched.channel, onPlayChannel) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun SportEventCard(matched: MatchedSportEvent, onPlay: () -> Unit) {
-    val event = matched.event
-    val isPpv = event.strFilename == "PPV"
-    val isLive = event.strStatus == "LIVE"
-    Card(
-        modifier = Modifier.width(220.dp).clickable(onClick = onPlay),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceLow),
-    ) {
-        Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
-            if (!event.strThumb.isNullOrBlank()) {
-                coil3.compose.AsyncImage(
-                    model = event.strThumb,
-                    contentDescription = event.strEvent,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().align(Alignment.Center),
-                )
-            }
-            Box(modifier = Modifier.fillMaxSize().background(
-                if (event.strThumb.isNullOrBlank())
-                    Brush.verticalGradient(listOf(SurfaceVariant.copy(alpha = 0.3f), SurfaceLow))
-                else
-                    Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.7f)))
-            ))
-            Box(
-                modifier = Modifier.align(Alignment.TopStart).padding(6.dp),
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (isLive) {
-                        Text("LIVE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp,
-                            modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFFF0000)).padding(horizontal = 6.dp, vertical = 2.dp))
-                    }
-                    if (isPpv) {
-                        Text("PPV", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp,
-                            modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFFF9800)).padding(horizontal = 6.dp, vertical = 2.dp))
-                    }
-                }
-            }
-            Column(
-                modifier = Modifier.fillMaxWidth().align(Alignment.BottomStart).padding(8.dp),
-            ) {
-                Text(event.strSport, color = ElectricBlueLight, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 0.5.sp)
-                Spacer(Modifier.height(2.dp))
-                Text(event.strEvent.take(40), color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val score = if (!event.intHomeScore.isNullOrBlank() && !event.intAwayScore.isNullOrBlank())
-                        "${event.intHomeScore} - ${event.intAwayScore}"
-                    else event.strTime.take(8)
-                    Text(score ?: "", color = Color(0xFF00FF00), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Spacer(Modifier.width(6.dp))
-                    Text(event.strChannel, color = OnSurfaceVariant, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                }
             }
         }
     }
@@ -1045,7 +800,10 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
                     }
 
                     uiState.epgSources.forEach { source ->
-                        val matchInfo = if (!uiState.epgLoading && uiState.epgMatchCount > 0) {
+                        val epgError = uiState.epgError
+                        val matchInfo = if (epgError != null) {
+                            "⚠ $epgError"
+                        } else if (!uiState.epgLoading && uiState.epgMatchCount > 0) {
                             "${uiState.epgMatchCount} channels matched"
                         } else if (!uiState.epgLoading && uiState.epgPrograms.isNotEmpty() && uiState.epgMatchCount == 0) {
                             "No channel matches"
@@ -1053,8 +811,8 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
                         PlaylistCard(
                             name = source.name,
                             subtitle = if (matchInfo.isNotEmpty()) matchInfo else source.url,
-                            status = if (!uiState.epgLoading && uiState.epgPrograms.isNotEmpty()) "Loaded" else if (uiState.epgLoading) "Loading..." else "EPG",
-                            statusColor = if (uiState.epgLoading) OutlineVariant else if (uiState.epgPrograms.isNotEmpty()) NeonPurpleLight else OutlineVariant,
+                            status = if (uiState.epgLoading) "Loading..." else if (epgError != null) "Error" else if (uiState.epgPrograms.isNotEmpty()) "Loaded" else "EPG",
+                            statusColor = if (epgError != null) Color(0xFFEF4444) else if (uiState.epgLoading) OutlineVariant else if (uiState.epgPrograms.isNotEmpty()) NeonPurpleLight else OutlineVariant,
                             iconLabel = "EP",
                             isRefreshing = uiState.epgLoading,
                             onRefresh = { IptvRepository.refreshEpg() },

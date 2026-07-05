@@ -37,3 +37,9 @@ expect suspend fun httpRequestRaw(
     body: String,
     followRedirects: Boolean = true,
 ): RawHttpResponse
+
+expect suspend fun httpGetTextChunked(
+    url: String,
+    headers: Map<String, String>,
+    onChunk: suspend (String) -> Boolean,
+)

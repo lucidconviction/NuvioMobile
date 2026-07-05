@@ -25,24 +25,34 @@ object EpgParser {
         }
         val programs = mutableMapOf<String, MutableList<EpgProgram>>()
 
-        val programmeRegex = Regex(
-            """<programme\s+[^>]*start="([^"]+)"[^>]*stop="([^"]+)"[^>]*channel="([^"]+)"[^>]*>"""
-        )
+        val programmeTagRegex = Regex("""<programme\s+[^>]*?>""")
+        val attrRegex = Regex("""\b(start|stop|channel)="([^"]*)"""")
         val titleRegex = Regex("""<title>([^<]*)</title>""")
         val descRegex = Regex("""<desc>([^<]*)</desc>""")
         val iconRegex = Regex("""<icon\s+src="([^"]+)"""")
+        val programEndTag = "</programme>"
 
         var currentIndex = 0
         val text = xmlContent
 
         while (true) {
-            val progMatch = programmeRegex.find(text, currentIndex) ?: break
-            val startStr = progMatch.groupValues[1]
-            val stopStr = progMatch.groupValues[2]
-            val channelId = progMatch.groupValues[3]
+            val progTagMatch = programmeTagRegex.find(text, currentIndex) ?: break
+            val tagText = progTagMatch.value
+            val attrs = mutableMapOf<String, String>()
+            for (m in attrRegex.findAll(tagText)) {
+                attrs[m.groupValues[1]] = m.groupValues[2]
+            }
+            val startStr = attrs["start"] ?: ""
 
-            val blockStart = progMatch.range.last + 1
-            val blockEnd = text.indexOf("</programme>", blockStart)
+            val stopStr = attrs["stop"] ?: ""
+            val channelId = attrs["channel"] ?: ""
+            if (channelId.isBlank()) {
+                currentIndex = progTagMatch.range.last + 1
+                continue
+            }
+
+            val blockStart = progTagMatch.range.last + 1
+            val blockEnd = text.indexOf(programEndTag, blockStart)
             val block = if (blockEnd >= 0) text.substring(blockStart, blockEnd) else ""
 
             val title = titleRegex.find(block)?.groupValues?.getOrNull(1)?.trim() ?: "Unknown"
@@ -64,8 +74,133 @@ object EpgParser {
                 programs.getOrPut(channelId) { mutableListOf() }.add(program)
             }
 
-            currentIndex = if (blockEnd >= 0) blockEnd + 12 else progMatch.range.last + 1
+            currentIndex = if (blockEnd >= 0) blockEnd + 12 else progTagMatch.range.last + 1
         }
+
+        for ((_, list) in programs) {
+            list.sortBy { it.startTime }
+        }
+
+        return EpgParseResult(programsByChannelId = programs, channelDisplayNames = channelNames)
+    }
+
+    suspend fun parseXmltvStream(
+        feedChunks: suspend (suspend (String) -> Unit) -> Unit,
+    ): EpgParseResult {
+        val channelNames = mutableMapOf<String, String>()
+        val programs = mutableMapOf<String, MutableList<EpgProgram>>()
+
+        val channelRegex = Regex("""<channel\s+id="([^"]+)"[^>]*>""")
+        val displayNameRegex = Regex("""<display-name>([^<]*)</display-name>""")
+        val programmeStartRegex = Regex("""<programme\s+[^>]*?>""")
+        val attrRegex = Regex("""\b(start|stop|channel)="([^"]*)"""")
+        val titleRegex = Regex("""<title>([^<]*)</title>""")
+        val descRegex = Regex("""<desc>([^<]*)</desc>""")
+        val iconRegex = Regex("""<icon\s+src="([^"]+)"""")
+        val programEndTag = "</programme>"
+
+        val buffer = StringBuilder(131072)
+        var channelsParsed = false
+        var channelsSearchFrom = 0
+        var programmesSearchFrom = 0
+
+        suspend fun feed(chunk: String) {
+            buffer.append(chunk)
+
+            if (!channelsParsed) {
+                var searchFrom = channelsSearchFrom
+                while (true) {
+                    val match = channelRegex.find(buffer, searchFrom) ?: break
+                    val chId = match.groupValues[1]
+                    val blockStart = match.range.last + 1
+                    val blockEnd = buffer.indexOf("</channel>", blockStart)
+                    if (blockEnd < 0) {
+                        if (searchFrom == channelsSearchFrom) searchFrom = match.range.last + 1
+                        break
+                    }
+                    val block = buffer.substring(blockStart, blockEnd)
+                    val displayName = displayNameRegex.find(block)?.groupValues?.getOrNull(1)?.trim()
+                    if (displayName != null) {
+                        channelNames[chId] = displayName
+                    }
+                    searchFrom = blockEnd + 10
+                }
+                channelsSearchFrom = searchFrom
+
+                if (buffer.indexOf("<programme ", channelsSearchFrom.coerceAtMost(buffer.length - 1)) >= 0
+                    || buffer.indexOf("<programme\r", channelsSearchFrom.coerceAtMost(buffer.length - 1)) >= 0
+                    || buffer.indexOf("<programme\n", channelsSearchFrom.coerceAtMost(buffer.length - 1)) >= 0) {
+                    channelsParsed = true
+                    programmesSearchFrom = channelsSearchFrom
+                }
+            }
+
+            if (channelsParsed) {
+                var searchFrom = programmesSearchFrom
+                while (true) {
+                    val progStart = buffer.indexOf("<programme ", searchFrom)
+                    if (progStart < 0) {
+                        searchFrom = buffer.length
+                        break
+                    }
+                    val tagEnd = buffer.indexOf(">", progStart + 10)
+                    if (tagEnd < 0) {
+                        searchFrom = progStart
+                        break
+                    }
+                    val blockEnd = buffer.indexOf(programEndTag, tagEnd + 1)
+                    if (blockEnd < 0) {
+                        searchFrom = progStart
+                        break
+                    }
+
+                    val tagText = buffer.substring(progStart, tagEnd + 1)
+                    val blockText = buffer.substring(tagEnd + 1, blockEnd)
+
+                    val attrs = mutableMapOf<String, String>()
+                    for (m in attrRegex.findAll(tagText)) {
+                        attrs[m.groupValues[1]] = m.groupValues[2]
+                    }
+                    val channelId = attrs["channel"] ?: ""
+                    if (channelId.isNotBlank()) {
+                        val title = titleRegex.find(blockText)?.groupValues?.getOrNull(1)?.trim() ?: "Unknown"
+                        val description = descRegex.find(blockText)?.groupValues?.getOrNull(1)?.trim()
+                        val icon = iconRegex.find(blockText)?.groupValues?.getOrNull(1)
+                        val startTime = parseXmltvDate(attrs["start"] ?: "")
+                        val endTime = parseXmltvDate(attrs["stop"] ?: "")
+                        if (startTime > 0 && endTime > 0) {
+                            programs.getOrPut(channelId) { mutableListOf() }.add(
+                                EpgProgram(
+                                    channelId = channelId,
+                                    title = title,
+                                    description = description,
+                                    startTime = startTime,
+                                    endTime = endTime,
+                                    icon = icon,
+                                )
+                            )
+                        }
+                    }
+
+                    searchFrom = blockEnd + programEndTag.length
+                }
+                programmesSearchFrom = searchFrom
+
+                if (buffer.length > 200000) {
+                    val discardUpTo = programmesSearchFrom.coerceAtMost(channelsSearchFrom)
+                    if (discardUpTo > 100000) {
+                        val keep = buffer.substring(discardUpTo)
+                        buffer.clear()
+                        buffer.append(keep)
+                        programmesSearchFrom -= discardUpTo
+                        channelsSearchFrom = (channelsSearchFrom - discardUpTo).coerceAtLeast(0)
+                        if (programmesSearchFrom < 0) programmesSearchFrom = 0
+                    }
+                }
+            }
+        }
+
+        feedChunks(::feed)
 
         for ((_, list) in programs) {
             list.sortBy { it.startTime }
