@@ -83,6 +83,17 @@ Ghost CH button (transparent bg, accent on tap), slide-up channel list with all 
 - **US/UK/CA broadcaster map** — `SportBroadcasterMap` maps each league/sport to known broadcasters across all three regions (NFL→ESPN/FOX/NBC/Sky/TSN, PL→Sky/TNT/BBC/NBC/TSN, etc.); channel matcher checks all variants so "ESPN+" matches "ESPN Plus HD" or "ESPN+ UK"
 - **Black background** — `SurfaceBg` changed from `#0B1326` to `#000000`, surface cards tuned to `#111` / `#1A1A1A` for OLED contrast
 
+### Upstream Merge — Trakt Sync, iOS Now Playing, Sentry, OKHttp (July 2026)
+- **Trakt credential sync** — tokens sync across devices, progress watched precedence fixed
+- **iOS Now Playing** — lock screen controls with skip precision fix
+- **Sentry diagnostics** — crash/error reporting integration
+- **OKHttp client** — Android networking replaced Ktor with OKHttp
+- **Open downloads directory** — system file picker for downloaded content
+- **Additional auto-play hours** — expanded scheduling options
+- **Pagination for watched movies** — fixes Trakt watched state for large libraries
+- **Disable backup in AndroidManifest** — security hardening
+- **Greek translations** — 854 new UI strings
+
 ### Phase 13b — Source Labels Removed, Date Range -1/+5, Sports Colors Theme-Cohesive, IPTV Grayscale, EPG Removed, Infinite Play (removed)
 - **Source labels removed** — `YouTubeVideo.sourceLabel` field and all UI badges removed
 - **Date range** — changed from `-3..6` to `-1..5`
