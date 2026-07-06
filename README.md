@@ -30,13 +30,23 @@ This is a fork of [NuvioMedia/NuvioMobile](https://github.com/NuvioMedia/NuvioMo
 
 The mobile app is built from a single shared codebase in [composeApp](./composeApp), with native platform entry points for Android and iOS.
 
-## IPTV (New)
+## Screenshots
 
-Nuvio now has a built-in IPTV player with M3U and Xtream Codes support:
+<div align="center">
+  <img src="assets/screenshots/photo_2026-07-06%2015.10.32.jpeg" alt="Sports Hub" width="30%" />
+  <img src="assets/screenshots/photo_2026-07-06%2015.10.36.jpeg" alt="Sports Hub" width="30%" />
+  <img src="assets/screenshots/photo_2026-07-06%2015.10.40.jpeg" alt="Sports Hub" width="30%" />
+</div>
+<div align="center">
+  <img src="assets/screenshots/photo_2026-07-06%2015.10.43.jpeg" alt="IPTV" width="30%" />
+  <img src="assets/screenshots/photo_2026-07-06%2015.10.47.jpeg" alt="Player Controls" width="30%" />
+  <img src="assets/screenshots/photo_2026-07-06%2015.10.51.jpeg" alt="Channel Overlay" width="30%" />
+</div>
+<div align="center">
+  <img src="assets/screenshots/photo_2026-07-06%2015.10.54.jpeg" alt="IPTV" width="30%" />
+</div>
 
-### 📺 Demo
-
-https://github.com/Robbdeeze/NuvioMobile/raw/cmp-rewrite/assets/iptv-demo.mp4
+## IPTV
 
 - **12,000+ free channels** — one-tap add from iptv-org
 - **M3U playlists, Xtream Codes, Stalker Portal** — add, toggle, refresh, delete
