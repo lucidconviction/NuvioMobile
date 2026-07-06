@@ -82,17 +82,15 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
 private val ObsidianBg = Color(0xFF000000)
-private val GlassBg = Color(0xFF1E293B).copy(alpha = 0.7f)
-private val NeonPurple = Color(0xFF7C3AED)
-private val NeonPurpleLight = Color(0xFFD2BBFF)
-private val ElectricBlue = Color(0xFF00A2E6)
-private val ElectricBlueLight = Color(0xFF89CEFF)
-private val SurfaceLow = Color(0xFF131B2E)
-private val SurfaceVariant = Color(0xFF2D3449)
-private val OnSurface = Color(0xFFDAE2FD)
-private val OnSurfaceVariant = Color(0xFFCCC3D8)
-private val OutlineVariant = Color(0xFF4A4455)
-private val InputBg = Color(0xFF0F172A)
+private val GlassBg = Color(0xFF1A1A1A).copy(alpha = 0.7f)
+private val SurfaceLow = Color(0xFF111111)
+private val SurfaceVariant = Color(0xFF252525)
+private val SurfaceCard = Color(0xFF1A1A1A)
+private val OnSurface = Color(0xFFE0E0E0)
+private val OnSurfaceVariant = Color(0xFFB0B0B0)
+private val OutlineVariant = Color(0xFF3A3A3A)
+private val InputBg = Color(0xFF0F0F0F)
+private val AccentGray = Color(0xFFCCCCCC)
 private val FavoriteRed = Color(0xFFE91E63)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -119,9 +117,7 @@ fun IptvScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = {
-                    Text("IPTV", color = NeonPurpleLight, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                },
+                title = {},
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = ObsidianBg.copy(alpha = 0.8f),
                 ),
@@ -137,7 +133,7 @@ fun IptvScreen(
             if (uiState.isLoading && uiState.channels.isEmpty()) {
                 item {
                     Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = NeonPurple)
+                        CircularProgressIndicator(color = AccentGray)
                     }
                 }
                 return@LazyColumn
@@ -154,30 +150,6 @@ fun IptvScreen(
             item { SourceChipsSection(uiState = uiState) }
 
             item { CategoryChipsSection(uiState = uiState) }
-
-            if (uiState.channels.any { it.epgChannelId != null } && uiState.epgSources.isEmpty() && IptvRepository.hasPredefinedPlaylist()) {
-                item {
-                    Surface(
-                        onClick = { showAddSourceSheet = true },
-                        shape = RoundedCornerShape(12.dp),
-                        color = ElectricBlue.copy(alpha = 0.1f),
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("📺", fontSize = 16.sp)
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "Add an EPG XMLTV source to see program guide data on channels",
-                                color = OnSurfaceVariant,
-                                fontSize = 12.sp,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                    }
-                }
-            }
 
             val channels = uiState.channels
             if (channels.isEmpty()) {
@@ -220,7 +192,7 @@ fun IptvScreen(
                         item(key = "grp_$group") {
                             Text(
                                 text = group ?: "Other",
-                                color = ElectricBlueLight,
+                                color = OnSurface,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 letterSpacing = 0.5.sp,
@@ -238,8 +210,6 @@ fun IptvScreen(
                                         ChannelCard(
                                             channel = channel,
                                             now = now,
-                                            epgPrograms = channel.epgChannelId?.let { uiState.epgPrograms[it] } ?: emptyList(),
-                                            epgProgramsByName = uiState.epgProgramsByName,
                                             isFavorite = channel.id in uiState.favoriteChannelIds,
                                             onPlay = { playChannel(channel, onPlayChannel) },
                                             onToggleFavorite = { IptvRepository.toggleFavorite(channel.id) },
@@ -285,8 +255,6 @@ fun IptvScreen(
                                     ChannelCard(
                                         channel = channel,
                                         now = nowFav,
-                                        epgPrograms = channel.epgChannelId?.let { uiState.epgPrograms[it] } ?: emptyList(),
-                                        epgProgramsByName = uiState.epgProgramsByName,
                                         isFavorite = channel.id in uiState.favoriteChannelIds,
                                         onPlay = { playChannel(channel, onPlayChannel) },
                                         onToggleFavorite = { IptvRepository.toggleFavorite(channel.id) },
@@ -340,9 +308,9 @@ private fun SearchSection(searchQuery: String, onSearchQueryChange: (String) -> 
         textStyle = androidx.compose.ui.text.TextStyle(color = OnSurface, fontSize = 14.sp),
         shape = RoundedCornerShape(12.dp),
         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = NeonPurple,
+            focusedBorderColor = AccentGray,
             unfocusedBorderColor = OutlineVariant.copy(alpha = 0.3f),
-            cursorColor = NeonPurple,
+            cursorColor = AccentGray,
             focusedContainerColor = InputBg,
             unfocusedContainerColor = InputBg,
         ),
@@ -449,10 +417,10 @@ private fun QuickAccessCard(channel: IptvChannel, onPlay: () -> Unit) {
             )
             if (channel.logo.isNullOrBlank()) {
                 Box(
-                    modifier = Modifier.size(36.dp).align(Alignment.Center).clip(CircleShape).background(NeonPurple.copy(alpha = 0.2f)),
+                    modifier = Modifier.size(36.dp).align(Alignment.Center).clip(CircleShape).background(AccentGray.copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Filled.LiveTv, contentDescription = null, tint = NeonPurpleLight, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.LiveTv, contentDescription = null, tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))
                 }
             }
             Box(
@@ -462,11 +430,11 @@ private fun QuickAccessCard(channel: IptvChannel, onPlay: () -> Unit) {
             ) {
                 Column {
                     Text(text = channel.name, color = OnSurface, fontWeight = FontWeight.Medium, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(text = channel.group ?: "Live", color = ElectricBlueLight, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(text = channel.group ?: "Live", color = OnSurface, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             Box(
-                modifier = Modifier.align(Alignment.TopStart).padding(6.dp).size(6.dp).clip(CircleShape).background(ElectricBlue),
+                modifier = Modifier.align(Alignment.TopStart).padding(6.dp).size(6.dp).clip(CircleShape).background(OnSurface),
             )
         }
     }
@@ -521,7 +489,7 @@ private fun SourceChip(selected: Boolean, onClick: () -> Unit, label: String, co
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(8.dp),
-        color = if (selected) NeonPurple.copy(alpha = 0.2f) else SurfaceLow,
+        color = if (selected) AccentGray.copy(alpha = 0.2f) else SurfaceLow,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -529,7 +497,7 @@ private fun SourceChip(selected: Boolean, onClick: () -> Unit, label: String, co
         ) {
             Text(
                 text = label,
-                color = if (selected) NeonPurpleLight else OnSurfaceVariant,
+                color = if (selected) OnSurfaceVariant else OnSurfaceVariant,
                 fontWeight = FontWeight.Medium,
                 fontSize = 13.sp,
                 maxLines = 1,
@@ -539,7 +507,7 @@ private fun SourceChip(selected: Boolean, onClick: () -> Unit, label: String, co
                 Spacer(Modifier.width(4.dp))
                 Text(
                     text = "$count",
-                    color = if (selected) ElectricBlueLight else OnSurfaceVariant.copy(alpha = 0.5f),
+                    color = if (selected) OnSurface else OnSurfaceVariant.copy(alpha = 0.5f),
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp,
                 )
@@ -577,11 +545,11 @@ private fun CategoryChip(selected: Boolean, onClick: () -> Unit, label: String) 
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(999.dp),
-        color = if (selected) ElectricBlue.copy(alpha = 0.2f) else SurfaceLow,
+        color = if (selected) OnSurface.copy(alpha = 0.2f) else SurfaceLow,
     ) {
         Text(
             text = label,
-            color = if (selected) ElectricBlueLight else OnSurfaceVariant,
+            color = if (selected) OnSurface else OnSurfaceVariant,
             fontWeight = FontWeight.SemiBold,
             fontSize = 12.sp,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
@@ -593,19 +561,10 @@ private fun CategoryChip(selected: Boolean, onClick: () -> Unit, label: String) 
 private fun ChannelCard(
     channel: IptvChannel,
     now: Long,
-    epgPrograms: List<EpgProgram>,
-    epgProgramsByName: Map<String, List<EpgProgram>> = emptyMap(),
     isFavorite: Boolean,
     onPlay: () -> Unit,
     onToggleFavorite: () -> Unit,
 ) {
-    val resolvedPrograms = if (epgPrograms.isNotEmpty()) epgPrograms
-        else epgProgramsByName[channel.name.lowercase().trim()] ?: emptyList()
-    val currentProgram = resolvedPrograms.find { it.startTime <= now && it.endTime > now }
-    val nextProgram = resolvedPrograms.find { it.startTime > now }
-    val progress = if (currentProgram != null && currentProgram.endTime > currentProgram.startTime) {
-        ((now - currentProgram.startTime).toFloat() / (currentProgram.endTime - currentProgram.startTime).toFloat()).coerceIn(0f, 1f)
-    } else 0f
 
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onPlay),
@@ -634,10 +593,10 @@ private fun ChannelCard(
                 )
                 if (channel.logo.isNullOrBlank()) {
                     Box(
-                        modifier = Modifier.size(36.dp).align(Alignment.Center).clip(CircleShape).background(NeonPurple.copy(alpha = 0.2f)),
+                        modifier = Modifier.size(36.dp).align(Alignment.Center).clip(CircleShape).background(AccentGray.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(Icons.Filled.LiveTv, contentDescription = null, tint = NeonPurpleLight, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.LiveTv, contentDescription = null, tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))
                     }
                 }
                 Box(
@@ -647,7 +606,7 @@ private fun ChannelCard(
                 ) {
                     Column {
                         Text(text = channel.name, color = OnSurface, fontWeight = FontWeight.Medium, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(text = channel.group ?: "Live", color = ElectricBlueLight, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(text = channel.group ?: "Live", color = OnSurface, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
 
@@ -657,7 +616,7 @@ private fun ChannelCard(
                         .padding(6.dp)
                         .size(6.dp)
                         .clip(CircleShape)
-                        .background(ElectricBlue),
+                        .background(OnSurface),
                 )
 
                 IconButton(
@@ -671,34 +630,6 @@ private fun ChannelCard(
                         modifier = Modifier.size(18.dp),
                     )
                 }
-            }
-
-            if (currentProgram != null || nextProgram != null) {
-                Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
-                    if (currentProgram != null) {
-                        Text(
-                            text = currentProgram.title,
-                            color = OnSurface,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Box(
-                            modifier = Modifier.fillMaxWidth().height(3.dp).padding(top = 3.dp).clip(RoundedCornerShape(2.dp)).background(SurfaceVariant),
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxWidth(progress).fillMaxHeight().clip(RoundedCornerShape(2.dp))
-                                    .background(Brush.horizontalGradient(listOf(ElectricBlue, ElectricBlue.copy(alpha = 0.6f)))),
-                            )
-                        }
-                    }
-                    if (nextProgram != null && currentProgram == null) {
-                        Text("Up Next: ${nextProgram.title}", color = NeonPurpleLight, fontWeight = FontWeight.Bold, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-            } else if (channel.epgChannelId != null) {
-                Text("No EPG now", color = OnSurfaceVariant.copy(alpha = 0.4f), fontSize = 9.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
             }
         }
     }
@@ -716,13 +647,13 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (!IptvRepository.hasPredefinedPlaylist()) {
                     TextButton(onClick = { IptvRepository.addPredefinedPlaylist() }) {
-                        Text("+ iptv-org", color = NeonPurpleLight, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("+ iptv-org", color = OnSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
                 Surface(
                     onClick = onAddClick,
                     shape = RoundedCornerShape(12.dp),
-                    color = NeonPurple,
+                    color = AccentGray,
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -745,7 +676,7 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
 
         AnimatedVisibility(visible = uiState.playlistsExpanded) {
             Column {
-                if (uiState.m3uPlaylists.isEmpty() && uiState.xtreamAccounts.isEmpty() && uiState.stalkerAccounts.isEmpty() && uiState.epgSources.isEmpty()) {
+                if (uiState.m3uPlaylists.isEmpty() && uiState.xtreamAccounts.isEmpty() && uiState.stalkerAccounts.isEmpty()) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -762,7 +693,7 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
                             name = playlist.name,
                             subtitle = "${playlist.channels.size} Channels",
                             status = if (playlist.channels.isNotEmpty()) "Connected" else "Pending",
-                            statusColor = if (playlist.channels.isNotEmpty()) ElectricBlue else OutlineVariant,
+                            statusColor = if (playlist.channels.isNotEmpty()) OnSurface else OutlineVariant,
                             iconLabel = "M3U",
                             isRefreshing = playlist.id in uiState.refreshingSourceIds,
                             onRefresh = { IptvRepository.refreshM3uChannels(playlist.id) },
@@ -776,7 +707,7 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
                             name = account.name,
                             subtitle = "${account.channels.size} Channels",
                             status = if (account.channels.isNotEmpty()) "Connected" else "Pending",
-                            statusColor = if (account.channels.isNotEmpty()) ElectricBlue else OutlineVariant,
+                            statusColor = if (account.channels.isNotEmpty()) OnSurface else OutlineVariant,
                             iconLabel = "XT",
                             isRefreshing = account.id in uiState.refreshingSourceIds,
                             onRefresh = { IptvRepository.refreshXtreamChannels(account.id) },
@@ -790,7 +721,7 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
                             name = account.name,
                             subtitle = "${account.channels.size} Channels",
                             status = if (account.channels.isNotEmpty()) "Connected" else "Pending",
-                            statusColor = if (account.channels.isNotEmpty()) ElectricBlue else OutlineVariant,
+                            statusColor = if (account.channels.isNotEmpty()) OnSurface else OutlineVariant,
                             iconLabel = "SK",
                             isRefreshing = account.id in uiState.refreshingSourceIds,
                             onRefresh = { IptvRepository.refreshStalkerChannels(account.id) },
@@ -799,27 +730,6 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
                         Spacer(Modifier.height(8.dp))
                     }
 
-                    uiState.epgSources.forEach { source ->
-                        val epgError = uiState.epgError
-                        val matchInfo = if (epgError != null) {
-                            "⚠ $epgError"
-                        } else if (!uiState.epgLoading && uiState.epgMatchCount > 0) {
-                            "${uiState.epgMatchCount} channels matched"
-                        } else if (!uiState.epgLoading && uiState.epgPrograms.isNotEmpty() && uiState.epgMatchCount == 0) {
-                            "No channel matches"
-                        } else ""
-                        PlaylistCard(
-                            name = source.name,
-                            subtitle = if (matchInfo.isNotEmpty()) matchInfo else source.url,
-                            status = if (uiState.epgLoading) "Loading..." else if (epgError != null) "Error" else if (uiState.epgPrograms.isNotEmpty()) "Loaded" else "EPG",
-                            statusColor = if (epgError != null) Color(0xFFEF4444) else if (uiState.epgLoading) OutlineVariant else if (uiState.epgPrograms.isNotEmpty()) NeonPurpleLight else OutlineVariant,
-                            iconLabel = "EP",
-                            isRefreshing = uiState.epgLoading,
-                            onRefresh = { IptvRepository.refreshEpg() },
-                            onDelete = { IptvRepository.removeEpgSource(source.id) },
-                        )
-                        Spacer(Modifier.height(8.dp))
-                    }
                 }
             }
         }
@@ -853,7 +763,7 @@ private fun PlaylistCard(
                     .background(SurfaceVariant),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(iconLabel, color = NeonPurpleLight, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(iconLabel, color = OnSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
             Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -863,7 +773,7 @@ private fun PlaylistCard(
             if (isRefreshing) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
-                    color = NeonPurple,
+                    color = AccentGray,
                     strokeWidth = 2.dp,
                 )
             } else {
@@ -946,7 +856,7 @@ private fun AddSourceBottomSheet(
                 Surface(
                     onClick = { mode = "xtreme" },
                     shape = RoundedCornerShape(12.dp),
-                    color = if (mode == "xtreme") NeonPurple else Color.Transparent,
+                    color = if (mode == "xtreme") AccentGray else Color.Transparent,
                     modifier = Modifier.weight(1f),
                 ) {
                     Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
@@ -956,7 +866,7 @@ private fun AddSourceBottomSheet(
                 Surface(
                     onClick = { mode = "m3u" },
                     shape = RoundedCornerShape(12.dp),
-                    color = if (mode == "m3u") NeonPurple else Color.Transparent,
+                    color = if (mode == "m3u") AccentGray else Color.Transparent,
                     modifier = Modifier.weight(1f),
                 ) {
                     Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
@@ -964,19 +874,9 @@ private fun AddSourceBottomSheet(
                     }
                 }
                 Surface(
-                    onClick = { mode = "epg" },
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (mode == "epg") NeonPurple else Color.Transparent,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                        Text("EPG", color = if (mode == "epg") Color.White else OnSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.6.sp)
-                    }
-                }
-                Surface(
                     onClick = { mode = "stalker" },
                     shape = RoundedCornerShape(12.dp),
-                    color = if (mode == "stalker") NeonPurple else Color.Transparent,
+                    color = if (mode == "stalker") AccentGray else Color.Transparent,
                     modifier = Modifier.weight(1f),
                 ) {
                     Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
@@ -989,7 +889,6 @@ private fun AddSourceBottomSheet(
             when (mode) {
                 "xtreme" -> XtreamForm(onSuccess = onSuccess)
                 "m3u" -> M3uForm(onSuccess = onSuccess)
-                "epg" -> EpgForm(onSuccess = onSuccess)
                 "stalker" -> StalkerForm(onSuccess = onSuccess)
             }
 
@@ -1024,7 +923,7 @@ private fun XtreamForm(onSuccess: () -> Unit) {
             },
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = NeonPurple),
+            colors = ButtonDefaults.buttonColors(containerColor = AccentGray),
             enabled = name.isNotBlank() && server.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
         ) {
             Text("CONNECT SOURCE", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
@@ -1051,38 +950,10 @@ private fun M3uForm(onSuccess: () -> Unit) {
             },
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = NeonPurple),
+            colors = ButtonDefaults.buttonColors(containerColor = AccentGray),
             enabled = url.isNotBlank(),
         ) {
             Text("CONNECT SOURCE", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-        }
-    }
-}
-
-@Composable
-private fun EpgForm(onSuccess: () -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var url by remember { mutableStateOf("") }
-
-    Column {
-        InputField(label = "EPG SOURCE NAME", value = name, onValueChange = { name = it }, placeholder = "My EPG Guide")
-        Spacer(Modifier.height(16.dp))
-        InputField(label = "XMLTV URL", value = url, onValueChange = { url = it }, placeholder = "https://domain.com/epg.xmltv")
-        Spacer(Modifier.height(24.dp))
-        Button(
-            onClick = {
-                if (url.isNotBlank() && name.isNotBlank()) {
-                    IptvRepository.addEpgSource(name, url)
-                    IptvRepository.refreshEpg()
-                    onSuccess()
-                }
-            },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = NeonPurple),
-            enabled = url.isNotBlank() && name.isNotBlank(),
-        ) {
-            Text("ADD EPG SOURCE", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
         }
     }
 }
@@ -1109,7 +980,7 @@ private fun StalkerForm(onSuccess: () -> Unit) {
             },
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = NeonPurple),
+            colors = ButtonDefaults.buttonColors(containerColor = AccentGray),
             enabled = name.isNotBlank() && server.isNotBlank() && macAddress.isNotBlank(),
         ) {
             Text("CONNECT SOURCE", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
@@ -1127,7 +998,7 @@ private fun InputField(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
-        Text(label, color = NeonPurpleLight, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.6.sp)
+        Text(label, color = OnSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.6.sp)
         Spacer(Modifier.height(4.dp))
         OutlinedTextField(
             value = value,
@@ -1139,9 +1010,9 @@ private fun InputField(
             textStyle = androidx.compose.ui.text.TextStyle(color = OnSurface, fontSize = 14.sp),
             shape = RoundedCornerShape(12.dp),
             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = NeonPurple,
+                focusedBorderColor = AccentGray,
                 unfocusedBorderColor = OutlineVariant.copy(alpha = 0.3f),
-                cursorColor = NeonPurple,
+                cursorColor = AccentGray,
                 focusedContainerColor = InputBg,
                 unfocusedContainerColor = InputBg,
             ),

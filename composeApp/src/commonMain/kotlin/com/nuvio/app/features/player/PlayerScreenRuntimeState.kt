@@ -27,6 +27,7 @@ internal class PlayerScreenRuntime(
 ) {
     var args by mutableStateOf(args)
     var channelOverlayTrigger by mutableStateOf(0L)
+    var historyOverlayTrigger by mutableStateOf(0L)
 
     val title: String get() = args.title
     val profileId: Int get() = args.profileId

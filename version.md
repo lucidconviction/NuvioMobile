@@ -2,7 +2,7 @@
 
 ## Build Commands
 ```bash
-./gradlew :androidApp:assembleFullDebug -Pnuvio.android.distribution=full
+./gradlew :androidApp:assembleDebug -Pnuvio.android.distribution=full
 ./gradlew :composeApp:compileKotlinIosSimulatorArm64
 ```
 
@@ -50,7 +50,48 @@ Ghost CH button (transparent bg, accent on tap), slide-up channel list with all 
 - **Full-bleed logos** — channel logos now fill entire card as `ContentScale.Crop` background with dark gradient overlay; fallback to gradient + LiveTv icon when no logo
 - **5s overlay timeout** — popup and channel list both auto-dismiss after 5s instead of 30s
 
-## Modified Files (Phase 4–10)
+### Phase 12 — Sports Hub Maturation & NewPipeExtractor
+- **Date navigation** — horizontal date pill picker (3 days back, today + 6 ahead, "Yesterday"/"Today"/"Tomorrow" labels), all APIs refetched on tap via `?dates=YYYYMMDD`
+- **Team detail pages** — `TeamDetailScreen` with logo, name, recent results, upcoming games, tap-to-play; `TeamDetailRoute` in NavHost, team name clickable from scores & standings
+- **YouTube highlights hardened** — 5 Invidious + 3 Piped API instances as fallback chain; retry with simplified 3-keyword query; WebView player tuned (user-agent, load settings)
+- **Dual MMA paths** — both `mma/*` and `fighting/*` queried for UFC/PFL/Bellator/boxing; fallback competitor matching when `homeAway` empty
+- **Background refresh** — `isLoading` only on first load (kept data stays visible during auto-refresh)
+- **Timezone fix** — `localTimezoneOffsetMs()` in `TraktPlatformClock` shows correct local dates
+- **Trending News** — always visible, preserves previous news on fetch failure, placeholder card when empty
+- **Fixed LazyColumn sluggishness** — `if/else` chain instead of `return@LazyColumn` early exits for stable indices
+- **Fixed StandaloneCoroutine cancel** — `CancellationException` caught before generic handler
+- **NewPipeExtractor integration** — `com.github.TeamNewPipe:NewPipeExtractor:v0.26.3` added via JitPack; Android uses `SearchExtractor` with OkHttp `Downloader` to search YouTube directly (no API key); iOS falls back to Invidious/Piped
+
+### Phase 11 — EPG Crash Fix, Touch-Friendly Overlay & Sports Tab Redesign
+- **EPG OOM crash fix** — streaming XML parser (`parseXmltvStream`) using `httpGetTextChunked` with <200KB buffer, replacing the 26MB String load that caused OOM; `withTimeout(180s)` wrapper; stale job cancellation before re-fetch
+- **EPG file-based cache** — `IptvStorage.saveEpgCache()` / `loadEpgCache()` using platform file APIs (not SharedPreferences, which has 2MB limit); 1hr TTL, loaded on startup so EPG is available immediately
+- **Channel overlay bigger & touch-friendly** — bump logos 36dp, list items 44dp+, font 13→15sp, popup 14dp padding, CH pill button larger
+- **Sports tab rewrite (MMA-first)**:
+  - Full ESPN API integration: 12 sports via `EspnClient.fetchAll()`, news via `EspnNewsClient.fetchNews()`
+  - MMA section first (UFC/boxing/PFL/Bellator grouped under "Fighting")
+  - Live scores horizontal scroll (pulse animation, neon green winners)
+  - Trending news feed (ESPN API, thumbnails, category chips per article)
+  - Highlights bento grid (featured 16:9 + two square tiles)
+  - Stats & Standings section per league
+  - Tap-to-play: score cards and highlight tiles match events to IPTV channels via `EspnClient.matchSportEventsToChannels()` → `PlayerLaunch` → `onPlayChannel`
+  - Auto-refresh every 60s; refresh button in top bar
+  - Standalone Sports tab in bottom navigation (not inside IPTV)
+- **Fix MMA API paths** — changed `fighting/ufc` → `mma/ufc` etc. (ESPN returns 400 for `fighting/*`); `mma` → `Fighting` label mapping
+- **Sports tab icon** — new `sidebar_sports.xml` (trophy) replaces shared `sidebar_iptv` icon
+- **Channel picker on tap** — `EspnClient.findAllMatchingChannels()` returns ALL matching channels; single match plays directly, multiple matches show `ChannelPickerDialog`
+- **Multi-source aggregation** — fetches from both ESPN `fetchAll()` and TheSportsDB `fetchTodaysEvents()` in parallel, merges deduplicated by ID; `SportEvent.toEspnProcessedEvent()` converter
+- **US/UK/CA broadcaster map** — `SportBroadcasterMap` maps each league/sport to known broadcasters across all three regions (NFL→ESPN/FOX/NBC/Sky/TSN, PL→Sky/TNT/BBC/NBC/TSN, etc.); channel matcher checks all variants so "ESPN+" matches "ESPN Plus HD" or "ESPN+ UK"
+- **Black background** — `SurfaceBg` changed from `#0B1326` to `#000000`, surface cards tuned to `#111` / `#1A1A1A` for OLED contrast
+
+### Phase 13b — Source Labels Removed, Date Range -1/+5, Sports Colors Theme-Cohesive, IPTV Grayscale, EPG Removed, Infinite Play (removed)
+- **Source labels removed** — `YouTubeVideo.sourceLabel` field and all UI badges removed
+- **Date range** — changed from `-3..6` to `-1..5`
+- **Sports colors** — hardcoded hex constants replaced with `@Composable get()` delegates to `MaterialTheme.colorScheme.*`
+- **IPTV grayscale theme** — replaced all purple/neon colors (`NeonPurple`/`ElectricBlue`) with grayscale (`AccentGray`/`OnSurface`/`SurfaceVariant`)
+- **EPG removed** — EPG promotion banner, program display, source list, EPG tab, and EpgForm all removed from IPTV
+- **Infinite Play (removed)** — experimental auto-loop feature was removed after testing
+
+## Modified Files (Phase 4–13b)
 - `PlayerModels.kt` — channel data, history fields
 - `PlayerScreenArgs.kt` — iptv + history params
 - `PlayerScreen.kt` — plumb params
@@ -64,3 +105,27 @@ Ghost CH button (transparent bg, accent on tap), slide-up channel list with all 
 - `StalkerClient.kt` — Stalker Portal API client
 - `SportsClient.kt` — NEW: TheSportsDB API client
 - `SportsModels.kt` — NEW: SportEvent/MatchedSportEvent models
+- `EpgParser.kt` — NEW: streaming `parseXmltvStream()` method (<200KB buffer)
+- `AddonPlatform.kt` — NEW: `httpGetTextChunked()` suspend fun (Android: OkHttp streaming, iOS: Ktor `bodyAsChannel`)
+- `IptvStorage.kt` — NEW: `saveEpgCache()` / `loadEpgCache()` platform file I/O
+- `EspnClient.kt` — NEW: ESPN sports API client (12 leagues, matchSportEventsToChannels)
+- `EspnNewsClient.kt` — NEW: ESPN news API client
+- `EspnNewsModels.kt` — NEW: EspnNewsArticle / EspnNewsResponse models
+- `SportsScreen.kt` — NEW: full sports hub UI (scores, news, highlights, tap-to-play)
+- `SportsRepository.kt` — NEW: sports data layer
+- `SportsModels.kt` — NEW: SportsUiState
+- `App.kt` — SportsTab in AppScreenTab, onPlayChannel wiring
+- `IptvRepository.kt` — `getAllChannels()` made public
+- `sidebar_sports.xml` — NEW: trophy icon for Sports tab
+- `EspnClient.kt` — `findAllMatchingChannels()`, `SportBroadcasterMap` (US/UK/CA per-league)
+- `SportsRepository.kt` — TheSportsDB integration, parallel fetch, date formatting, merge/dedup
+
+### Phase 13 — Search, Date-Switch Optimization, Trending Videos, Cache, Pull-to-Refresh
+- **League-level highlight searches** — `buildLeagueQueries()` extracts unique leagues from events and generates queries like "NFL today highlights" / "UFC yesterday highlights", searched alongside event-specific queries; results merged and deduplicated by videoId
+- **Pull-to-refresh** — replaced top-bar Refresh button with `PullToRefreshBox` wrapping the LazyColumn; pull down triggers `SportsRepository.refresh()`
+- **ESPN response cache** — in-memory `cachedEvents`/`cachedNews`/`cachedHighlights`/`cachedStandings`/`cachedTrendingVideos`; initial load shows cached snapshot instantly while network fetch runs in background
+- **Highlight sport filter** — `HighlightVideosSection` checks both `eventMap[eventId]?.sport` and `highlight.sport` (for league-level entries without event mapping) against the selected sport chip
+- **Source labels on highlights** — `YouTubeVideo.sourceLabel` set to `"NewPipe"`, `"Invidious"`, or `"Piped"` based on which source returned results; displayed as badge next to channel name
+- **Trending News → YouTube videos** — replaced ESPN text article news with video cards from YouTube (7 sports news queries, first to return results wins); cards match highlight card style with thumbnail, play overlay, title, channel, source label; tapping plays in ExoPlayer via `YouTubeStreamResolver`
+- **Date-switching performance** — on date switch: (1) stale data stays visible (no spinner flash), (2) date-independent data (news/trending videos) is NOT re-fetched, (3) `perDateEventCache` map stores events per date so revisiting is instant, (4) after loading a date, adjacent dates D-1 and D+1 are pre-fetched in background
+- **Sports search bar** — `OutlinedTextField` below date pills with search/close icons; searches YouTube via `YouTubeHighlightClient.searchHighlights(query)` AND filters loaded ESPN events by team name/league/title; results shown as video cards + matched event cards in a dedicated `SearchResultsSection`; clear button resets results

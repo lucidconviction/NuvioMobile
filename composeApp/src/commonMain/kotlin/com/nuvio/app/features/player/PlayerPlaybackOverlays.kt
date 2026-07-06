@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +62,7 @@ import com.nuvio.app.features.player.skip.SkipInterval
 @Composable
 internal fun BoxScope.PlayerPlaybackOverlays(
     channelOverlayTrigger: Long = 0L,
+    historyOverlayTrigger: Long = 0L,
     playerControlsLocked: Boolean,
     lockedOverlayVisible: Boolean,
     playbackSnapshot: PlayerPlaybackSnapshot,
@@ -211,7 +214,6 @@ internal fun BoxScope.PlayerPlaybackOverlays(
     }
 
     if (channelNames != null && channelUrls != null && onSwitchChannel != null && !playerControlsLocked) {
-        var showPopup by remember { mutableStateOf(false) }
         var overlayMode by remember { mutableStateOf<String?>(null) }
         var searchQuery by remember { mutableStateOf("") }
         val accentPurple = Color(0xFF7C3AED)
@@ -222,36 +224,22 @@ internal fun BoxScope.PlayerPlaybackOverlays(
 
         val hasHistory = historyNames != null && historyNames.isNotEmpty()
         val hasFavorites = favoriteIds != null && favoriteIds.isNotEmpty()
-        val activeOverlay = overlayMode != null
 
         LaunchedEffect(channelOverlayTrigger) {
             if (channelOverlayTrigger > 0L) {
-                showPopup = !showPopup
-                if (!showPopup) overlayMode = null
+                overlayMode = "list"
                 searchQuery = ""
             }
         }
 
-        if (showPopup) {
-            LaunchedEffect(showPopup) {
-                kotlinx.coroutines.delay(5_000)
-                showPopup = false
-            }
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = sliderEdgePadding, bottom = overlayBottomPadding + 110.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF0B1326).copy(alpha = 0.45f))
-                    .padding(6.dp),
-            ) {
-                PopupOption("📋  Channel List", onClick = { showPopup = false; overlayMode = "list"; searchQuery = "" })
-                if (hasFavorites) PopupOption("⭐  Favorites", onClick = { showPopup = false; overlayMode = "favorites"; searchQuery = "" })
-                if (hasHistory) PopupOption("🕐  History", onClick = { showPopup = false; overlayMode = "history"; searchQuery = "" })
+        LaunchedEffect(historyOverlayTrigger) {
+            if (historyOverlayTrigger > 0L) {
+                overlayMode = "history"
+                searchQuery = ""
             }
         }
 
-        if (activeOverlay) {
+        if (overlayMode != null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -260,7 +248,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
             )
 
             AnimatedVisibility(
-                visible = activeOverlay,
+                visible = overlayMode != null,
                 enter = slideInVertically { it } + fadeIn(),
                 exit = slideOutVertically { it } + fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter),
@@ -535,11 +523,15 @@ private fun ChannelListItem(
     onSurfaceVariant: Color,
     selectedBg: Color,
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+    val focusBg = accentPurple.copy(alpha = 0.25f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .onFocusChanged { isFocused = it.isFocused }
+            .then(if (isFocused) Modifier.border(2.dp, accentPurple.copy(alpha = 0.6f), RoundedCornerShape(12.dp)) else Modifier)
             .clickable(onClick = onTap)
-            .background(if (isCurrent) selectedBg else Color.Transparent)
+            .background(if (isCurrent) selectedBg else if (isFocused) focusBg else Color.Transparent)
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -547,7 +539,7 @@ private fun ChannelListItem(
             modifier = Modifier
                 .size(36.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(accentPurple.copy(alpha = 0.15f)),
+                .background(if (isFocused) accentPurple.copy(alpha = 0.35f) else accentPurple.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center,
         ) {
             if (!logo.isNullOrBlank()) {

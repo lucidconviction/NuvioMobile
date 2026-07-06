@@ -10,4 +10,7 @@ internal actual object TraktPlatformClock {
             ?: parseTraktIsoDateTimeToEpochMs(value)
 
     actual fun availableProcessors(): Int = Runtime.getRuntime().availableProcessors()
+
+    actual fun localTimezoneOffsetMs(): Long =
+        java.util.TimeZone.getDefault().getOffset(System.currentTimeMillis()).toLong()
 }

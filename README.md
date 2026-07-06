@@ -20,11 +20,13 @@
 This is a fork of [NuvioMedia/NuvioMobile](https://github.com/NuvioMedia/NuvioMobile) with a focus on adding a full-featured IPTV player. The original project is a Kotlin Multiplatform rewrite of the React Native app — a modern media hub for Android and iOS with Stremio addon ecosystem integration, playback, collection tools, watch progress, and downloads.
 
 **What this fork adds:**
-- IPTV player tab with M3U playlist and Xtream Codes API support
+- IPTV player tab with M3U, Xtream Codes, and Stalker Portal support
 - Built-in iptv-org source (12,000+ free channels)
 - In-player channel overlay with search, favorites, history, and one-tap switching
-- EPG (XMLTV) with inline now/next programs and name-based channel matching
 - Multi-source selection, collapsible groups, channel favorites, and playback history
+- Sports Hub tab with ESPN + TheSportsDB integration, YouTube highlights, live scores, standings
+- YouTube streaming via NewPipeExtractor (Android) with Invidious/Piped fallback
+- Pull-to-refresh, per-date event caching, sports search bar
 
 The mobile app is built from a single shared codebase in [composeApp](./composeApp), with native platform entry points for Android and iOS.
 

@@ -11,4 +11,7 @@ internal actual object TraktPlatformClock {
 
     @OptIn(kotlin.experimental.ExperimentalNativeApi::class)
     actual fun availableProcessors(): Int = kotlin.native.Platform.getAvailableProcessors()
+
+    actual fun localTimezoneOffsetMs(): Long =
+        (platform.Foundation.NSTimeZone.localTimeZone.secondsFromGMT.toLong() * 1000)
 }

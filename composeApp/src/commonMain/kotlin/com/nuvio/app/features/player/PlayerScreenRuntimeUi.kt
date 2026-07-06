@@ -227,6 +227,7 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                 refreshTracks()
                 showAudioModal = true
             },
+            onHistoryClick = if (args.parentMetaId == "iptv") { { historyOverlayTrigger++ } } else null,
             onVideoSettingsClick = if (isIos) {
                 {
                     showVideoSettingsModal = true
@@ -321,6 +322,7 @@ private fun BoxScope.RenderPlaybackOverlays(
 
         PlayerPlaybackOverlays(
             channelOverlayTrigger = channelOverlayTrigger,
+            historyOverlayTrigger = historyOverlayTrigger,
             playerControlsLocked = playerControlsLocked,
             lockedOverlayVisible = lockedOverlayVisible,
             playbackSnapshot = playbackSnapshot,

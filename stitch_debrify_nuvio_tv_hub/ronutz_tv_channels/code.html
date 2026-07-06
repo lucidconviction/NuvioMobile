@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RoNutz TV Channels - Discovery</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #000000;
+      color: #e5e2e1;
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .glass-panel {
+      background: rgba(18, 18, 18, 0.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(30, 30, 30, 1);
+    }
+
+    .channel-card-hover:hover {
+      border-color: #ffffff;
+      transform: scale(1.02);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+      height: 2px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #333333;
+      border-radius: 10px;
+    }
+
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+    }
+  </style>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+                  "error-container": "#93000a",
+                  "background": "#131313",
+                  "on-error": "#690005",
+                  "primary-fixed-dim": "#c6c6c7",
+                  "surface-container-lowest": "#0e0e0e",
+                  "surface-container-low": "#1c1b1b",
+                  "on-surface": "#e5e2e1",
+                  "surface-dim": "#131313",
+                  "outline-variant": "#444748",
+                  "secondary-container": "#474747",
+                  "surface": "#131313",
+                  "inverse-surface": "#e5e2e1",
+                  "tertiary-fixed": "#e5e2e1",
+                  "secondary-fixed": "#e4e2e1",
+                  "secondary-fixed-dim": "#c8c6c6",
+                  "error": "#ffb4ab",
+                  "on-error-container": "#ffdad6",
+                  "surface-container-highest": "#353534",
+                  "surface-bright": "#393939",
+                  "on-tertiary-fixed-variant": "#474746",
+                  "outline": "#8e9192",
+                  "tertiary": "#ffffff",
+                  "on-secondary-fixed-variant": "#474747",
+                  "on-primary-container": "#636565",
+                  "on-primary-fixed-variant": "#454747",
+                  "inverse-on-surface": "#313030",
+                  "on-background": "#e5e2e1",
+                  "on-secondary": "#303030",
+                  "tertiary-fixed-dim": "#c8c6c5",
+                  "on-tertiary-fixed": "#1b1b1c",
+                  "surface-variant": "#353534",
+                  "surface-container": "#201f1f",
+                  "primary-fixed": "#e2e2e2",
+                  "primary-container": "#e2e2e2",
+                  "on-tertiary-container": "#656464",
+                  "on-secondary-fixed": "#1b1c1c",
+                  "surface-tint": "#c6c6c7",
+                  "primary": "#ffffff",
+                  "on-tertiary": "#303030",
+                  "inverse-primary": "#5d5f5f",
+                  "secondary": "#c8c6c6",
+                  "surface-container-high": "#2a2a2a",
+                  "on-secondary-container": "#b6b5b4",
+                  "tertiary-container": "#e5e2e1",
+                  "on-primary-fixed": "#1a1c1c",
+                  "on-surface-variant": "#c4c7c8",
+                  "on-primary": "#2f3131"
+          },
+          "borderRadius": {
+                  "DEFAULT": "0.125rem",
+                  "lg": "0.25rem",
+                  "xl": "0.5rem",
+                  "full": "0.75rem"
+          },
+          "spacing": {
+                  "gutter-mobile": "16px",
+                  "margin-mobile": "20px",
+                  "container-max": "1440px",
+                  "unit": "8px",
+                  "margin-desktop": "64px",
+                  "gutter-desktop": "24px"
+          },
+          "fontFamily": {
+                  "display-lg": ["Inter"],
+                  "headline-md": ["Inter"],
+                  "headline-lg-mobile": ["Inter"],
+                  "headline-lg": ["Inter"],
+                  "label-sm": ["Inter"],
+                  "label-md": ["Inter"],
+                  "body-md": ["Inter"],
+                  "body-lg": ["Inter"]
+          },
+          "fontSize": {
+                  "display-lg": ["72px", {"lineHeight": "80px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                  "headline-md": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                  "headline-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                  "headline-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                  "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                  "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                  "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                  "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background selection:bg-primary selection:text-background">
+<!-- Top Bar -->
+<header class="sticky top-0 w-full z-50 bg-background/60 backdrop-blur-md dark:bg-background/60 flex justify-between items-center h-14 px-margin-mobile md:px-margin-desktop">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary cursor-pointer" data-icon="menu">menu</span>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile font-bold tracking-tighter text-primary">RoNutz TV Channels</h1>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:opacity-80 transition-opacity duration-300" data-icon="search">search</span>
+<span class="material-symbols-outlined text-primary cursor-pointer hover:opacity-80 transition-opacity duration-300" data-icon="account_circle">account_circle</span>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="pb-24 pt-4 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+<!-- Filter Bar -->
+<nav class="flex items-center gap-3 overflow-x-auto no-scrollbar py-4 mb-8 sticky top-14 bg-background z-40">
+<button class="px-6 py-2 rounded-full bg-primary text-background font-label-md text-label-md whitespace-nowrap">All</button>
+<button class="px-6 py-2 rounded-full border border-outline-variant/30 text-on-surface-variant font-label-md text-label-md whitespace-nowrap hover:border-primary transition-colors">Sci-Fi</button>
+<button class="px-6 py-2 rounded-full border border-outline-variant/30 text-on-surface-variant font-label-md text-label-md whitespace-nowrap hover:border-primary transition-colors">Action</button>
+<button class="px-6 py-2 rounded-full border border-outline-variant/30 text-on-surface-variant font-label-md text-label-md whitespace-nowrap hover:border-primary transition-colors">Documentary</button>
+<button class="px-6 py-2 rounded-full border border-outline-variant/30 text-on-surface-variant font-label-md text-label-md whitespace-nowrap hover:border-primary transition-colors">Comedy</button>
+<button class="px-6 py-2 rounded-full border border-outline-variant/30 text-on-surface-variant font-label-md text-label-md whitespace-nowrap hover:border-primary transition-colors">Horror</button>
+</nav>
+<!-- Channel Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-gutter-mobile md:gap-gutter-desktop">
+<!-- Card 1 -->
+<article class="group flex flex-col bg-surface-container-low border border-outline-variant/20 rounded-lg overflow-hidden channel-card-hover cursor-pointer">
+<div class="relative aspect-video overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A cinematic still from a classic film noir movie, featuring high-contrast shadows, a detective in a trench coat standing under a flickering streetlight, and misty city streets. The image is rendered in deep obsidian blacks and silvery highlights, evoking a premium, theater-like atmosphere typical of a high-end media platform." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFwypiyweFwma2YyeodZ-GfxYy2JyRLps1Nyo5F9mzIQYztnMKd7EihNd0atO6R_Ks5FzEnWzGicUK9G8jMJKevWsjNiXNbW9xhqTeVronPOppRvEEzSciZChz7Rj30_i51wA6oodFtC0oyAWS8hOwTN_TSo8YYsuINFIqbeDj276gK5a9dYAQLzND_J4Q2ByG69Wgp18_AVcLiqWmEO9hFyDhcCoJ_lq5s2Y4-2L1f881e3EKOZO7eQlRRLbRasa0PpJlQ5U5w7SZ"/>
+<div class="absolute top-3 left-3 bg-error-container text-white px-2 py-0.5 rounded-sm font-label-sm text-[10px] tracking-widest flex items-center gap-1 uppercase font-bold shadow-lg">
+<span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
+          </div>
+</div>
+<div class="p-4 flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<h3 class="font-headline-md text-body-lg text-primary truncate">Retro Cinema</h3>
+<span class="font-label-sm text-outline">CH 102</span>
+</div>
+<p class="font-body-md text-on-surface-variant line-clamp-1">The Big Sleep (1946)</p>
+<div class="mt-2 space-y-1">
+<div class="w-full h-0.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="bg-primary h-full w-3/4"></div>
+</div>
+<div class="flex justify-between font-label-sm text-[10px] text-outline-variant uppercase tracking-tighter">
+<span>01:15:00</span>
+<span>02:00:00</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 2 -->
+<article class="group flex flex-col bg-surface-container-low border border-outline-variant/20 rounded-lg overflow-hidden channel-card-hover cursor-pointer">
+<div class="relative aspect-video overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A futuristic news broadcast studio with holographic data displays and sleek obsidian surfaces. A professional anchor sits behind a glowing translucent desk. The lighting is dominated by cool cyan and stark white accents against a deep dark background, creating a sense of sophisticated, modern media production." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD23pf3MKW1KZs8svgtWFY4qiEdAAi5qQ845WwxEH3hHjA5zRZjB80hI-ThfTwrotUxplsr8DoBhvkai73DfdFqp0sf5xe0fV1uZ7vF1xzhm0ElDmLq-9nJV5xim6iq0XEu2ylccu87FwrXdmG5wWma6PttvAtinq2-Z5w2kGnVvLIJLvwKVdvzFk9b3nco5RiotN9Aszh0vYcwswqlkkuQT4lTFi5F0yyAvUbdzkl2PxVtqz3uOFHVTRRhCaKvXA7R1ugJndbzaSYF"/>
+<div class="absolute top-3 left-3 bg-error-container text-white px-2 py-0.5 rounded-sm font-label-sm text-[10px] tracking-widest flex items-center gap-1 uppercase font-bold shadow-lg">
+<span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
+          </div>
+</div>
+<div class="p-4 flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<h3 class="font-headline-md text-body-lg text-primary truncate">Pulse 24</h3>
+<span class="font-label-sm text-outline">CH 001</span>
+</div>
+<p class="font-body-md text-on-surface-variant line-clamp-1">Global Market Update: Tech Surge</p>
+<div class="mt-2 space-y-1">
+<div class="w-full h-0.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="bg-primary h-full w-1/4"></div>
+</div>
+<div class="flex justify-between font-label-sm text-[10px] text-outline-variant uppercase tracking-tighter">
+<span>08:45 AM</span>
+<span>09:30 AM</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 3 -->
+<article class="group flex flex-col bg-surface-container-low border border-outline-variant/20 rounded-lg overflow-hidden channel-card-hover cursor-pointer">
+<div class="relative aspect-video overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A breathtaking nature documentary shot showing a snow leopard prowling through the rugged, misty peaks of the Himalayas at twilight. The lighting is atmospheric and cinematic, with deep purples and blues in the shadows and a soft silvery glow on the snow. The visual style is ultra-high-definition and serene." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBom6trFKWGoC8_ppPxHX6DOG3Xpa9VV8Vq50xVgMB0ysHS98v5fHgn4huJeI593waLYGZavWjJ1h4JuXSPYGJ0UmyI1cFh_acOZGJzjHAtiX5MqSCJCIkSIuDl-c6Ti3WWAeCQN71V6yakXtlZ4MGjRxA757VyrMVpjbT-LArzaTJim5V5RI8_RMFjYLB3UST0rJeZoR0JHPNTF99hiIJWVOcLE43iJz5a5xwitE24upMGQbn05cj-pWmfmqVL0akyfk8KOLggBb6"/>
+<div class="absolute top-3 left-3 bg-error-container text-white px-2 py-0.5 rounded-sm font-label-sm text-[10px] tracking-widest flex items-center gap-1 uppercase font-bold shadow-lg">
+<span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
+          </div>
+</div>
+<div class="p-4 flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<h3 class="font-headline-md text-body-lg text-primary truncate">Wild Sphere</h3>
+<span class="font-label-sm text-outline">CH 245</span>
+</div>
+<p class="font-body-md text-on-surface-variant line-clamp-1">Guardians of the High Peaks</p>
+<div class="mt-2 space-y-1">
+<div class="w-full h-0.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="bg-primary h-full w-1/2"></div>
+</div>
+<div class="flex justify-between font-label-sm text-[10px] text-outline-variant uppercase tracking-tighter">
+<span>00:30:15</span>
+<span>01:00:00</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 4 -->
+<article class="group flex flex-col bg-surface-container-low border border-outline-variant/20 rounded-lg overflow-hidden channel-card-hover cursor-pointer">
+<div class="relative aspect-video overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="An intense sci-fi scene featuring a massive, dark spaceship engine room filled with glowing orange plasma conduits and floating debris. The lighting is dramatic and moody, utilizing high-contrast obsidian surfaces and warm mechanical glows. The aesthetic is gritty yet premium, perfect for a cinematic sci-fi channel." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD101gm8Yo1_Zggp6e_IH74tbAy4urREUx5LcU7ji_tTLbl_bhNh1US8PjSRuetQHbGbWCSJySoLHSXKATinB0H59wFgydkePm-iMLwZ2QER32mXQkrlcd3JC925V26edKIh7ksiQWhv86_oayWLwHmEIp8Oi-Zj0DWXTK9Br10O5VpzQdQlby7AatNv4CBC3FgNue_LbtuJCWjYYD7_C5N6fF4oTTTEtjccwK5bjYoO3LhKeVFGmTUf2XhJpWOFDInww2UMy0m2SfL"/>
+<div class="absolute top-3 left-3 bg-error-container text-white px-2 py-0.5 rounded-sm font-label-sm text-[10px] tracking-widest flex items-center gap-1 uppercase font-bold shadow-lg">
+<span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
+          </div>
+</div>
+<div class="p-4 flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<h3 class="font-headline-md text-body-lg text-primary truncate">Nebula Prime</h3>
+<span class="font-label-sm text-outline">CH 509</span>
+</div>
+<p class="font-body-md text-on-surface-variant line-clamp-1">The Void Beyond: Season 4</p>
+<div class="mt-2 space-y-1">
+<div class="w-full h-0.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="bg-primary h-full w-5/6"></div>
+</div>
+<div class="flex justify-between font-label-sm text-[10px] text-outline-variant uppercase tracking-tighter">
+<span>00:52:00</span>
+<span>01:00:00</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 5 -->
+<article class="group flex flex-col bg-surface-container-low border border-outline-variant/20 rounded-lg overflow-hidden channel-card-hover cursor-pointer">
+<div class="relative aspect-video overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A dark comedy stage set in a dimly lit, smoky jazz club with a single bright spotlight hitting a microphone stand. The background is a textured brick wall with deep shadows. The color palette is strictly monochrome with warm amber light, creating an intimate and sophisticated atmospheric vibe." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvfMjWPvbS3t6mhY9rBMpE6Y6mHBbMm9VgZYeO_vHZBYvBBtHxloOmpsXZDtSRFK513xLVpZIJcL3fFqs5HMbggOCHDBeaQEonfcUXhmMGp7yP82GbX9ZMY0qJVKLH5Gob0tLWZBQ5F6kdoeoSBNbyGoVJNsZnKaGp71P8umHA_DkkAvjHoI8y-UF3XBrOWqnhaK-XesiIbgR53NdmkRsTYTS-tC6oNrea9HIKcd90rfFX237QMNG6mgY_yw9FzgPxIhbqdy2YcBVM"/>
+<div class="absolute top-3 left-3 bg-error-container text-white px-2 py-0.5 rounded-sm font-label-sm text-[10px] tracking-widest flex items-center gap-1 uppercase font-bold shadow-lg">
+<span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
+          </div>
+</div>
+<div class="p-4 flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<h3 class="font-headline-md text-body-lg text-primary truncate">Laugh Lab</h3>
+<span class="font-label-sm text-outline">CH 88</span>
+</div>
+<p class="font-body-md text-on-surface-variant line-clamp-1">Late Night Unfiltered</p>
+<div class="mt-2 space-y-1">
+<div class="w-full h-0.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="bg-primary h-full w-2/5"></div>
+</div>
+<div class="flex justify-between font-label-sm text-[10px] text-outline-variant uppercase tracking-tighter">
+<span>00:18:00</span>
+<span>00:45:00</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 6 -->
+<article class="group flex flex-col bg-surface-container-low border border-outline-variant/20 rounded-lg overflow-hidden channel-card-hover cursor-pointer">
+<div class="relative aspect-video overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A haunting horror movie visual featuring a dark, overgrown Victorian mansion silhouette against a massive, pale full moon. Wisps of fog curl around the wrought iron gates in the foreground. The lighting is eerie and high-contrast, with deep obsidian blacks and ghostly white highlights, embodying a cinematic noir style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDwT0pGKZUTYQNQOq0zW3YS7a3DaFtx03JDHYNgfD2x7Ev-J2R9T23ufhcKWu0ZqRI_w0Qe_AcoKZqXfGAO92eexWGhUW2jHOVKHJtemj0q1gQ45ZKjP62ng7Cr4i-fFG7nothYWNEcmmHzMREiQmA5UwfIUBKSk9lXkskQWCUPHPSlsxeXQpC5c6HpS9BMbm-a7ggw_zOfAWoB-ODh_mMAWDkzrRjOaMm4wJWagYT5gvUhiAeHpGuT-1yhpnUwtGuRrvVde_VPdV-d"/>
+<div class="absolute top-3 left-3 bg-error-container text-white px-2 py-0.5 rounded-sm font-label-sm text-[10px] tracking-widest flex items-center gap-1 uppercase font-bold shadow-lg">
+<span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
+          </div>
+</div>
+<div class="p-4 flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<h3 class="font-headline-md text-body-lg text-primary truncate">Shadow Play</h3>
+<span class="font-label-sm text-outline">CH 666</span>
+</div>
+<p class="font-body-md text-on-surface-variant line-clamp-1">Whispers in the Dark</p>
+<div class="mt-2 space-y-1">
+<div class="w-full h-0.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="bg-primary h-full w-1/3"></div>
+</div>
+<div class="flex justify-between font-label-sm text-[10px] text-outline-variant uppercase tracking-tighter">
+<span>01:10:00</span>
+<span>02:30:00</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 7 -->
+<article class="group flex flex-col bg-surface-container-low border border-outline-variant/20 rounded-lg overflow-hidden channel-card-hover cursor-pointer">
+<div class="relative aspect-video overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A dynamic sports broadcast image showing a Formula 1 car racing through a tunnel at night. The scene is a blur of motion with bright streaks of light from the tail lights against the dark tunnel walls. The high-contrast, high-speed aesthetic is modern and premium, featuring deep blacks and vibrant light trails." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTzyDLGrtL0hSc99x9B-DTIrr7ge45Ww6bA6ga8kBMysJPAcgxdTJ7Q8Jp9BKBD9Y0h-MDPrwq7UoguUHqhIs85yjJ2UQ1fKYw4jTKx0OFmWWdj5-ufxQIwDIs7p7du9HuwdykcnrA3HeYLb3W39aNwerZigdIT0LqbNTz0HkZXUXEBMugHwCMDxTAxHb_N9BHDdBOVZ494FnCfpRP8P2Dbtx2onV5T3TS33XAMZl9mQFdfknCY-u_UC3Rsl5zytZJaSfv3rQa5JCu"/>
+<div class="absolute top-3 left-3 bg-error-container text-white px-2 py-0.5 rounded-sm font-label-sm text-[10px] tracking-widest flex items-center gap-1 uppercase font-bold shadow-lg">
+<span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
+          </div>
+</div>
+<div class="p-4 flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<h3 class="font-headline-md text-body-lg text-primary truncate">Velocity</h3>
+<span class="font-label-sm text-outline">CH 022</span>
+</div>
+<p class="font-body-md text-on-surface-variant line-clamp-1">Monaco Qualifying Sessions</p>
+<div class="mt-2 space-y-1">
+<div class="w-full h-0.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="bg-primary h-full w-4/5"></div>
+</div>
+<div class="flex justify-between font-label-sm text-[10px] text-outline-variant uppercase tracking-tighter">
+<span>02:40:00</span>
+<span>03:00:00</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 8 -->
+<article class="group flex flex-col bg-surface-container-low border border-outline-variant/20 rounded-lg overflow-hidden channel-card-hover cursor-pointer">
+<div class="relative aspect-video overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A minimalist electronic music channel visual with abstract 3D sound waves pulsing in a dark digital void. The waves are illuminated by thin, sharp white lines against a pitch-black background. The mood is sophisticated and immersive, echoing the glassmorphism and atmospheric depth of a high-end UI design." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDPBjALBAp94v8r2FaNjrz6IaG2kdreFrBiQWu-3QbEaxJLDpvcaPsheZejPOZD5GQTxkIjzRs3aXxGjrzP9dvVhxZq-09KLzY7e1y3zJlvB-Y0Yp0eJvCuRL6piFiXy0zsEHkKjVyrRZpy7zsqKdrxmdmOYgT9qa95gn0RpGcLXYiW6SpDTMr5XY75x25qqoqDp9WrkbahO4pf4CEY0OpmUe0C3jo1C0RPWp6qjgTFCAn3uNiNcbe9uBV_IJ6ujmWBzINY_ca0erTa"/>
+<div class="absolute top-3 left-3 bg-error-container text-white px-2 py-0.5 rounded-sm font-label-sm text-[10px] tracking-widest flex items-center gap-1 uppercase font-bold shadow-lg">
+<span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
+          </div>
+</div>
+<div class="p-4 flex flex-col gap-2">
+<div class="flex justify-between items-start">
+<h3 class="font-headline-md text-body-lg text-primary truncate">Frequency</h3>
+<span class="font-label-sm text-outline">CH 901</span>
+</div>
+<p class="font-body-md text-on-surface-variant line-clamp-1">Deep House Essentials: Late Night</p>
+<div class="mt-2 space-y-1">
+<div class="w-full h-0.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="bg-primary h-full w-1/6"></div>
+</div>
+<div class="flex justify-between font-label-sm text-[10px] text-outline-variant uppercase tracking-tighter">
+<span>11:10 PM</span>
+<span>12:00 AM</span>
+</div>
+</div>
+</div>
+</article>
+</div>
+</main>
+<!-- Bottom Navigation -->
+<nav class="fixed bottom-0 w-full z-50 bg-surface/80 backdrop-blur-xl dark:bg-surface/80 border-t border-outline-variant/30 shadow-[0_-10px_30px_rgba(0,0,0,0.4)] flex justify-around items-center h-16 px-margin-mobile">
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label-sm text-label-sm">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="settings_input_component">settings_input_component</span>
+<span class="font-label-sm text-label-sm">Debrify</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary font-bold scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="tv" style="font-variation-settings: 'FILL' 1;">tv</span>
+<span class="font-label-sm text-label-sm">Nuvio</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-sm text-label-sm">Settings</span>
+</a>
+</nav>
+<script>
+    // Simple micro-interaction for active category state
+    const filterButtons = document.querySelectorAll('nav.sticky button');
+    filterButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterButtons.forEach(b => {
+          b.classList.remove('bg-primary', 'text-background');
+          b.classList.add('border', 'border-outline-variant/30', 'text-on-surface-variant');
+        });
+        btn.classList.add('bg-primary', 'text-background');
+        btn.classList.remove('border', 'border-outline-variant/30', 'text-on-surface-variant');
+      });
+    });
+
+    // Atmospheric hover sound or vibration can be simulated with JS if needed
+    // For now, handled via Tailwind transition classes
+  </script>
+</body></html>

@@ -86,7 +86,7 @@ data class IptvUiState(
     val favoriteChannelIds: Set<String> = emptySet(),
     val searchQuery: String = "",
     val refreshingSourceIds: Set<String> = emptySet(),
-    val playlistsExpanded: Boolean = true,
+    val playlistsExpanded: Boolean = false,
     val channelsExpanded: Boolean = true,
     val favoritesExpanded: Boolean = true,
 )

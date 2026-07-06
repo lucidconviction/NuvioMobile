@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Nuvio TV | Your Cinematic Tuner</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary-container": "#b6b5b4",
+                    "secondary": "#c8c6c6",
+                    "secondary-fixed-dim": "#c8c6c6",
+                    "surface-container-highest": "#353534",
+                    "outline-variant": "#444748",
+                    "secondary-container": "#474747",
+                    "surface": "#131313",
+                    "inverse-primary": "#5d5f5f",
+                    "surface-container-high": "#2a2a2a",
+                    "on-secondary-fixed-variant": "#474747",
+                    "on-primary-fixed": "#1a1c1c",
+                    "on-tertiary-fixed-variant": "#474746",
+                    "on-background": "#e5e2e1",
+                    "on-secondary-fixed": "#1b1c1c",
+                    "surface-variant": "#353534",
+                    "on-error-container": "#ffdad6",
+                    "surface-container-low": "#1c1b1b",
+                    "surface-container-lowest": "#0e0e0e",
+                    "surface-container": "#201f1f",
+                    "tertiary-container": "#e5e2e1",
+                    "inverse-on-surface": "#313030",
+                    "on-primary": "#2f3131",
+                    "background": "#131313",
+                    "on-secondary": "#303030",
+                    "error-container": "#93000a",
+                    "on-tertiary-fixed": "#1b1b1c",
+                    "secondary-fixed": "#e4e2e1",
+                    "on-tertiary": "#303030",
+                    "inverse-surface": "#e5e2e1",
+                    "primary-fixed-dim": "#c6c6c7",
+                    "on-primary-fixed-variant": "#454747",
+                    "primary-container": "#e2e2e2",
+                    "surface-dim": "#131313",
+                    "outline": "#8e9192",
+                    "surface-bright": "#393939",
+                    "tertiary": "#ffffff",
+                    "primary": "#ffffff",
+                    "error": "#ffb4ab",
+                    "primary-fixed": "#e2e2e2",
+                    "tertiary-fixed": "#e5e2e1",
+                    "on-primary-container": "#636565",
+                    "on-error": "#690005",
+                    "on-surface": "#e5e2e1",
+                    "surface-tint": "#c6c6c7",
+                    "on-tertiary-container": "#656464",
+                    "on-surface-variant": "#c4c7c8",
+                    "tertiary-fixed-dim": "#c8c6c5"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "gutter-desktop": "24px",
+                    "container-max": "1440px",
+                    "margin-desktop": "64px",
+                    "gutter-mobile": "16px",
+                    "margin-mobile": "20px",
+                    "unit": "8px"
+            },
+            "fontFamily": {
+                    "headline-lg": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "display-lg": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "body-md": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "headline-md": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                    "display-lg": ["72px", {"lineHeight": "80px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #000000;
+            color: #e5e2e1;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+        .glass-panel {
+            background: rgba(18, 18, 18, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .bento-card {
+            background: #121212;
+            border: 1px solid #1E1E1E;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .bento-card:hover {
+            transform: translateY(-4px) scale(1.01);
+            border-color: #ffffff;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+        }
+        .scroll-mask {
+            mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="dark selection:bg-primary selection:text-surface">
+<!-- Top Navigation Bar -->
+<header class="sticky top-0 w-full z-50 bg-background/60 backdrop-blur-md dark:bg-background/60 flex justify-between items-center h-14 px-margin-mobile md:px-margin-desktop">
+<div class="flex items-center gap-4">
+<a class="flex items-center text-primary hover:opacity-80 transition-opacity duration-300" href="#">
+<span class="material-symbols-outlined mr-2">arrow_back</span>
+<span class="font-label-md text-label-md uppercase tracking-widest">Back to Hub</span>
+</a>
+</div>
+<div class="font-headline-lg-mobile text-headline-lg-mobile font-bold tracking-tighter text-primary md:text-headline-lg">
+            Unified Hub
+        </div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary cursor-pointer hover:opacity-80 transition-opacity">account_circle</span>
+</div>
+</header>
+<main class="min-h-screen pb-32">
+<!-- Hero Section -->
+<section class="relative h-[618px] flex items-center justify-center overflow-hidden px-margin-mobile md:px-margin-desktop">
+
+<div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent"></div>
+<div class="relative z-10 text-center max-w-4xl">
+<div class="inline-flex items-center px-3 py-1 rounded-full bg-surface-container-highest border border-outline-variant mb-6">
+<span class="material-symbols-outlined text-sm mr-2 text-primary" style="font-variation-settings: 'FILL' 1;">tv</span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest">Premium Tuner</span>
+</div>
+<h1 class="font-display-lg text-[56px] md:text-display-lg leading-tight mb-4 text-primary">Nuvio TV</h1>
+<p class="font-headline-md text-headline-md text-on-surface-variant max-w-2xl mx-auto">Your Cinematic Tuner</p>
+<div class="mt-12 flex flex-col md:flex-row gap-4 justify-center">
+<button class="bg-primary text-surface px-8 py-4 rounded-lg font-label-md text-label-md flex items-center justify-center hover:bg-secondary transition-colors duration-300">
+                        LAUNCH PLAYER
+                        <span class="material-symbols-outlined ml-2">play_arrow</span>
+</button>
+<button class="border border-outline-variant bg-transparent text-primary px-8 py-4 rounded-lg font-label-md text-label-md flex items-center justify-center hover:bg-surface-container-high transition-all">
+                        LEARN MORE
+                        <span class="material-symbols-outlined ml-2">expand_more</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Features Bento Grid -->
+<section class="px-margin-mobile md:px-margin-desktop mt-12">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter-desktop">
+<!-- Main Feature: Cinematic Tuner -->
+<div class="md:col-span-8 bento-card p-8 rounded-xl flex flex-col justify-between group min-h-[400px]">
+<div class="relative w-full h-48 rounded-lg overflow-hidden mb-6 bg-surface-container-low">
+<img class="w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity" data-alt="A hyper-realistic UI concept of a futuristic TV guide interface with cinematic movie posters glowing against a deep black background. The design is sleek and minimalist, with sharp white typography and atmospheric blue and grey lighting effects, evoking a premium theater experience." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBegpdJ7Qde0XWvFUOJk4ek3a-1QLi6DUYzyr7gXRCRs3cef6BHL4D10T_KP574OqOywj7PemoAzMwVdu0Gm1FAVmdzz1f4FOoaoL6tJSZDFFKXg3WSv8zuf9kP7Q7qgq3CpOBM0tvewCFLKYRiB8tAlBrS8Ywu9EdrntBAkWFatRGKEKpefgvVscq9mZZ2GFPn9Y98aK9UvCptnX8X_AR1niHVovQdRlw3q2tgq4vAJ1OZu4yA3K9_bogVptk6Y8S5hcWdFdpk4Pap"/>
+</div>
+<div>
+<div class="flex items-center gap-3 mb-4">
+<span class="material-symbols-outlined text-primary text-3xl">settings_input_component</span>
+<h3 class="font-headline-md text-headline-md text-primary">Cinematic Tuner</h3>
+</div>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-lg">
+                            Experience your library like never before. Browse addon catalogs as a seamless live TV experience with smooth transitions and rich metadata.
+                        </p>
+</div>
+</div>
+<!-- Feature: Auto-rotation -->
+<div class="md:col-span-4 bento-card p-8 rounded-xl flex flex-col justify-between group bg-surface-container">
+<span class="material-symbols-outlined text-primary text-4xl mb-8" style="font-variation-settings: 'FILL' 1;">rotate_right</span>
+<div>
+<h3 class="font-headline-md text-headline-md text-primary mb-3">Auto-rotation</h3>
+<p class="font-body-md text-body-md text-on-secondary-container">
+                            Dynamic 'Now playing' schedules that automatically curate your content feed based on time of day and viewing habits.
+                        </p>
+</div>
+</div>
+<!-- Feature: Channel Filters -->
+<div class="md:col-span-4 bento-card p-8 rounded-xl flex flex-col justify-center items-center text-center group border-dashed">
+<span class="material-symbols-outlined text-primary text-5xl mb-6">filter_list</span>
+<h3 class="font-headline-md text-headline-md text-primary mb-2">Channel Filters</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                        Sift through content by addon, resolution, or genre with surgical precision.
+                    </p>
+</div>
+<!-- Feature: Favorites -->
+<div class="md:col-span-4 bento-card p-8 rounded-xl flex flex-col relative overflow-hidden group">
+<div class="absolute -right-8 -top-8 opacity-10">
+<span class="material-symbols-outlined text-[160px] text-primary">push_pin</span>
+</div>
+<div class="relative z-10">
+<span class="material-symbols-outlined text-primary text-3xl mb-4">push_pin</span>
+<h3 class="font-headline-md text-headline-md text-primary mb-3">Favorites</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                            Pin your most watched channels for instant access directly from the home dash.
+                        </p>
+</div>
+<div class="mt-8 flex gap-2 overflow-hidden opacity-50 group-hover:opacity-100 transition-opacity">
+<div class="h-12 w-12 bg-surface-container-highest rounded-full flex items-center justify-center">1</div>
+<div class="h-12 w-12 bg-surface-container-highest rounded-full flex items-center justify-center">2</div>
+<div class="h-12 w-12 bg-surface-container-highest rounded-full flex items-center justify-center">3</div>
+</div>
+</div>
+<!-- Feature: Torrents-first -->
+<div class="md:col-span-4 bento-card p-8 rounded-xl flex flex-col justify-between bg-gradient-to-br from-[#121212] to-[#1E1E1E]">
+<span class="material-symbols-outlined text-primary text-4xl mb-6">bolt</span>
+<div>
+<h3 class="font-headline-md text-headline-md text-primary mb-2">Torrents-first</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                            Priority sourcing ensures the highest quality stream is always at the top of your list.
+                        </p>
+</div>
+</div>
+<!-- Feature: Catalog Importer -->
+<div class="md:col-span-12 bento-card p-10 rounded-xl flex flex-col md:flex-row items-center gap-12">
+<div class="flex-1">
+<span class="material-symbols-outlined text-primary text-5xl mb-6">cloud_download</span>
+<h3 class="font-headline-md text-headline-md text-primary mb-4">Catalog Importer</h3>
+<p class="font-body-lg text-body-lg text-on-surface-variant">
+                            Bring your world with you. Nuvio TV supports advanced imports via JSON manifests, remote URLs, and deep Trakt list integration for a truly personal library.
+                        </p>
+<div class="flex gap-4 mt-8">
+<span class="px-4 py-2 bg-surface-container rounded-full text-label-md font-label-md border border-outline-variant">JSON</span>
+<span class="px-4 py-2 bg-surface-container rounded-full text-label-md font-label-md border border-outline-variant">TRAKT</span>
+<span class="px-4 py-2 bg-surface-container rounded-full text-label-md font-label-md border border-outline-variant">URL</span>
+</div>
+</div>
+<div class="flex-1 w-full h-64 bg-surface-container-low rounded-lg border border-outline-variant/30 relative flex items-center justify-center group overflow-hidden">
+<img class="w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700" data-alt="A minimalist architectural photograph of a sleek obsidian-colored server room with glowing fiber optic cables creating geometric patterns. The lighting is low and moody with white and slate grey highlights, reflecting a high-tech data processing aesthetic for a premium software product." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDjVWEnB9UKUGUfDVBRbgYXZLE2yzJXOhNG2yZ2nZDSdOuSc-DPjkNrFIMCClE5JeEwLUp1mB8VQxvfmI6A0Mlo_6bwZTUt4tzR8RI2iT5n6Pzp9-RY8lD3sEhb6_zKtibcpWCemAh5nSt-Uglxwq9ufFsqk2HMT9EAKHR4YhvaeAU81kNKgiTMD9d4JazsYwpSeVFFPwr6x8YVWBaZbQWzdbN5w-X6MfhaWJchiVk2UIVOmvUNR4OzmKorF3fqfWh0eEiei5FWpqsG"/>
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="p-6 glass-panel rounded-xl text-center">
+<span class="material-symbols-outlined text-4xl block mb-2">data_object</span>
+<span class="font-label-md text-label-md uppercase">Connect Data</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- CTA Section -->
+<section class="mt-24 px-margin-mobile md:px-margin-desktop text-center">
+<div class="max-w-3xl mx-auto py-20 border-t border-outline-variant/20">
+<h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-6">Ready to tune in?</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-10">
+                    Nuvio TV is available now as part of the Unified Hub ecosystem. Start your cinematic journey today.
+                </p>
+<button class="bg-white text-black font-label-md text-label-md px-12 py-5 rounded-full hover:scale-105 transition-transform">
+                    GET STARTED NOW
+                </button>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Bar (Mobile only as per design anchor) -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 bg-surface/80 backdrop-blur-xl border-t border-outline-variant/30 flex justify-around items-center h-16 px-margin-mobile shadow-[0_-10px_30px_rgba(0,0,0,0.4)]">
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors transition-transform scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-sm text-label-sm">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors transition-transform scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined">settings_input_component</span>
+<span class="font-label-sm text-label-sm">Debrify</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary font-bold transition-transform scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined">tv</span>
+<span class="font-label-sm text-label-sm">Nuvio</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors transition-transform scale-95 active:scale-90" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-sm text-label-sm">Settings</span>
+</a>
+</nav>
+<script>
+        // Simple scroll parallax for hero
+        window.addEventListener('scroll', () => {
+            const scrolled = window.pageYOffset;
+            const hero = document.querySelector('h1');
+            if(hero) {
+                hero.style.transform = `translateY(${scrolled * 0.2}px)`;
+                hero.style.opacity = 1 - (scrolled / 500);
+            }
+        });
+
+        // Hover effect for feature cards
+        document.querySelectorAll('.bento-card').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                // Potential micro-interactions here
+            });
+        });
+    </script>
+</body></html>

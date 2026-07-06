@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Debrify TV - Feature Page</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000000;
+            color: #e5e2e1;
+            -webkit-font-smoothing: antialiased;
+        }
+        .glass-card {
+            background: rgba(18, 18, 18, 0.8);
+            border: 1px solid #1E1E1E;
+            backdrop-filter: blur(12px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-card:hover {
+            border-color: #FFFFFF;
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+        }
+        .hero-gradient {
+            background: radial-gradient(circle at top center, rgba(255,255,255,0.05) 0%, transparent 70%);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-glow {
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-container": "#b6b5b4",
+                        "secondary": "#c8c6c6",
+                        "secondary-fixed-dim": "#c8c6c6",
+                        "surface-container-highest": "#353534",
+                        "outline-variant": "#444748",
+                        "secondary-container": "#474747",
+                        "surface": "#131313",
+                        "inverse-primary": "#5d5f5f",
+                        "surface-container-high": "#2a2a2a",
+                        "on-secondary-fixed-variant": "#474747",
+                        "on-primary-fixed": "#1a1c1c",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "on-background": "#e5e2e1",
+                        "on-secondary-fixed": "#1b1c1c",
+                        "surface-variant": "#353534",
+                        "on-error-container": "#ffdad6",
+                        "surface-container-low": "#1c1b1b",
+                        "surface-container-lowest": "#0e0e0e",
+                        "surface-container": "#201f1f",
+                        "tertiary-container": "#e5e2e1",
+                        "inverse-on-surface": "#313030",
+                        "on-primary": "#2f3131",
+                        "background": "#131313",
+                        "on-secondary": "#303030",
+                        "error-container": "#93000a",
+                        "on-tertiary-fixed": "#1b1b1c",
+                        "secondary-fixed": "#e4e2e1",
+                        "on-tertiary": "#303030",
+                        "inverse-surface": "#e5e2e1",
+                        "primary-fixed-dim": "#c6c6c7",
+                        "on-primary-fixed-variant": "#454747",
+                        "primary-container": "#e2e2e2",
+                        "surface-dim": "#131313",
+                        "outline": "#8e9192",
+                        "surface-bright": "#393939",
+                        "tertiary": "#ffffff",
+                        "primary": "#ffffff",
+                        "error": "#ffb4ab",
+                        "primary-fixed": "#e2e2e2",
+                        "tertiary-fixed": "#e5e2e1",
+                        "on-primary-container": "#636565",
+                        "on-error": "#690005",
+                        "on-surface": "#e5e2e1",
+                        "surface-tint": "#c6c6c7",
+                        "on-tertiary-container": "#656464",
+                        "on-surface-variant": "#c4c7c8",
+                        "tertiary-fixed-dim": "#c8c6c5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter-desktop": "24px",
+                        "container-max": "1440px",
+                        "margin-desktop": "64px",
+                        "gutter-mobile": "16px",
+                        "margin-mobile": "20px",
+                        "unit": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "headline-md": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                        "display-lg": ["72px", {"lineHeight": "80px", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-lg-mobile": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-black overflow-x-hidden selection:bg-white selection:text-black">
+<!-- Top Navigation -->
+<nav class="sticky top-0 w-full z-50 bg-background/60 backdrop-blur-md flex justify-between items-center h-14 px-margin-mobile md:px-margin-desktop transition-opacity duration-300">
+<div class="flex items-center gap-4">
+<button class="hover:opacity-80 transition-opacity p-2 -ml-2" onclick="window.history.back()">
+<span class="material-symbols-outlined text-primary" data-icon="arrow_back">arrow_back</span>
+</button>
+<span class="font-headline-md-mobile text-headline-md-mobile md:font-headline-md md:text-headline-md font-bold tracking-tighter text-primary">RoNutz TV</span>
+</div>
+<div class="flex items-center gap-6">
+<span class="hidden md:block font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors cursor-pointer">Explore</span>
+<span class="font-label-md text-label-md text-primary font-bold active-glow cursor-pointer">Nuvio</span>
+<span class="material-symbols-outlined text-primary cursor-pointer" data-icon="account_circle">account_circle</span>
+</div>
+</nav>
+<!-- Hero Section -->
+<header class="relative pt-24 pb-16 px-margin-mobile md:px-margin-desktop hero-gradient overflow-hidden">
+<div class="absolute inset-0 z-0">
+</div>
+<div class="relative z-10 max-w-4xl mx-auto text-center">
+<div class="inline-flex items-center gap-2 px-3 py-1 bg-surface-container-highest border border-outline-variant/30 rounded-full mb-6">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant">Live Feature Spotlight</span>
+</div>
+<h1 class="font-display-lg text-headline-lg-mobile md:text-display-lg mb-4 text-white">RoNutz TV</h1>
+<p class="font-body-lg text-body-md md:text-body-lg text-on-surface-variant max-w-2xl mx-auto mb-10">Powerful Keyword-Driven Channels. Experience a revolutionary way to curate media through smart filtering and community collections with RoNutz TV.</p>
+<div class="flex flex-col md:flex-row gap-4 justify-center items-center">
+<button class="w-full md:w-auto px-8 py-4 bg-white text-black font-label-md text-label-md font-bold rounded-lg hover:bg-neutral-200 transition-colors">
+                    Start Watching Now
+                </button>
+<button class="w-full md:w-auto px-8 py-4 border border-outline-variant text-white font-label-md text-label-md font-bold rounded-lg hover:bg-white/5 transition-colors">
+                    View Collections
+                </button>
+</div>
+</div>
+</header>
+<!-- Main Content: Bento Grid -->
+<main class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin-desktop py-12 md:py-24">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter-mobile md:gap-gutter-desktop">
+<!-- Feature 1: Keyword Channels -->
+<div class="md:col-span-8 glass-card rounded-xl p-8 flex flex-col justify-between overflow-hidden relative min-h-[400px]">
+<div class="z-10">
+<div class="w-12 h-12 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="settings_input_component">settings_input_component</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-white mb-4">Keyword-driven channels</h3>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-md">
+                        Combine complex recipes with Real-Debrid, Torbox, and more. Define precisely what your channel broadcasts using metadata and keyword hooks.
+                    </p>
+</div>
+<div class="absolute right-0 bottom-0 w-1/2 h-full opacity-40 translate-x-1/4 translate-y-1/4">
+<img class="w-full h-full object-cover" data-alt="A cinematic, ultra-detailed 3D visualization of digital data nodes interconnecting in a dark obsidian space. The nodes are glowing with soft white light, casting subtle shadows on deep charcoal grey surfaces. The atmosphere is professional and high-tech, fitting for a premium media management software interface. The composition is asymmetrical and modern." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC8dDItV05S-wGN-OsW9l9kfnGNLIk8DxIjJfY9dj-1mMAvFTqeDgcJyGxBye7lsG2uUPoKCcH1-JdFrhmHN9BZW0F1866cHg0x_ieXdVUXnKo_zXsnYtPlxLM2y70FtqkZtvJ7ftkjQHE2mR7HyFheYdLgQD2n3OU3JEmEr8y4mnn-MqgsHQIVHcFLK4cQheFtsSqODQyNPlBktCL11l_YTFoTRXUXyEr6W1UIhaZ4-u-8H3UKuHaai-U1qETwu-Z9i8g9pW1OXKax"/>
+</div>
+</div>
+<!-- Feature 2: Quick Play -->
+<div class="md:col-span-4 glass-card rounded-xl p-8 flex flex-col h-full">
+<div class="w-12 h-12 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="bolt">bolt</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-white mb-4">Quick Play &amp; auto-launch</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                    Instant playback with random start points. Jump straight into the action without waiting for traditional buffer cycles.
+                </p>
+<div class="mt-auto pt-8">
+<div class="w-full h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="w-3/4 h-full bg-white"></div>
+</div>
+<div class="flex justify-between mt-2 font-label-sm text-label-sm text-on-surface-variant">
+<span>Buffering...</span>
+<span>75%</span>
+</div>
+</div>
+</div>
+<!-- Feature 3: Smart Filtering -->
+<div class="md:col-span-4 glass-card rounded-xl p-8">
+<div class="w-12 h-12 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="filter_list">filter_list</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-white mb-4">Smart filtering</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                    Intelligence that learns. Automatically skips RD-blocked torrents and broken links to ensure a seamless "always-on" experience.
+                </p>
+</div>
+<!-- Feature 4: Smart Caching -->
+<div class="md:col-span-4 glass-card rounded-xl p-8">
+<div class="w-12 h-12 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="cached">cached</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-white mb-4">Caching &amp; rotation</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                    Dynamic lineup management. Our algorithms keep your content fresh by rotating cached streams and updating playlists in real-time.
+                </p>
+</div>
+<!-- Feature 5: Import/Export -->
+<div class="md:col-span-4 glass-card rounded-xl p-8 bg-surface-container-highest">
+<div class="w-12 h-12 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="unarchive">unarchive</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-white mb-4">Import/Export</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-6">
+                    Community-driven at its core. Share your collections or import ZIP and YAML configurations from the world's best curators.
+                </p>
+<div class="flex gap-2">
+<div class="px-3 py-1 bg-black/40 border border-white/10 rounded font-label-sm text-label-sm">YAML</div>
+<div class="px-3 py-1 bg-black/40 border border-white/10 rounded font-label-sm text-label-sm">ZIP</div>
+<div class="px-3 py-1 bg-black/40 border border-white/10 rounded font-label-sm text-label-sm">JSON</div>
+</div>
+</div>
+</div>
+</main><section class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin-desktop py-12 md:py-24 border-t border-outline-variant/30">
+<div class="flex justify-between items-center mb-12">
+<h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-white">Live Channels</h2>
+<div class="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full">
+<span class="w-2 h-2 rounded-full bg-error animate-pulse"></span>
+<span class="font-label-sm text-label-sm uppercase tracking-widest text-on-surface-variant">Active Lineup</span>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- Channel Card 1 -->
+<div class="glass-card rounded-xl overflow-hidden flex flex-col">
+<div class="aspect-video bg-surface-container-highest relative">
+<div class="absolute top-3 right-3 px-2 py-0.5 bg-error text-white text-[10px] font-bold rounded uppercase tracking-wider">Live</div>
+<div class="w-full h-full flex items-center justify-center opacity-20">
+<span class="material-symbols-outlined text-4xl">movie</span>
+</div>
+</div>
+<div class="p-4">
+<p class="text-primary font-bold text-label-md mb-1">Sci-Fi Classics</p>
+<p class="text-on-surface-variant text-label-sm">Now: Blade Runner 2049</p>
+</div>
+</div>
+<!-- Channel Card 2 -->
+<div class="glass-card rounded-xl overflow-hidden flex flex-col">
+<div class="aspect-video bg-surface-container-highest relative">
+<div class="absolute top-3 right-3 px-2 py-0.5 bg-error text-white text-[10px] font-bold rounded uppercase tracking-wider">Live</div>
+<div class="w-full h-full flex items-center justify-center opacity-20">
+<span class="material-symbols-outlined text-4xl">bolt</span>
+</div>
+</div>
+<div class="p-4">
+<p class="text-primary font-bold text-label-md mb-1">Action 24/7</p>
+<p class="text-on-surface-variant text-label-sm">Now: John Wick: Chapter 4</p>
+</div>
+</div>
+<!-- Channel Card 3 -->
+<div class="glass-card rounded-xl overflow-hidden flex flex-col">
+<div class="aspect-video bg-surface-container-highest relative">
+<div class="absolute top-3 right-3 px-2 py-0.5 bg-error text-white text-[10px] font-bold rounded uppercase tracking-wider">Live</div>
+<div class="w-full h-full flex items-center justify-center opacity-20">
+<span class="material-symbols-outlined text-4xl">public</span>
+</div>
+</div>
+<div class="p-4">
+<p class="text-primary font-bold text-label-md mb-1">Documentary Hub</p>
+<p class="text-on-surface-variant text-label-sm">Now: Our Planet II</p>
+</div>
+</div>
+<!-- Channel Card 4 -->
+<div class="glass-card rounded-xl overflow-hidden flex flex-col">
+<div class="aspect-video bg-surface-container-highest relative">
+<div class="absolute top-3 right-3 px-2 py-0.5 bg-error text-white text-[10px] font-bold rounded uppercase tracking-wider">Live</div>
+<div class="w-full h-full flex items-center justify-center opacity-20">
+<span class="material-symbols-outlined text-4xl">theater_comedy</span>
+</div>
+</div>
+<div class="p-4">
+<p class="text-primary font-bold text-label-md mb-1">Comedy Central</p>
+<p class="text-on-surface-variant text-label-sm">Now: The Office (US)</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Media Showcase Section -->
+<section class="bg-surface py-24 border-y border-outline-variant/30">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin-desktop text-center">
+<h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-white mb-12">Cinematic Interface</h2>
+<div class="relative rounded-2xl overflow-hidden shadow-2xl border border-outline-variant/50 max-w-5xl mx-auto aspect-video">
+<img class="w-full h-full object-cover" data-alt="A professional high-resolution screen capture of a futuristic television user interface for media playback. The UI is minimalist and dark, featuring cinematic movie posters in a carousel, smooth glassmorphism overlays for channel information, and elegant thin-line icons. Deep shadows and vibrant accents of white text create a premium, theater-like aesthetic. The lighting is low and moody, mimicking a darkened home cinema room." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDCrnPnN1NoDE0fIqS2aOoMYDY63s9ev0l_bZLGUkkeE60npS5C0preWYNBDg86RU9oRhbFyYuAFo5KdA-DUNlJajRQyrHCubgGkxR6DmtlDkir4ZRhKHXj-yMbVuc9tzlbOKH1Oa-N7LQanwfLnvi6tkkZMeSuMTDmaus35ljem0Sc9GEv3Y3ftHsdtAm5H-VlJuWtVskq_XJQUueMdQaAe4fM_Ti6pzIVRsac2Sh9PU2wp9vtetz-kQVCTgnTxybiIwmBDxO3pDvl"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+<div class="absolute bottom-8 left-8 text-left">
+<p class="font-label-md text-label-md text-white font-bold mb-1">NOW PLAYING</p>
+<p class="font-body-md text-body-md text-on-surface-variant">4K HDR • 60 FPS • Dolby Atmos</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Footer / Action Area -->
+<footer class="py-24 px-margin-mobile md:px-margin-desktop text-center">
+<h3 class="font-headline-md text-headline-md text-white mb-8">Ready to upgrade your viewing?</h3>
+<div class="flex flex-col md:flex-row gap-4 justify-center">
+<button class="px-12 py-4 bg-white text-black font-label-md text-label-md font-extrabold rounded-lg hover:scale-105 transition-transform">Configure RoNutz TV</button>
+<button class="px-12 py-4 border border-outline-variant text-white font-label-md text-label-md font-bold rounded-lg hover:bg-white/5 transition-colors" onclick="window.history.back()">
+                Return to Hub
+            </button>
+</div>
+<div class="mt-20 flex flex-col md:flex-row justify-between items-center opacity-50 gap-6">
+<p class="font-label-sm text-label-sm">© 2024 Unified Hub Ecosystem. All rights reserved.</p>
+<div class="flex gap-8 font-label-sm text-label-sm">
+<span class="hover:text-primary transition-colors cursor-pointer">Privacy Policy</span>
+<span class="hover:text-primary transition-colors cursor-pointer">Terms of Service</span>
+<span class="hover:text-primary transition-colors cursor-pointer">Support</span>
+</div>
+</div>
+</footer>
+<!-- Bottom Navigation Shell (Mobile only) -->
+<div class="md:hidden fixed bottom-0 w-full z-50 bg-surface/80 backdrop-blur-xl border-t border-outline-variant/30 shadow-[0_-10px_30px_rgba(0,0,0,0.4)] flex justify-around items-center h-16 px-margin-mobile">
+<div class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors scale-95 active:scale-90 transition-transform cursor-pointer">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label-sm text-label-sm">Home</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors scale-95 active:scale-90 transition-transform cursor-pointer">
+<span class="material-symbols-outlined" data-icon="settings_input_component">settings_input_component</span>
+<span class="font-label-sm text-label-sm">RoNutz</span>
+</div>
+<div class="flex flex-col items-center justify-center text-primary font-bold scale-95 active:scale-90 transition-transform cursor-pointer">
+<span class="material-symbols-outlined" data-icon="tv">tv</span>
+<span class="font-label-sm text-label-sm">Nuvio</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors scale-95 active:scale-90 transition-transform cursor-pointer">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-sm text-label-sm">Settings</span>
+</div>
+</div>
+<script>
+        // Micro-interaction for back button
+        document.querySelector('[data-icon="arrow_back"]').parentElement.addEventListener('click', () => {
+            console.log('Navigating back to Hub...');
+        });
+
+        // Simple scroll parallax for cards
+        window.addEventListener('scroll', () => {
+            const cards = document.querySelectorAll('.glass-card');
+            cards.forEach(card => {
+                const speed = 0.05;
+                const rect = card.getBoundingClientRect();
+                const offset = rect.top * speed;
+                card.style.backgroundPosition = `center ${offset}px`;
+            });
+        });
+    </script>
+</body></html>

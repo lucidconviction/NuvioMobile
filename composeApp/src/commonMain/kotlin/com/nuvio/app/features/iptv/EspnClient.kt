@@ -1,6 +1,10 @@
 package com.nuvio.app.features.iptv
 
 import com.nuvio.app.features.addons.httpGetText
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 object EspnClient {
@@ -12,32 +16,49 @@ object EspnClient {
         "football/college-football",
         "basketball/nba",
         "basketball/mens-college-basketball",
+        "basketball/wnba",
         "baseball/mlb",
         "hockey/nhl",
         "soccer/usa.1",
         "soccer/eng.1",
+        "soccer/esp.1",
+        "soccer/ita.1",
+        "soccer/ger.1",
+        "soccer/fra.1",
+        "mma/ufc",
         "fighting/ufc",
-        "fighting/boxing",
+        "mma/pfl",
         "fighting/pfl",
+        "mma/bellator",
         "fighting/bellator",
+        "mma/boxing",
+        "fighting/boxing",
+        "racing/f1",
+        "golf/pga",
+        "tennis/atp",
+        "tennis/wta",
+        "rugby/english-premiership",
     )
 
-    suspend fun fetchAll(): List<EspnProcessedEvent> {
-        val all = mutableListOf<EspnProcessedEvent>()
-        for (sport in sports) {
-            try {
-                val url = "$BASE/$sport/scoreboard"
-                val response = httpGetText(url)
-                val parsed = json.decodeFromString<EspnResponse>(response)
-                val processed = parsed.events.flatMap { event ->
-                    processEvent(event, sport)
-                }.filter { e ->
-                    e.isLive || e.status != "STATUS_FINAL" || detailWithinHours(e.detail, 3)
+    suspend fun fetchAll(date: String? = null): List<EspnProcessedEvent> = coroutineScope {
+        val dateParam = if (!date.isNullOrBlank()) "?dates=${date.replace("-", "")}" else ""
+        val skipFilter = !date.isNullOrBlank()
+        sports.map { sport ->
+            async {
+                try {
+                    val url = "$BASE/$sport/scoreboard$dateParam"
+                    val response = httpGetText(url)
+                    val parsed = json.decodeFromString<EspnResponse>(response)
+                    parsed.events.flatMap { event ->
+                        processEvent(event, sport)
+                    }.filter { e ->
+                        e.isLive || e.status != "STATUS_FINAL" || detailWithinHours(e.detail, 3) || skipFilter
+                    }
+                } catch (_: Exception) {
+                    emptyList()
                 }
-                all.addAll(processed)
-            } catch (_: Exception) { }
-        }
-        return all
+            }
+        }.awaitAll().flatten()
     }
 
     private fun detailWithinHours(detail: String, hours: Int): Boolean {
@@ -48,12 +69,15 @@ object EspnClient {
     }
 
     private fun processEvent(event: EspnEvent, sportPath: String): List<EspnProcessedEvent> {
-        val sport = sportPath.split("/").firstOrNull()?.replaceFirstChar { it.uppercase() } ?: "Sport"
+        val sport = when (val raw = sportPath.split("/").firstOrNull() ?: "Sport") {
+            "mma" -> "Fighting"
+            else -> raw.replaceFirstChar { it.uppercase() }
+        }
         val league = sportPath.split("/").lastOrNull()?.replace("-", " ")?.replaceFirstChar { it.uppercase() } ?: ""
 
         return event.competitions.mapNotNull { comp ->
-            val home = comp.competitors.find { it.homeAway == "home" }
-            val away = comp.competitors.find { it.homeAway == "away" }
+            val home = comp.competitors.find { it.homeAway == "home" } ?: comp.competitors.firstOrNull()
+            val away = comp.competitors.find { it.homeAway == "away" } ?: comp.competitors.getOrNull(1)
 
             val channel = comp.broadcasts?.firstOrNull()
                 ?.names?.firstOrNull() ?: ""
@@ -112,6 +136,23 @@ object EspnClient {
         }
     }
 
+    fun findAllMatchingChannels(event: SportEvent, channels: List<IptvChannel>): List<IptvChannel> {
+        if (event.strChannel.isBlank()) return emptyList()
+        val searchTerms = SportBroadcasterMap.expandSearchTerms(event.strChannel, event.strSport, event.strLeague)
+        val matched = mutableSetOf<IptvChannel>()
+        for (term in searchTerms) {
+            if (term.length < 3) continue
+            val lowerTerm = term.lowercase().trim()
+            for (ch in channels) {
+                val chName = ch.name.lowercase().trim()
+                if (chName.contains(lowerTerm) || lowerTerm.contains(chName)) {
+                    matched.add(ch)
+                }
+            }
+        }
+        return matched.toList()
+    }
+
     internal fun matchSportEventsToChannels(
         sportEvents: List<SportEvent>,
         channels: List<IptvChannel>,
@@ -119,18 +160,129 @@ object EspnClient {
         val matched = mutableListOf<MatchedSportEvent>()
         for (event in sportEvents) {
             if (event.strChannel.isBlank()) continue
-            val apiName = event.strChannel.lowercase().trim()
-            val apiWords = apiName.split(" ").filter { it.length > 2 }
-            val found = channels.firstOrNull { ch ->
-                val chName = ch.name.lowercase().trim()
-                chName.contains(apiName) || apiName.contains(chName) ||
-                apiWords.any { word -> chName.contains(word) } ||
-                chName.split(" ").any { word -> word.length > 2 && apiName.contains(word) }
+            val searchTerms = SportBroadcasterMap.expandSearchTerms(event.strChannel, event.strSport, event.strLeague)
+            var found: IptvChannel? = null
+            for (term in searchTerms) {
+                if (term.length < 3) continue
+                val lowerTerm = term.lowercase().trim()
+                found = channels.firstOrNull { ch ->
+                    val chName = ch.name.lowercase().trim()
+                    chName.contains(lowerTerm) || lowerTerm.contains(chName)
+                }
+                if (found != null) break
             }
             if (found != null) {
                 matched.add(MatchedSportEvent(event = event, channel = found))
             }
         }
         return matched
+    }
+}
+
+// ── Region-specific broadcaster mapping for channel matching ──────────────
+object SportBroadcasterMap {
+    private val leagueBroadcasters = mapOf(
+        "nfl" to listOf(
+            "ESPN", "ABC", "FOX", "CBS", "NBC", "NFL Network", "NFLN",
+            "Amazon Prime", "Prime Video", "Peacock", "Paramount+",
+            "Sky Sports", "Sky Sports NFL", "BBC", "BBC One", "BBC Two",
+            "ITV", "ITV1", "Channel 4",
+            "TSN", "TSN1", "TSN2", "TSN3", "TSN4", "TSN5", "CTV", "RDS", "DAZN",
+        ),
+        "college-football" to listOf(
+            "ESPN", "ABC", "FOX", "CBS", "NBC", "SEC Network", "ACC Network",
+            "Big Ten Network", "BTN", "ESPN2", "ESPNU",
+            "TSN", "TSN2",
+        ),
+        "nba" to listOf(
+            "ESPN", "ABC", "TNT", "NBA TV", "NBATV",
+            "Sky Sports", "Sky Sports Arena",
+            "TSN", "TSN1", "TSN2", "TSN3", "TSN4", "Sportsnet", "Sportsnet One",
+            "DAZN",
+        ),
+        "mens-college-basketball" to listOf(
+            "ESPN", "ABC", "CBS", "TNT", "TBS", "truTV", "ESPN2", "ESPNU",
+            "SEC Network", "Big Ten Network", "TSN",
+        ),
+        "mlb" to listOf(
+            "ESPN", "ABC", "FOX", "FS1", "TBS", "MLB Network", "MLBN",
+            "Apple TV+", "Peacock",
+            "Sky Sports", "BT Sport", "TNT Sports",
+            "TSN", "Sportsnet", "Sportsnet One", "RDS",
+        ),
+        "nhl" to listOf(
+            "ESPN", "ABC", "TNT", "TBS", "NHL Network",
+            "Sportsnet", "Sportsnet One", "CBC", "TSN", "TSN1", "TSN2",
+            "TSN3", "TSN4", "TSN5", "CTV", "RDS", "TVA Sports",
+            "Sky Sports", "BBC",
+        ),
+        "usa.1" to listOf(
+            "ESPN", "FOX", "FS1", "Apple TV+", "MLS Season Pass",
+            "TSN", "TSN2", "RDS", "Sky Sports",
+        ),
+        "eng.1" to listOf(
+            "Sky Sports", "Sky Sports Premier League", "Sky Sports Main Event",
+            "TNT Sports", "BT Sport", "BBC", "BBC One",
+            "Amazon Prime", "Prime Video",
+            "NBC", "USA Network", "Peacock",
+            "TSN", "TSN2", "RDS", "DAZN",
+        ),
+        "ufc" to listOf(
+            "ESPN", "ESPN+", "ABC",
+            "TNT Sports", "BT Sport", "Sky Sports Arena",
+            "TSN", "RDS", "DAZN",
+        ),
+        "pfl" to listOf("ESPN", "ESPN2", "ESPN+", "DAZN"),
+        "bellator" to listOf("HBO Max", "MAX", "DAZN"),
+        "boxing" to listOf(
+            "ESPN", "ESPN+", "ABC",
+            "Sky Sports", "Sky Sports Box Office", "TNT Sports", "BT Sport",
+            "DAZN", "Showtime", "TSN", "RDS",
+        ),
+    )
+
+    private val sportBroadcasters = mapOf(
+        "Football" to listOf(
+            "ESPN", "ABC", "FOX", "CBS", "NBC", "NFL Network",
+            "Sky Sports", "BBC", "ITV", "TSN", "CTV", "DAZN",
+        ),
+        "Basketball" to listOf(
+            "ESPN", "ABC", "TNT", "NBA TV", "Sky Sports", "TSN", "Sportsnet",
+        ),
+        "Baseball" to listOf(
+            "ESPN", "FOX", "FS1", "TBS", "MLB Network", "TSN", "Sportsnet",
+        ),
+        "Hockey" to listOf(
+            "ESPN", "ABC", "TNT", "Sportsnet", "CBC", "TSN", "CTV", "RDS",
+        ),
+        "Soccer" to listOf(
+            "Sky Sports", "TNT Sports", "BT Sport", "BBC",
+            "ESPN", "FOX", "FS1", "ABC", "NBC", "USA Network", "TSN", "DAZN",
+        ),
+        "Fighting" to listOf(
+            "ESPN", "ESPN+", "ABC", "TNT Sports", "BT Sport",
+            "Sky Sports", "DAZN", "TSN", "RDS",
+        ),
+    )
+
+    fun getBroadcastersForLeague(league: String): List<String> {
+        val key = league.lowercase().replace(" ", "-").replace("_", "-")
+        return leagueBroadcasters[key] ?: emptyList()
+    }
+
+    fun getBroadcastersForSport(sport: String): List<String> {
+        return sportBroadcasters[sport] ?: emptyList()
+    }
+
+    fun expandSearchTerms(eventChannel: String, sport: String, league: String): List<String> {
+        val terms = mutableListOf(eventChannel)
+        if (eventChannel.isNotBlank()) {
+            terms.add(eventChannel.lowercase().trim())
+        }
+        terms.addAll(getBroadcastersForLeague(league))
+        terms.addAll(getBroadcastersForSport(sport))
+        val fragments = terms.flatMap { it.split(" ").filter { w -> w.length > 2 } }
+        terms.addAll(fragments)
+        return terms.distinct()
     }
 }

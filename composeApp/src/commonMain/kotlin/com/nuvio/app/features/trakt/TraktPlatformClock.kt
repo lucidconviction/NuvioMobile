@@ -4,4 +4,5 @@ internal expect object TraktPlatformClock {
     fun nowEpochMs(): Long
     fun parseIsoDateTimeToEpochMs(value: String): Long?
     fun availableProcessors(): Int
+    fun localTimezoneOffsetMs(): Long
 }

@@ -30,7 +30,7 @@ import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
-import androidx.compose.material.icons.rounded.List
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.List
 import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.Speed
@@ -87,6 +87,8 @@ internal fun PlayerControlsShell(
     onSpeedClick: () -> Unit,
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
+    onHistoryClick: (() -> Unit)? = null,
+    onInfinitePlayClick: (() -> Unit)? = null,
     onVideoSettingsClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
     onChannelsClick: (() -> Unit)? = null,
@@ -191,6 +193,7 @@ internal fun PlayerControlsShell(
                     onSpeedClick = onSpeedClick,
                     onSubtitleClick = onSubtitleClick,
                     onAudioClick = onAudioClick,
+                    onHistoryClick = onHistoryClick,
                     onSourcesClick = onSourcesClick,
                     onChannelsClick = onChannelsClick,
                     onEpisodesClick = onEpisodesClick,
@@ -499,6 +502,8 @@ private fun ProgressControls(
     onSpeedClick: () -> Unit,
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
+    onHistoryClick: (() -> Unit)? = null,
+    onVideoSettingsClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
     onChannelsClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
@@ -572,11 +577,19 @@ private fun ProgressControls(
                             onClick = onSubtitleClick,
                         )
                     }
-                    PlayerActionPillButton(
-                        label = stringResource(Res.string.compose_player_audio),
-                        painter = audioPainter,
-                        onClick = onAudioClick,
-                    )
+                    if (onHistoryClick != null) {
+                        PlayerActionPillButton(
+                            label = "HIST",
+                            icon = Icons.Rounded.History,
+                            onClick = onHistoryClick,
+                        )
+                    } else {
+                        PlayerActionPillButton(
+                            label = stringResource(Res.string.compose_player_audio),
+                            painter = audioPainter,
+                            onClick = onAudioClick,
+                        )
+                    }
                     if (onSourcesClick != null) {
                         PlayerActionPillButton(
                             label = stringResource(Res.string.compose_player_sources),

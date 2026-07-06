@@ -136,6 +136,9 @@ import com.nuvio.app.features.home.HomeScreen
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.iptv.IptvScreen
 import com.nuvio.app.features.iptv.IptvRepository
+import com.nuvio.app.features.sports.SportsRepository
+import com.nuvio.app.features.sports.SportsScreen
+import com.nuvio.app.features.sports.TeamDetailScreen
 import com.nuvio.app.features.library.LibraryItem
 import com.nuvio.app.features.library.LibraryRepository
 import com.nuvio.app.features.library.LibrarySection
@@ -305,6 +308,13 @@ data class StreamRoute(
 )
 
 @Serializable
+data class TeamDetailRoute(
+    val teamName: String,
+    val teamLogo: String? = null,
+    val sport: String = "",
+)
+
+@Serializable
 data class CatalogRoute(
     val launchId: Long,
 )
@@ -342,24 +352,27 @@ enum class AppScreenTab {
     Home,
     Search,
     Library,
-    Settings,
     Iptv,
+    Sports,
+    Settings,
 }
 
 private fun AppScreenTab.toNativeNavigationTab(): NativeNavigationTab = when (this) {
     AppScreenTab.Home -> NativeNavigationTab.Home
     AppScreenTab.Search -> NativeNavigationTab.Search
     AppScreenTab.Library -> NativeNavigationTab.Library
-    AppScreenTab.Settings -> NativeNavigationTab.Settings
     AppScreenTab.Iptv -> NativeNavigationTab.Iptv
+    AppScreenTab.Sports -> NativeNavigationTab.Sports
+    AppScreenTab.Settings -> NativeNavigationTab.Settings
 }
 
 private fun NativeNavigationTab.toAppScreenTab(): AppScreenTab = when (this) {
     NativeNavigationTab.Home -> AppScreenTab.Home
     NativeNavigationTab.Search -> AppScreenTab.Search
     NativeNavigationTab.Library -> AppScreenTab.Library
-    NativeNavigationTab.Settings -> AppScreenTab.Settings
     NativeNavigationTab.Iptv -> AppScreenTab.Iptv
+    NativeNavigationTab.Sports -> AppScreenTab.Sports
+    NativeNavigationTab.Settings -> AppScreenTab.Settings
 }
 
 private fun PlayerLaunch.toExternalPlayerPlaybackRequest(): ExternalPlayerPlaybackRequest =
@@ -670,6 +683,7 @@ private fun MainAppContent(
         val libraryScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val settingsRootActionRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val iptvScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
+        val sportsScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         var nativeProfileSwitcherVisible by remember { mutableStateOf(false) }
         val currentBackStackEntry by navController.currentBackStackEntryAsState()
         val liquidGlassNativeTabBarEnabled by remember {
@@ -764,6 +778,7 @@ private fun MainAppContent(
             AppScreenTab.Library -> libraryScrollToTopRequests.tryEmit(Unit)
             AppScreenTab.Settings -> settingsRootActionRequests.tryEmit(Unit)
             AppScreenTab.Iptv -> iptvScrollToTopRequests.tryEmit(Unit)
+            AppScreenTab.Sports -> sportsScrollToTopRequests.tryEmit(Unit)
         }
     }
 
@@ -795,6 +810,7 @@ private fun MainAppContent(
             library = nativeTabLibraryTitle,
             profile = nativeTabProfileTitle,
             iptv = "IPTV",
+            sports = "Sports",
         )
     }
 
@@ -1477,6 +1493,12 @@ private fun MainAppContent(
                                             contentDescription = stringResource(Res.string.compose_nav_library),
                                         )
                                         NavItem(
+                                            selected = selectedTab == AppScreenTab.Sports,
+                                            onClick = { handleRootTabClick(AppScreenTab.Sports) },
+                                            icon = Res.drawable.sidebar_sports,
+                                            contentDescription = "Sports",
+                                        )
+                                        NavItem(
                                             selected = selectedTab == AppScreenTab.Iptv,
                                             onClick = { handleRootTabClick(AppScreenTab.Iptv) },
                                             icon = Res.drawable.sidebar_iptv,
@@ -1513,6 +1535,7 @@ private fun MainAppContent(
                                         libraryScrollToTopRequests = libraryScrollToTopRequests,
                                         settingsRootActionRequests = settingsRootActionRequests,
                                         iptvScrollToTopRequests = iptvScrollToTopRequests,
+                                        sportsScrollToTopRequests = sportsScrollToTopRequests,
                                         animateHomeCollectionGifs = tabsRouteActive,
                                         onCatalogClick = onCatalogClick,
                                         onPosterClick = { meta ->
@@ -1595,6 +1618,13 @@ private fun MainAppContent(
                                         onIptvPlayChannel = { launch ->
                                             val id = PlayerLaunchStore.put(launch)
                                             navController.navigate(PlayerRoute(id))
+                                        },
+                                        onSportsPlayChannel = { launch ->
+                                            val id = PlayerLaunchStore.put(launch)
+                                            navController.navigate(PlayerRoute(id))
+                                        },
+                                        onOpenTeam = { teamName, teamLogo, sport ->
+                                            navController.navigate(TeamDetailRoute(teamName = teamName, teamLogo = teamLogo, sport = sport))
                                         },
                                         requestedSettingsPageName = requestedSettingsPageName,
                                         onRequestedSettingsPageConsumed = {
@@ -1771,6 +1801,20 @@ private fun MainAppContent(
                                     ),
                                 )
                             }
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                composable<TeamDetailRoute> { backStackEntry ->
+                    val route = backStackEntry.toRoute<TeamDetailRoute>()
+                    TeamDetailScreen(
+                        teamName = route.teamName,
+                        teamLogo = route.teamLogo,
+                        sport = route.sport,
+                        onBack = { navController.popBackStack() },
+                        onPlayChannel = { launch ->
+                            val id = PlayerLaunchStore.put(launch)
+                            navController.navigate(PlayerRoute(id))
                         },
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -3005,6 +3049,7 @@ private fun AppTabHost(
     libraryScrollToTopRequests: Flow<Unit>,
     settingsRootActionRequests: Flow<Unit>,
     iptvScrollToTopRequests: Flow<Unit>,
+    sportsScrollToTopRequests: Flow<Unit>,
     animateHomeCollectionGifs: Boolean = true,
     onCatalogClick: ((HomeCatalogSection) -> Unit)? = null,
     onPosterClick: ((MetaPreview) -> Unit)? = null,
@@ -3033,6 +3078,8 @@ private fun AppTabHost(
     onRequestedSettingsPageConsumed: () -> Unit = {},
     onInitialHomeContentRendered: () -> Unit = {},
     onIptvPlayChannel: ((PlayerLaunch) -> Unit)? = null,
+    onSportsPlayChannel: ((PlayerLaunch) -> Unit)? = null,
+    onOpenTeam: ((teamName: String, teamLogo: String?, sport: String) -> Unit)? = null,
 ) {
     val tabStateHolder = rememberSaveableStateHolder()
 
@@ -3081,6 +3128,15 @@ private fun AppTabHost(
                         modifier = Modifier.fillMaxSize(),
                         onPlayChannel = onIptvPlayChannel,
                         scrollToTopRequests = iptvScrollToTopRequests,
+                    )
+                }
+
+                AppScreenTab.Sports -> {
+                    SportsScreen(
+                        modifier = Modifier.fillMaxSize(),
+                        onPlayChannel = onSportsPlayChannel,
+                        scrollToTopRequests = sportsScrollToTopRequests,
+                        onTeamClick = onOpenTeam,
                     )
                 }
 
@@ -3165,6 +3221,23 @@ private fun TabletFloatingTopBar(
                             contentDescription = stringResource(Res.string.compose_nav_search),
                             modifier = Modifier.size(NuvioTokens.Space.s18),
                             tint = if (selectedTab == AppScreenTab.Search) {
+                                tokens.colors.textPrimary
+                            } else {
+                                tokens.colors.textMuted
+                            },
+                        )
+                    },
+                )
+                TabletTopPillItem(
+                    label = "Sports",
+                    selected = selectedTab == AppScreenTab.Sports,
+                    onClick = { onTabSelected(AppScreenTab.Sports) },
+                    icon = {
+                        Icon(
+                            painter = painterResource(Res.drawable.sidebar_sports),
+                            contentDescription = "Sports",
+                            modifier = Modifier.size(NuvioTokens.Space.s18),
+                            tint = if (selectedTab == AppScreenTab.Sports) {
                                 tokens.colors.textPrimary
                             } else {
                                 tokens.colors.textMuted

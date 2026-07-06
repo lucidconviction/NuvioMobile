@@ -371,7 +371,7 @@ object IptvRepository {
 
     fun getLastFilteredChannels(): List<IptvChannel> = _uiState.value.channels
 
-    private fun getAllChannels(): List<IptvChannel> {
+    fun getAllChannels(): List<IptvChannel> {
         val m3uChannels = settings.m3uPlaylists.flatMap { it.channels }
         val xtreamChannels = settings.xtreamAccounts.flatMap { it.channels }
         val stalkerChannels = settings.stalkerAccounts.flatMap { it.channels }

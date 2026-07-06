@@ -16,6 +16,7 @@ internal actual fun publishNativeTabTitles(
     library: String,
     profile: String,
     iptv: String,
+    sports: String,
 ) = Unit
 
 internal actual fun publishNativeProfileTabIcon(
