@@ -17,7 +17,7 @@
 
 ## About
 
-This is a fork of [NuvioMedia/NuvioMobile](https://github.com/NuvioMedia/NuvioMobile) with a focus on adding a full-featured IPTV player. The original project is a Kotlin Multiplatform rewrite of the React Native app — a modern media hub for Android and iOS with Stremio addon ecosystem integration, playback, collection tools, watch progress, and downloads.
+This is a fork of [NuvioMedia/NuvioMobile](https://github.com/NuvioMedia/NuvioMobile) with a focus on IPTV and live sports. The original project is a Kotlin Multiplatform rewrite of the React Native app — a modern media hub for Android and iOS with Stremio addon ecosystem integration, playback, collection tools, watch progress, and downloads.
 
 **What this fork adds:**
 - IPTV player tab with M3U, Xtream Codes, and Stalker Portal support
@@ -43,13 +43,13 @@ https://github.com/Robbdeeze/NuvioMobile/raw/cmp-rewrite/assets/iptv-demo.mp4
 - **Group/category headers** — channels auto-sorted into collapsible sections
 - **Favorites & history** — heart toggles, last 15 channels, persisted
 - **In-player overlay** — search, browse, favorite, and switch channels without leaving playback
-- **EPG inline** — now/next programs with progress bar on channel cards
+- **Grayscale theme** — clean black/grey/white palette
 
 ## Installation
 
 ### Android
 
-Download the latest Android build from [GitHub Releases](https://github.com/NuvioMedia/NuvioMobile/releases/latest).
+Download the latest Android build from [GitHub Releases](https://github.com/Robbdeeze/NuvioMobile/releases/latest).
 
 ### iOS
 
@@ -58,7 +58,7 @@ Download the latest Android build from [GitHub Releases](https://github.com/Nuvi
 ## Development
 
 ```bash
-git clone https://github.com/NuvioMedia/NuvioMobile.git
+git clone https://github.com/Robbdeeze/NuvioMobile.git
 cd NuvioMobile
 ./scripts/run-mobile.sh android
 # or
