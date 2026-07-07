@@ -102,6 +102,13 @@ Ghost CH button (transparent bg, accent on tap), slide-up channel list with all 
 - **EPG removed** — EPG promotion banner, program display, source list, EPG tab, and EpgForm all removed from IPTV
 - **Infinite Play (removed)** — experimental auto-loop feature was removed after testing
 
+### Planned — NutzTube (YouTube-style tab)
+- **Concept** — Full YouTube browsing tab using NewPipeExtractor (same engine as PipePipe)
+- **Feed** — Trending/popular video grid with category chips (Trending, Music, Gaming, News, Sports, Education)
+- **Search** — YouTube search with results in video card grid
+- **Player** — Reuses existing ExoPlayer + NewPipeExtractor stream resolution
+- **Status** — Not yet implemented
+
 ### Hotfix — Trakt Credentials, Branding, Sports Performance, IPTV Stability
 - **Trakt login fixed** — OAuth client ID/secret configured, users can now sign in to Trakt from Settings
 - **"by RobbdeezeNutz" branding** — added to auth screen and loading screen under Nuvio logo
