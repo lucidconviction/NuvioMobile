@@ -104,9 +104,12 @@ Ghost CH button (transparent bg, accent on tap), slide-up channel list with all 
 
 ### Planned — NutzTube (YouTube-style tab)
 - **Concept** — Full YouTube browsing tab using NewPipeExtractor (same engine as PipePipe)
-- **Feed** — Trending/popular video grid with category chips (Trending, Music, Gaming, News, Sports, Education)
+- **Design** — Strictly black, grey, and white palette (no colors). Pure black background (#000000), charcoal surfaces (#121212, #1A1A1A, #252525), white text (#FFFFFF), muted gray metadata (#B0B0B0). Geist font for UI, JetBrains Mono for metadata.
+- **Screens** — (1) Main browse feed with 2-column video card grid + category chips row (Trending, Music, Gaming, News, Sports), (2) Search results with dark search bar, (3) Full-screen video player with playback controls and "More Like This" row, (4) Category-filtered browse view
+- **Feed** — Trending/popular video grid with category chips
 - **Search** — YouTube search with results in video card grid
 - **Player** — Reuses existing ExoPlayer + NewPipeExtractor stream resolution
+- **Stitch design prompt** — written to `stitch_nuvio_sports_hub/nutz_tube/DESIGN.md`
 - **Status** — Not yet implemented
 
 ### Hotfix — Trakt Credentials, Branding, Sports Performance, IPTV Stability
