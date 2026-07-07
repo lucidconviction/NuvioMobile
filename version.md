@@ -102,6 +102,13 @@ Ghost CH button (transparent bg, accent on tap), slide-up channel list with all 
 - **EPG removed** — EPG promotion banner, program display, source list, EPG tab, and EpgForm all removed from IPTV
 - **Infinite Play (removed)** — experimental auto-loop feature was removed after testing
 
+### Hotfix — Trakt Credentials, Branding, Sports Performance, IPTV Stability
+- **Trakt login fixed** — OAuth client ID/secret configured, users can now sign in to Trakt from Settings
+- **"by RobbdeezeNutz" branding** — added to auth screen and loading screen under Nuvio logo
+- **Sports loading optimized** — switched from 28 parallel requests to sequential prioritized requests with 5s timeout per sport, bails out early after 40 events collected
+- **IPTV scroll stability** — fixed crash when scrolling through channel list
+- **Screenshots added** — README now shows Sports Hub, IPTV, player controls, channel overlay, and Trakt login
+
 ## Modified Files (Phase 4–13b)
 - `PlayerModels.kt` — channel data, history fields
 - `PlayerScreenArgs.kt` — iptv + history params
