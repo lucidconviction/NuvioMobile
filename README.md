@@ -44,6 +44,7 @@ The mobile app is built from a single shared codebase in [composeApp](./composeA
 </div>
 <div align="center">
   <img src="assets/screenshots/photo_2026-07-06%2015.10.54.jpeg" alt="IPTV" width="30%" />
+  <img src="assets/screenshots/photo_2026-07-06%2019.54.01.jpeg" alt="Trakt Login" width="30%" />
 </div>
 
 ## IPTV
