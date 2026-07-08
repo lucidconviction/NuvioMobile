@@ -543,6 +543,15 @@ private fun AuthBrandLockup(
                 fontWeight = FontWeight.Normal,
             ),
         )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Fork by RobbdeezeNutz",
+            style = MaterialTheme.typography.bodySmall.copy(
+                color = AuthTextSecondary.copy(alpha = 0.6f),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Normal,
+            ),
+        )
     }
 }
 

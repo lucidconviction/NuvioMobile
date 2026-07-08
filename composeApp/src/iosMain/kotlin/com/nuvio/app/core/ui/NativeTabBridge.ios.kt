@@ -47,8 +47,7 @@ internal actual fun publishNativeTabTitles(
     search: String,
     library: String,
     profile: String,
-    iptv: String,
-    sports: String,
+    hub: String,
 ) {
     publishString(nativeTabTitleHomeKey, home)
     publishString(nativeTabTitleSearchKey, search)

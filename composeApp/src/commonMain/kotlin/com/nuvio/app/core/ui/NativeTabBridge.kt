@@ -8,8 +8,7 @@ internal enum class NativeNavigationTab {
     Home,
     Search,
     Library,
-    Iptv,
-    Sports,
+    RobbdeezeNutzHub,
     Settings,
     ;
 
@@ -54,10 +53,9 @@ internal object NativeTabBridge {
         search: String,
         library: String,
         profile: String,
-        iptv: String,
-        sports: String,
+        hub: String,
     ) {
-        publishNativeTabTitles(home, search, library, profile, iptv, sports)
+        publishNativeTabTitles(home, search, library, profile, hub)
     }
 
     fun publishProfileTabIcon(
@@ -98,8 +96,7 @@ internal expect fun publishNativeTabTitles(
     search: String,
     library: String,
     profile: String,
-    iptv: String,
-    sports: String,
+    hub: String,
 )
 
 internal expect fun publishNativeProfileTabIcon(

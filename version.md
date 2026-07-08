@@ -157,3 +157,57 @@ Ghost CH button (transparent bg, accent on tap), slide-up channel list with all 
 - **Trending News → YouTube videos** — replaced ESPN text article news with video cards from YouTube (7 sports news queries, first to return results wins); cards match highlight card style with thumbnail, play overlay, title, channel, source label; tapping plays in ExoPlayer via `YouTubeStreamResolver`
 - **Date-switching performance** — on date switch: (1) stale data stays visible (no spinner flash), (2) date-independent data (news/trending videos) is NOT re-fetched, (3) `perDateEventCache` map stores events per date so revisiting is instant, (4) after loading a date, adjacent dates D-1 and D+1 are pre-fetched in background
 - **Sports search bar** — `OutlinedTextField` below date pills with search/close icons; searches YouTube via `YouTubeHighlightClient.searchHighlights(query)` AND filters loaded ESPN events by team name/league/title; results shown as video cards + matched event cards in a dedicated `SearchResultsSection`; clear button resets results
+
+### Tab Restructure — RobbdeezeNutzHub (July 2026)
+- **Removed standalone IPTV and Sports tabs** — replaced with single **RobbdeezeNutzHub** tab
+- **RobbdeezeNutzHubScreen** — hub screen with 4 glass-style cards: IPTVNutz Hub, SportNutz Hub, VidNutz Hub, MusicNutz Hub
+- **Persistent "RobbdeezeNutz Hubz" title** — stays visible across all sub-screens; back button shown inline within the persistent title row when on a sub-screen
+- **Tapping a hub card** — opens the sub-screen inline with compact header (sub-name) + content fills remaining space
+- **sidebar_hub.xml** — new dashboard-style icon for the hub tab
+- **NativeTabBridge updated** — `publishTabTitles()` signature changed from (home, search, library, profile, iptv, sports) to (home, search, library, profile, hub)
+- **SportsScreen** — stripped of standalone Scaffold/TopAppBar (hub provides the header)
+
+### Phase 14 — VidNutz Hub (YouTube Video Browser)
+- **VidNutz Hub created** — replaces disabled placeholder card; inline sub-screen with back button
+- **VidNutzModels.kt** — `VidNutzVideo`, `VidNutzCategory` (12 entries: Trending, Politics, News, Music, Sports, Documentary, Technology, Entertainment, Comedy, Science, True Crime, Food & Drink), `VidNutzUiState` with pagination fields
+- **VidNutzRepository.kt** — singleton with `fetchTrending()`, `search()`, `fetchByCategory()`, `resolveStream()`; 5 Invidious + 3 Piped API instances + NewPipeExtractor platform fallback; platform-first for page 1 (fast), Invidious for page 2+
+- **VidNutzScreen.kt** — persistent `OutlinedTextField` search bar with 400ms debounce, 12 pill category chips, 1-column `LazyVerticalGrid` with 16:9 thumbnail cards (12dp radius, play overlay, duration badge, title, channel, views/date), tap-to-play via `PlayerLaunch` → ExoPlayer
+- **Monochrome design** — #000000 background, black/grey/white palette, JetBrains Mono for metadata
+- **D-pad focus indicators** — `focusable()` + `onFocusChanged` on chips and cards; white focus ring on focused items
+- **Swipe left/right** — `detectHorizontalDragGestures` on video grid; 80dp threshold; wraps around; disabled while searching
+- **"Load More" button** — explicit button at bottom of grid; spinner shown while loading
+- **Sub-screen state fix** — `remember` → `rememberSaveable` + `HubSubScreen` enum made `Serializable`
+
+### Phase 15 — MusicNutz Hub (Deezer + YouTube Music Player)
+- **MusicNutz Hub created** — replaces disabled placeholder; full inline sub-screen with back button
+- **MusicNutzModels.kt** — `MusicTrack`, `MusicAlbum`, `MusicNutzCategory` (12 genres: Trending, New Releases, Rock, Hip-Hop, Electronic, Pop, R&B, Jazz, Classical, Country, Metal, Indie), `MusicNutzUiState` with tracks/albums/album-detail state, `MusicNutzMode` enum (TRACKS / ALBUMS)
+- **MusicNutzRepository.kt** — Deezer public API (free, no key) for track search, album search, album track lists, trending/chart endpoints; YouTube fallback via `platformYouTubeSearch` + `YouTubeStreamResolver` for full-length audio playback
+- **MusicNutzScreen.kt** — persistent search bar (adapts placeholder per mode), scrollable category chips, Tracks/Albums toggle pill row, 2-column `LazyVerticalGrid` with square (1:1) album art cards
+- **Album detail view** — full-screen inline view with 200dp album art, title, artist, release year, track count, scrollable track list with D-pad focus, tap to play
+- **Playback** — Deezer 30s MP3 preview (if available) → YouTube full audio fallback via NewPipeExtractor; album art shown as `poster` in ExoPlayer; subtitle shows "Artist · Album"
+- **Swipe, Load More, D-pad focus** — same patterns as VidNutz v2
+- **All 4 hubs live** — IPTVNutz, SportNutz, VidNutz, MusicNutz all enabled and working
+
+### MusicNutz — Planned Enhancements (saved for later)
+- **Synced lyrics** — display synchronized lyrics during playback (similar to PlayTorrioV2)
+- **Download tracks** — save music for offline playback
+- **Playlists** — create, manage, and persist custom playlists
+- **Queue management** — full player controls with shuffle, repeat, queue reorder
+- **Favorites** — like songs and save albums with persisted state
+- **Playback speed control** — variable speed for audio playback
+- **Sleep timer** — auto-stop playback after a set duration
+
+### Planned Enhancements (from yesnt10/NuvioMobile-Enhanced)
+- **Working EPG** — implement using their simpler approach: parse EPG URLs from M3U header (`url-tvg`, `x-tvg-url`), use regex-based parser (not streaming — small per-provider files), store only current program per channel (not full schedule), match by `tvg-id`, load in background coroutine. Avoids the OOM crashes from i.mjh.nz 50MB+ aggregate files
+- **AI Assistant** — Gemini, OpenRouter, Cerebras, and Groq support with grounded web search and formatted markdown replies. Add `ai/` module with models, service layer, settings storage, and web search service
+- **Premium Release Calendar** — integrate into Library screen with better status handling for current and future entries, safer month transitions, and less UI flicker in calendar-driven views
+
+## New Files
+- `VidNutzModels.kt` — VidNutzVideo, VidNutzCategory (12 entries), VidNutzUiState with pagination
+- `VidNutzRepository.kt` — singleton, Invidious + Piped + NewPipeExtractor, fetchTrending/search/fetchByCategory/resolveStream
+- `VidNutzScreen.kt` — monochrome UI, persistent search bar, category chips, 1-column grid, Load More, D-pad focus, swipe
+- `MusicNutzModels.kt` — MusicTrack, MusicAlbum, MusicNutzCategory (12 genres), MusicNutzUiState with tracks/albums/mode
+- `MusicNutzRepository.kt` — Deezer public API + YouTube/NewPipeExtractor fallback
+- `MusicNutzScreen.kt` — monochrome UI, persistent search bar, Tracks/Albums toggle, 2-column grid, album detail view, swipe, Load More, D-pad focus
+- `RobbdeezeNutzHubScreen.kt` — hub screen with persistent title, 4 glass cards, inline sub-screens with back navigation
+- `sidebar_hub.xml` — dashboard icon for the hub tab

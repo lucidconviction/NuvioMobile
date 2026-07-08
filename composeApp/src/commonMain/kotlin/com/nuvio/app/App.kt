@@ -136,7 +136,7 @@ import com.nuvio.app.features.tmdb.TmdbEntityKind
 import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.home.HomeScreen
 import com.nuvio.app.features.home.MetaPreview
-import com.nuvio.app.features.iptv.IptvScreen
+import com.nuvio.app.features.hub.RobbdeezeNutzHubScreen
 import com.nuvio.app.features.iptv.IptvRepository
 import com.nuvio.app.features.sports.SportsRepository
 import com.nuvio.app.features.sports.SportsScreen
@@ -354,8 +354,7 @@ enum class AppScreenTab {
     Home,
     Search,
     Library,
-    Iptv,
-    Sports,
+    RobbdeezeNutzHub,
     Settings,
 }
 
@@ -363,8 +362,7 @@ private fun AppScreenTab.toNativeNavigationTab(): NativeNavigationTab = when (th
     AppScreenTab.Home -> NativeNavigationTab.Home
     AppScreenTab.Search -> NativeNavigationTab.Search
     AppScreenTab.Library -> NativeNavigationTab.Library
-    AppScreenTab.Iptv -> NativeNavigationTab.Iptv
-    AppScreenTab.Sports -> NativeNavigationTab.Sports
+    AppScreenTab.RobbdeezeNutzHub -> NativeNavigationTab.RobbdeezeNutzHub
     AppScreenTab.Settings -> NativeNavigationTab.Settings
 }
 
@@ -372,8 +370,7 @@ private fun NativeNavigationTab.toAppScreenTab(): AppScreenTab = when (this) {
     NativeNavigationTab.Home -> AppScreenTab.Home
     NativeNavigationTab.Search -> AppScreenTab.Search
     NativeNavigationTab.Library -> AppScreenTab.Library
-    NativeNavigationTab.Iptv -> AppScreenTab.Iptv
-    NativeNavigationTab.Sports -> AppScreenTab.Sports
+    NativeNavigationTab.RobbdeezeNutzHub -> AppScreenTab.RobbdeezeNutzHub
     NativeNavigationTab.Settings -> AppScreenTab.Settings
 }
 
@@ -679,6 +676,7 @@ private fun MainAppContent(
         val focusManager = LocalFocusManager.current
         val coroutineScope = rememberCoroutineScope()
         var selectedTab by rememberSaveable { mutableStateOf(AppScreenTab.Home) }
+        var hubResetCounter by remember { mutableStateOf(0) }
         var searchFocusRequestCount by remember { mutableStateOf(0) }
         val homeScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val searchScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
@@ -779,8 +777,11 @@ private fun MainAppContent(
             }
             AppScreenTab.Library -> libraryScrollToTopRequests.tryEmit(Unit)
             AppScreenTab.Settings -> settingsRootActionRequests.tryEmit(Unit)
-            AppScreenTab.Iptv -> iptvScrollToTopRequests.tryEmit(Unit)
-            AppScreenTab.Sports -> sportsScrollToTopRequests.tryEmit(Unit)
+            AppScreenTab.RobbdeezeNutzHub -> {
+                iptvScrollToTopRequests.tryEmit(Unit)
+                sportsScrollToTopRequests.tryEmit(Unit)
+                hubResetCounter++  // Reset sub-screens to main hub view
+            }
         }
     }
 
@@ -811,8 +812,7 @@ private fun MainAppContent(
             search = nativeTabSearchTitle,
             library = nativeTabLibraryTitle,
             profile = nativeTabProfileTitle,
-            iptv = "IPTV",
-            sports = "Sports",
+            hub = "Hubz",
         )
     }
 
@@ -1526,16 +1526,10 @@ private fun MainAppContent(
                                             contentDescription = stringResource(Res.string.compose_nav_library),
                                         )
                                         NavItem(
-                                            selected = selectedTab == AppScreenTab.Sports,
-                                            onClick = { handleRootTabClick(AppScreenTab.Sports) },
-                                            icon = Res.drawable.sidebar_sports,
-                                            contentDescription = "Sports",
-                                        )
-                                        NavItem(
-                                            selected = selectedTab == AppScreenTab.Iptv,
-                                            onClick = { handleRootTabClick(AppScreenTab.Iptv) },
-                                            icon = Res.drawable.sidebar_iptv,
-                                            contentDescription = "IPTV",
+                                            selected = selectedTab == AppScreenTab.RobbdeezeNutzHub,
+                                            onClick = { handleRootTabClick(AppScreenTab.RobbdeezeNutzHub) },
+                                            icon = Res.drawable.sidebar_hub,
+                                            contentDescription = "Hubz",
                                         )
                                         NavItem(
                                             selected = selectedTab == AppScreenTab.Settings,
@@ -1569,6 +1563,7 @@ private fun MainAppContent(
                                         settingsRootActionRequests = settingsRootActionRequests,
                                         iptvScrollToTopRequests = iptvScrollToTopRequests,
                                         sportsScrollToTopRequests = sportsScrollToTopRequests,
+                                        hubResetTrigger = hubResetCounter,
                                         animateHomeCollectionGifs = tabsRouteActive,
                                         onCatalogClick = onCatalogClick,
                                         onPosterClick = { meta ->
@@ -3112,6 +3107,7 @@ private fun AppTabHost(
     onInitialHomeContentRendered: () -> Unit = {},
     onIptvPlayChannel: ((PlayerLaunch) -> Unit)? = null,
     onSportsPlayChannel: ((PlayerLaunch) -> Unit)? = null,
+    hubResetTrigger: Int = 0,
     onOpenTeam: ((teamName: String, teamLogo: String?, sport: String) -> Unit)? = null,
 ) {
     val tabStateHolder = rememberSaveableStateHolder()
@@ -3156,20 +3152,17 @@ private fun AppTabHost(
                     )
                 }
 
-                AppScreenTab.Iptv -> {
-                    IptvScreen(
+                AppScreenTab.RobbdeezeNutzHub -> {
+                    RobbdeezeNutzHubScreen(
                         modifier = Modifier.fillMaxSize(),
-                        onPlayChannel = onIptvPlayChannel,
-                        scrollToTopRequests = iptvScrollToTopRequests,
-                    )
-                }
-
-                AppScreenTab.Sports -> {
-                    SportsScreen(
-                        modifier = Modifier.fillMaxSize(),
-                        onPlayChannel = onSportsPlayChannel,
-                        scrollToTopRequests = sportsScrollToTopRequests,
+                        onPlayChannel = { launch ->
+                            onIptvPlayChannel?.invoke(launch)
+                            onSportsPlayChannel?.invoke(launch)
+                        },
+                        iptvScrollToTopRequests = iptvScrollToTopRequests,
+                        sportsScrollToTopRequests = sportsScrollToTopRequests,
                         onTeamClick = onOpenTeam,
+                        resetTrigger = hubResetTrigger,
                     )
                 }
 
@@ -3262,32 +3255,15 @@ private fun TabletFloatingTopBar(
                     },
                 )
                 TabletTopPillItem(
-                    label = "Sports",
-                    selected = selectedTab == AppScreenTab.Sports,
-                    onClick = { onTabSelected(AppScreenTab.Sports) },
+                    label = "Hubz",
+                    selected = selectedTab == AppScreenTab.RobbdeezeNutzHub,
+                    onClick = { onTabSelected(AppScreenTab.RobbdeezeNutzHub) },
                     icon = {
                         Icon(
-                            painter = painterResource(Res.drawable.sidebar_sports),
-                            contentDescription = "Sports",
+                            painter = painterResource(Res.drawable.sidebar_hub),
+                            contentDescription = "Hubz",
                             modifier = Modifier.size(NuvioTokens.Space.s18),
-                            tint = if (selectedTab == AppScreenTab.Sports) {
-                                tokens.colors.textPrimary
-                            } else {
-                                tokens.colors.textMuted
-                            },
-                        )
-                    },
-                )
-                TabletTopPillItem(
-                    label = "IPTV",
-                    selected = selectedTab == AppScreenTab.Iptv,
-                    onClick = { onTabSelected(AppScreenTab.Iptv) },
-                    icon = {
-                        Icon(
-                            painter = painterResource(Res.drawable.sidebar_iptv),
-                            contentDescription = "IPTV",
-                            modifier = Modifier.size(NuvioTokens.Space.s18),
-                            tint = if (selectedTab == AppScreenTab.Iptv) {
+                            tint = if (selectedTab == AppScreenTab.RobbdeezeNutzHub) {
                                 tokens.colors.textPrimary
                             } else {
                                 tokens.colors.textMuted
