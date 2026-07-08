@@ -1,32 +1,46 @@
 <div align="center">
 
-  <img src="https://github.com/tapframe/NuvioTV/blob/main/assets/brand/app_logo_wordmark.png" alt="Nuvio" width="300" />
+  <img src="https://github.com/tapframe/NuvioTV/blob/main/assets/brand/app_logo_wordmark.png" alt="RNutz Nuvio" width="300" />
   <br />
   <br />
 
   [![Stars][stars-shield]][stars-url]
   [![Issues][issues-shield]][issues-url]
+  [![Release][release-shield]][release-url]
 
   <p>
-    A modern media hub for Android and iOS built with Kotlin Multiplatform and Compose Multiplatform.
+    A community fork of NuvioMobile with RobbdeezeNutz Hub — IPTVNutz, SportNutz, VidNutz, MusicNutz.
     <br />
-    Stremio addon ecosystem • Cross-platform
+    Android & iOS • Kotlin Multiplatform • Compose Multiplatform
   </p>
 
 </div>
 
 ## About
 
-This is a fork of [NuvioMedia/NuvioMobile](https://github.com/NuvioMedia/NuvioMobile) with a focus on IPTV and live sports. The original project is a Kotlin Multiplatform rewrite of the React Native app — a modern media hub for Android and iOS with Stremio addon ecosystem integration, playback, collection tools, watch progress, and downloads.
+This is **RNutz Nuvio** — a community fork of [NuvioMedia/NuvioMobile](https://github.com/NuvioMedia/NuvioMobile) with a completely reimagined hub experience. The original project is a Kotlin Multiplatform media hub for Android and iOS with Stremio addon ecosystem integration.
 
-**What this fork adds:**
-- IPTV player tab with M3U, Xtream Codes, and Stalker Portal support
-- Built-in iptv-org source (12,000+ free channels)
-- In-player channel overlay with search, favorites, history, and one-tap switching
-- Multi-source selection, collapsible groups, channel favorites, and playback history
-- Sports Hub tab with ESPN + TheSportsDB integration, YouTube highlights, live scores, standings
-- YouTube streaming via NewPipeExtractor (Android) with Invidious/Piped fallback
-- Pull-to-refresh, per-date event caching, sports search bar
+**What this fork changes:**
+
+### RobbdeezeNutz Hub
+A single hub tab replacing the old IPTV/Sports tabs with 4 sub-hubs:
+
+| Hub | Description |
+|-----|-------------|
+| **IPTVNutz Hub** | Live TV channels with M3U, Xtream Codes, Stalker Portal support. Grayscale theme, scroll-to-top overlay |
+| **SportNutz Hub** | Real-time scores, ESPN + TheSportsDB integration, YouTube highlights, live scores, standings, date navigation |
+| **VidNutz Hub** | YouTube video browser with 12 categories (Trending, Politics, News, Music, Sports, etc.), persistent search, 400ms debounce, swipe left/right, Load More, D-pad focus |
+| **MusicNutz Hub** | Deezer-powered music browsing with album art, Tracks/Albums toggle, album detail view, full-length YouTube audio playback via NewPipeExtractor |
+
+### Key Features
+- **Persistent "RobbdeezeNutz Hubz" title** across all sub-screens
+- **Smart top margin** — adapts for phone vs tablet/TV mode
+- **D-pad focus** — full TV remote navigation on all cards, chips, and items
+- **Tab re-tap resets** to main hub view
+- **YouTube streaming** via NewPipeExtractor (Android) with Invidious/Piped fallback
+- **Music playback** — Deezer metadata + YouTube full-length audio
+- **Package:** `app.robbdeezenutz.nuvio`
+- **App name:** RNutz Nuvio
 
 The mobile app is built from a single shared codebase in [composeApp](./composeApp), with native platform entry points for Android and iOS.
 
@@ -45,6 +59,12 @@ The mobile app is built from a single shared codebase in [composeApp](./composeA
 <div align="center">
   <img src="assets/screenshots/photo_2026-07-06%2015.10.54.jpeg" alt="IPTV" width="30%" />
   <img src="assets/screenshots/photo_2026-07-06%2019.54.01.jpeg" alt="Trakt Login" width="30%" />
+</div>
+<div align="center">
+  <img src="assets/screenshots/photo_2026-07-07%2022.46.26.jpeg" alt="RobbdeezeNutz Hub" width="30%" />
+  <img src="assets/screenshots/photo_2026-07-07%2022.46.39.jpeg" alt="VidNutz Hub" width="30%" />
+  <img src="assets/screenshots/photo_2026-07-07%2022.46.47.jpeg" alt="MusicNutz Hub" width="30%" />
+  <p><em>Add these screenshots to assets/screenshots/ — I couldn't view them to verify filenames</em></p>
 </div>
 
 ## IPTV
@@ -129,5 +149,7 @@ For comprehensive legal information, including our full disclaimer, third-party 
 [stars-url]: https://github.com/Robbdeeze/NuvioMobile/stargazers
 [issues-shield]: https://img.shields.io/github/issues/Robbdeeze/NuvioMobile.svg?style=for-the-badge
 [issues-url]: https://github.com/Robbdeeze/NuvioMobile/issues
+[release-shield]: https://img.shields.io/github/v/release/Robbdeeze/NuvioMobile?include_prereleases&style=for-the-badge&label=Release
+[release-url]: https://github.com/Robbdeeze/NuvioMobile/releases/latest
 [license-shield]: https://img.shields.io/github/license/NuvioMedia/NuvioMobile.svg?style=for-the-badge
 [license-url]: https://github.com/NuvioMedia/NuvioMobile/blob/main/LICENSE
