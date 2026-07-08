@@ -59,19 +59,22 @@ YouTube video browser with 12 categories (Trending, Politics, News, Music, Sport
 ### MusicNutz Hub
 Browse millions of tracks by genre. Search by song or album. Toggle between Tracks and Albums view. Tap an album to see its full tracklist. Full-length audio via YouTube.
 
-## Features
+## Download
 
-- **D-pad / TV remote navigation** across all hubs
-- **Installs alongside stock Nuvio** — separate package name
-- **YouTube streaming** via NewPipeExtractor (no API key needed)
-- **Monochrome grayscale design** throughout
-- **Trakt login** for watch progress sync
+[Download the latest APK](https://github.com/Robbdeeze/NuvioMobile/releases/latest)
 
-## Build
+## Build from source
 
 ```bash
 ./gradlew :androidApp:assembleDebug -Pnuvio.android.distribution=full
 ```
+
+## Features
+
+- **D-pad / TV remote navigation** across all hubs
+- **Installs alongside stock Nuvio** — separate package name
+- **Monochrome grayscale design** throughout
+- **Trakt login** for watch progress sync
 
 ## License
 
