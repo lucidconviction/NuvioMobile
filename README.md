@@ -61,7 +61,7 @@ Browse millions of tracks by genre. Search by song or album. Toggle between Trac
 
 ## Download
 
-[Download the latest APK](https://github.com/Robbdeeze/NuvioMobile/releases/latest)
+[Download the latest APK](https://github.com/Robbdeeze/NuvioMobile/releases/download/v1.0.0-rnutz/androidApp-full-debug.apk) (234 MB)
 
 ## Build from source
 
