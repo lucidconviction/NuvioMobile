@@ -1,19 +1,15 @@
 package com.nuvio.app.features.sports
 
 import com.nuvio.app.features.iptv.EspnClient
-import com.nuvio.app.features.iptv.EspnNewsArticle
-import com.nuvio.app.features.iptv.EspnNewsClient
 import com.nuvio.app.features.iptv.EspnProcessedEvent
-import com.nuvio.app.features.iptv.SportsClient
+import com.nuvio.app.features.iptv.IptvRepository
+import com.nuvio.app.features.player.SportsNowStore
 import com.nuvio.app.features.trakt.TraktPlatformClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,261 +21,179 @@ object SportsRepository {
     val uiState: StateFlow<SportsUiState> = _uiState.asStateFlow()
 
     private var refreshJob: Job? = null
+    private var autoRefreshJob: Job? = null
 
-    private var cachedEvents: List<EspnProcessedEvent> = emptyList()
-    private var cachedNews: List<EspnNewsArticle> = emptyList()
-    private var cachedHighlights: List<HighlightVideo> = emptyList()
-    private var cachedStandings: List<TeamStanding> = emptyList()
-    private var cachedTrendingVideos: List<YouTubeVideo> = emptyList()
-    private var hasCachedData = false
-    private val perDateEventCache = mutableMapOf<String, List<EspnProcessedEvent>>()
+    val leagues: List<SportLeague> = listOf(
+        SportLeague("ufc", "UFC MMA", "UFC", "mma/ufc"),
+        SportLeague("boxing", "Boxing", "BOX", "boxing/_"),
+        SportLeague("pfl", "PFL MMA", "PFL", "mma/pfl"),
+        SportLeague("ppv", "PPV / Special Events", "PPV", "ppv/_"),
+        SportLeague("nfl", "NFL Football", "NFL", "football/nfl"),
+        SportLeague("nba", "NBA Basketball", "NBA", "basketball/nba"),
+        SportLeague("mlb", "MLB Baseball", "MLB", "baseball/mlb"),
+        SportLeague("nhl", "NHL Hockey", "NHL", "hockey/nhl"),
+        SportLeague("soccer", "MLS Soccer", "MLS", "soccer/usa.1"),
+    )
 
     fun refresh() {
-        val currentDate = _uiState.value.selectedDate.ifBlank { formatToday() }
-        refresh(currentDate)
-    }
-
-    fun refresh(date: String) {
         refreshJob?.cancel()
         refreshJob = scope.launch {
-            val isDateSwitch = _uiState.value.selectedDate.isNotBlank() && _uiState.value.selectedDate != date
+            _uiState.value = _uiState.value.copy(isLoading = _uiState.value.events.isEmpty(), error = null)
+            val trendingVideos = fetchTrendingNewsVideos()
+            _uiState.value = _uiState.value.copy(
+                trendingNewsVideos = trendingVideos,
+                isLoading = false,
+            )
+        }
+    }
 
-            if (!isDateSwitch) {
-                val hasData = _uiState.value.events.isNotEmpty()
-                if (!hasData && hasCachedData) {
-                    _uiState.value = _uiState.value.copy(
-                        events = cachedEvents,
-                        news = cachedNews,
-                        highlightVideos = cachedHighlights,
-                        standings = cachedStandings,
-                        trendingNewsVideos = cachedTrendingVideos,
-                        isLoading = false,
-                    )
-                }
-                _uiState.value = _uiState.value.copy(isLoading = !hasData && !hasCachedData, error = null)
-            }
+    fun loadLeagueEvents(league: SportLeague) {
+        refreshJob?.cancel()
+        val parts = league.slug.split("/")
+        if (parts.size < 2) return
+        val sport = parts[0]
+        val leagueName = parts[1]
 
+        scope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                val espnDeferred = async {
-                    perDateEventCache.getOrPut(date) { EspnClient.fetchAll(date) }
-                }
-                val newsDeferred = if (!isDateSwitch) async { EspnNewsClient.fetchNews() } else null
-                val sportsDbDeferred = async { fetchSportsDbEvents(date) }
-                val trendingDeferred = if (!isDateSwitch) async { fetchTrendingNewsVideos() } else null
-
-                val espnEvents = espnDeferred.await()
-                val sportsDbEvents = sportsDbDeferred.await()
-                val news = newsDeferred?.await() ?: _uiState.value.news
-                val trendingVideos = trendingDeferred?.await() ?: _uiState.value.trendingNewsVideos
-
-                val espnIds = espnEvents.map { it.id }.toSet()
-                val merged = espnEvents + sportsDbEvents.filter { it.id !in espnIds }
-
-                val highlightVideos = fetchYouTubeHighlights(merged, date)
-                val standings = buildStandings(merged)
-
-                perDateEventCache[date] = merged
-                cachedEvents = merged
-                cachedNews = if (!isDateSwitch) news else cachedNews
-                cachedHighlights = highlightVideos
-                cachedStandings = standings
-                cachedTrendingVideos = if (!isDateSwitch) trendingVideos else cachedTrendingVideos
-                hasCachedData = true
+                val events = EspnClient.fetchLeague(sport, leagueName)
+                val highlights = YouTubeHighlightClient.searchHighlights("${league.name} highlights")
+                val highlightVideos = if (highlights.isNotEmpty()) {
+                    listOf(HighlightVideo(eventId = "league_${league.id}", video = highlights.first(), sport = sport))
+                } else emptyList()
+                val trendingVids = if (_uiState.value.trendingNewsVideos.isEmpty()) fetchTrendingNewsVideos()
+                    else _uiState.value.trendingNewsVideos
 
                 _uiState.value = _uiState.value.copy(
-                    events = merged,
-                    news = if (news.isNotEmpty()) news else _uiState.value.news,
+                    events = events,
                     highlightVideos = highlightVideos,
-                    standings = standings,
-                    trendingNewsVideos = trendingVideos,
+                    trendingNewsVideos = trendingVids,
                     isLoading = false,
-                    selectedDate = date,
                 )
-
-                if (!isDateSwitch) {
-                    launch {
-                        val prev = addDays(date, -1)
-                        val next = addDays(date, 1)
-                        if (!perDateEventCache.containsKey(prev)) {
-                            try { perDateEventCache[prev] = EspnClient.fetchAll(prev) } catch (_: Exception) { }
-                        }
-                        if (!perDateEventCache.containsKey(next)) {
-                            try { perDateEventCache[next] = EspnClient.fetchAll(next) } catch (_: Exception) { }
-                        }
-                    }
-                }
-            } catch (e: CancellationException) {
-                throw e
             } catch (e: Exception) {
-                if (!isDateSwitch) {
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = e.message ?: "Failed to load sports",
-                    )
-                }
+                _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
             }
         }
     }
 
-    private suspend fun fetchSportsDbEvents(date: String): List<EspnProcessedEvent> {
-        return try {
-            val raw = SportsClient.fetchTodaysEvents(date)
-            raw.map { it.toEspnProcessedEvent() }
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
-
-    private suspend fun fetchYouTubeHighlights(events: List<EspnProcessedEvent>, date: String): List<HighlightVideo> = coroutineScope {
-        val candidates = events.filter {
-            it.status.contains("FINAL") || it.isLive || it.homeLogo != null
-        }.take(12)
-
-        val eventResults = candidates.map { event ->
-            async {
-                try {
-                    val query = buildHighlightQuery(event)
-                    val videos = YouTubeHighlightClient.searchHighlights(query)
-                    if (videos.isNotEmpty()) {
-                        HighlightVideo(eventId = event.id, video = videos.first(), sport = event.sport)
-                    } else null
-                } catch (_: Exception) { null }
-            }
-        }.awaitAll().filterNotNull()
-
-        val leagueQueries = buildLeagueQueries(events, date)
-        val leagueResults = leagueQueries.map { query ->
-            async {
-                try {
-                    YouTubeHighlightClient.searchHighlights(query).map { video ->
-                        val sport = when {
-                            query.contains("UFC", ignoreCase = true) -> "Fighting"
-                            query.contains("PFL", ignoreCase = true) -> "Fighting"
-                            query.contains("NBA", ignoreCase = true) -> "Basketball"
-                            query.contains("NFL", ignoreCase = true) -> "Football"
-                            query.contains("MLB", ignoreCase = true) -> "Baseball"
-                            query.contains("NHL", ignoreCase = true) -> "Hockey"
-                            query.contains("Premier", ignoreCase = true) -> "Soccer"
-                            query.contains("F1", ignoreCase = true) -> "Racing"
-                            else -> ""
-                        }
-                        HighlightVideo(
-                            eventId = "league_${query.hashCode().toLong()}",
-                            video = video,
-                            sport = sport,
-                        )
-                    }
-                } catch (_: Exception) { emptyList() }
-            }
-        }.awaitAll().flatten()
-
-        (eventResults + leagueResults).distinctBy { it.video.videoId }
-    }
-
-    private fun buildHighlightQuery(event: EspnProcessedEvent): String {
-        val base = if (event.title.isNotBlank()) event.title else "${event.homeTeam} ${event.awayTeam}"
-        val league = when {
-            event.league.contains("Ufc", ignoreCase = true) -> "UFC"
-            event.league.contains("Pfl", ignoreCase = true) -> "PFL"
-            event.league.contains("Nfl", ignoreCase = true) -> "NFL"
-            event.league.contains("Nba", ignoreCase = true) -> "NBA"
-            event.league.contains("Mlb", ignoreCase = true) -> "MLB"
-            event.league.contains("Nhl", ignoreCase = true) -> "NHL"
-            event.league.contains("Premier", ignoreCase = true) -> "Premier League"
-            event.league.contains("Mens college", ignoreCase = true) -> "College Basketball"
-            event.league.contains("College football", ignoreCase = true) -> "College Football"
-            event.league.contains("F1", ignoreCase = true) -> "F1"
-            else -> event.sport
-        }
-        return "$base $league highlights"
-    }
-
-    private fun buildLeagueQueries(events: List<EspnProcessedEvent>, date: String): List<String> {
-        val today = formatToday()
-        val dateLabel = when (date) {
-            today -> "today"
-            addDays(today, -1) -> "yesterday"
-            else -> ""
-        }
-        val uniqueLeagues = events.mapNotNull { event ->
-            when {
-                event.league.contains("Ufc", ignoreCase = true) -> "UFC"
-                event.league.contains("Pfl", ignoreCase = true) -> "PFL"
-                event.league.contains("Nfl", ignoreCase = true) -> "NFL"
-                event.league.contains("Nba", ignoreCase = true) -> "NBA"
-                event.league.contains("Mlb", ignoreCase = true) -> "MLB"
-                event.league.contains("Nhl", ignoreCase = true) -> "NHL"
-                event.league.contains("Premier", ignoreCase = true) -> "Premier League"
-                event.league.contains("F1", ignoreCase = true) -> "F1"
-                else -> null
-            }
-        }.distinct()
-        return uniqueLeagues.map { league ->
-            if (dateLabel.isNotBlank()) "$league $dateLabel highlights" else "$league highlights"
-        }
-    }
-
-    private suspend fun fetchTrendingNewsVideos(): List<YouTubeVideo> {
-        val queries = listOf(
-            "sports news today",
-            "NFL highlights",
-            "NBA highlights",
-            "MLB highlights",
-            "NHL highlights",
-            "soccer highlights",
-            "UFC news",
-        )
-        for (query in queries) {
+    fun loadPpvEvents() {
+        refreshJob?.cancel()
+        scope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            val events = mutableListOf<EspnProcessedEvent>()
             try {
-                val results = YouTubeHighlightClient.searchHighlights(query)
-                if (results.isNotEmpty()) return results.take(8)
-            } catch (_: Exception) { }
+                val queries = listOf("PPV events 2026 highlights", "UFC PPV", "WrestleMania highlights", "boxing PPV highlights", "MMA PPV")
+                val seen = mutableSetOf<String>()
+                for (q in queries) {
+                    val results = YouTubeHighlightClient.searchHighlights(q)
+                    for (v in results) {
+                        if (v.videoId in seen) continue
+                        seen.add(v.videoId)
+                        events.add(EspnProcessedEvent(
+                            id = "ppv_${v.videoId}", title = v.title,
+                            homeTeam = v.channelName, awayTeam = "PPV Event",
+                            homeScore = null, awayScore = null,
+                            homeLogo = v.thumbnail, awayLogo = null, channel = "",
+                            status = "Highlights", detail = "PPV", date = "",
+                            sport = "Fighting", league = "PPV", isLive = false, isPpv = true,
+                        ))
+                        if (events.size >= 20) break
+                    }
+                    if (events.size >= 20) break
+                }
+            } catch (_: Exception) {}
+            _uiState.value = _uiState.value.copy(events = events, isLoading = false)
         }
-        return emptyList()
     }
 
-    private fun buildStandings(events: List<EspnProcessedEvent>): List<TeamStanding> {
-        // Extract from event competitor records (each competitor has a "records" field)
-        val seen = mutableSetOf<String>()
-        return events.flatMap { event ->
-            // We can't access raw competitors here since EspnProcessedEvent is flat
-            // Instead, group teams by their win/loss patterns inferred from scores
-            if (event.homeScore != null && event.awayScore != null &&
-                event.status.contains("FINAL") && event.homeTeam.isNotBlank()
-            ) {
-                val homeWon = event.homeScore.toIntOrNull() ?: 0 > event.awayScore.toIntOrNull() ?: 0
-                val key = "${event.sport}|${event.homeTeam}"
-                if (seen.add(key)) {
-                    listOf(
-                        TeamStanding(
-                            teamName = event.homeTeam,
-                            logo = event.homeLogo,
-                            record = if (homeWon) "W" else "L",
-                            league = event.league,
-                            sport = event.sport,
-                        )
-                    )
-                } else emptyList()
-            } else emptyList()
-        }.take(30)
-    }
-
-    fun selectSport(sport: String?) {
-        _uiState.value = _uiState.value.copy(selectedSport = sport)
-    }
-
-    fun selectDate(date: String) {
-        val cached = perDateEventCache[date]
-        if (cached != null) {
-            _uiState.value = _uiState.value.copy(
-                selectedDate = date,
-                events = cached,
-                isLoading = true,
-            )
-        } else {
-            _uiState.value = _uiState.value.copy(selectedDate = date)
+    fun loadAllLiveEvents() {
+        scope.launch {
+            _uiState.value = _uiState.value.copy(allLiveLoading = true)
+            val allEvents = EspnClient.fetchAll().filter { it.isLive }
+            SportsNowStore.liveEvents = allEvents
+            _uiState.value = _uiState.value.copy(allLiveEvents = allEvents, allLiveLoading = false)
         }
-        refresh(date)
+    }
+
+    fun selectLeague(league: SportLeague?) {
+        _uiState.value = _uiState.value.copy(selectedLeague = league)
+    }
+
+    fun selectEvent(event: EspnProcessedEvent?) {
+        _uiState.value = _uiState.value.copy(selectedEvent = event)
+        if (event != null) {
+            loadMatchedChannels(event)
+        }
+    }
+
+    private fun loadMatchedChannels(event: EspnProcessedEvent) {
+        scope.launch {
+            _uiState.value = _uiState.value.copy(channelsLoading = true)
+            val allChannels = IptvRepository.getAllChannels()
+            val matches = GameToChannelMatcher.matchChannels(event, allChannels)
+                .map { it.copy(region = GameToChannelMatcher.detectRegion(it.channel)) }
+            _uiState.value = _uiState.value.copy(matchedChannels = matches, channelsLoading = false)
+        }
+    }
+
+    fun searchSportVideos(event: EspnProcessedEvent, isFuture: Boolean) {
+        scope.launch {
+            _uiState.value = _uiState.value.copy(sportVideosLoading = true, sportEventVideos = emptyList())
+            val rawTitle = event.title.ifBlank { "${event.awayTeam} vs ${event.homeTeam}" }
+            val matchName = rawTitle.replace(" @ ", " vs ").replace(" at ", " vs ")
+            val queries = if (isFuture) listOf("$matchName preview", "$matchName predictions", "$matchName weigh in")
+            else listOf("$matchName highlights", "$matchName full fight", "$matchName post fight analysis")
+            val allVideos = mutableListOf<SportEventVideo>()
+            val seen = mutableSetOf<String>()
+            for (query in queries) {
+                try {
+                    val results = YouTubeHighlightClient.searchHighlights(query)
+                    for (v in results) {
+                        if (v.videoId !in seen) {
+                            seen.add(v.videoId)
+                            allVideos.add(SportEventVideo(
+                                videoId = v.videoId, title = v.title, thumbnailUrl = v.thumbnail,
+                                channelName = v.channelName, durationSeconds = v.durationSeconds,
+                                category = query.substringAfterLast(" ").ifEmpty { "highlights" },
+                            ))
+                        }
+                    }
+                } catch (_: Exception) {}
+                if (allVideos.size >= 30) break
+            }
+            _uiState.value = _uiState.value.copy(sportEventVideos = allVideos, sportVideosLoading = false)
+        }
+    }
+
+    fun setRegionFilter(region: String) {
+        _uiState.value = _uiState.value.copy(regionFilter = region)
+    }
+
+    fun setActiveEventTab(tab: EventTab) {
+        _uiState.value = _uiState.value.copy(activeEventTab = tab)
+    }
+
+    fun clearSportSelection() {
+        _uiState.value = _uiState.value.copy(
+            selectedEvent = null, matchedChannels = emptyList(),
+            sportEventVideos = emptyList(), regionFilter = "ALL", activeEventTab = EventTab.LIVE,
+        )
+    }
+
+    fun startAutoRefresh(league: SportLeague) {
+        autoRefreshJob?.cancel()
+        autoRefreshJob = scope.launch {
+            while (true) {
+                delay(45_000)
+                loadLeagueEvents(league)
+            }
+        }
+    }
+
+    fun stopAutoRefresh() {
+        autoRefreshJob?.cancel()
+        autoRefreshJob = null
     }
 
     fun searchSports(query: String) {
@@ -294,11 +208,7 @@ object SportsRepository {
                     event.awayTeam.lowercase().contains(queryLower) ||
                     event.league.lowercase().contains(queryLower)
                 }
-                _uiState.value = _uiState.value.copy(
-                    searchResults = videos,
-                    searchedEvents = matchedEvents,
-                    isSearching = false,
-                )
+                _uiState.value = _uiState.value.copy(searchResults = videos, searchedEvents = matchedEvents, isSearching = false)
             } catch (_: Exception) {
                 _uiState.value = _uiState.value.copy(isSearching = false)
             }
@@ -306,13 +216,14 @@ object SportsRepository {
     }
 
     fun clearSearch() {
-        _uiState.value = _uiState.value.copy(
-            searchQuery = "",
-            searchResults = emptyList(),
-            searchedEvents = emptyList(),
-            isSearching = false,
-        )
+        _uiState.value = _uiState.value.copy(searchQuery = "", searchResults = emptyList(), searchedEvents = emptyList(), isSearching = false)
     }
+
+    fun selectSport(sport: String?) {
+        _uiState.value = _uiState.value.copy(selectedSport = sport)
+    }
+
+    fun selectDate(date: String) {}
 
     fun addDays(date: String, days: Int): String {
         var (y, m, d) = parseDate(date)
@@ -320,10 +231,6 @@ object SportsRepository {
         if (totalDays < 0) totalDays = 0L
         val (ny, nm, nd) = epochToDate(totalDays)
         return "${ny}-${nm.toString().padStart(2, '0')}-${nd.toString().padStart(2, '0')}"
-    }
-
-    fun dateRange(centerDate: String, range: Int): List<String> {
-        return (-range..range).map { addDays(centerDate, it) }
     }
 
     fun getToday(): String = formatToday()
@@ -388,59 +295,25 @@ object SportsRepository {
             remaining -= daysInYear
             y++
         }
-        val monthDays = if (isLeapYear(y))
-            intArrayOf(31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
-        else
-            intArrayOf(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+        val monthDays = if (isLeapYear(y)) intArrayOf(31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+        else intArrayOf(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
         var m = 0
-        while (m < 12 && remaining >= monthDays[m]) {
-            remaining -= monthDays[m]
-            m++
-        }
+        while (m < 12 && remaining >= monthDays[m]) { remaining -= monthDays[m]; m++ }
         val month = m + 1
         val day = remaining.toInt() + 1
         return "${y}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}"
     }
 
-    private fun isLeapYear(y: Long): Boolean =
-        (y % 4 == 0L && y % 100 != 0L) || (y % 400 == 0L)
-}
+    private fun isLeapYear(y: Long): Boolean = (y % 4 == 0L && y % 100 != 0L) || (y % 400 == 0L)
 
-private fun com.nuvio.app.features.iptv.SportEvent.toEspnProcessedEvent(): EspnProcessedEvent {
-    val teams = strEvent.split(" vs ", " @ ", " at ")
-    val homeName = if (teams.size >= 2) teams.last().trim() else strHomeTeam
-    val awayName = if (teams.size >= 2) teams.first().trim() else strAwayTeam
-    val isLive = strStatus?.uppercase() == "LIVE"
-    val isFinal = strStatus?.uppercase() == "FINAL"
-    val status = when {
-        isLive -> "STATUS_IN_PROGRESS"
-        isFinal -> "STATUS_FINAL"
-        else -> "STATUS_SCHEDULED"
+    private suspend fun fetchTrendingNewsVideos(): List<YouTubeVideo> {
+        val queries = listOf("sports news today", "NFL highlights", "NBA highlights", "MLB highlights", "NHL highlights", "soccer highlights", "UFC news")
+        for (query in queries) {
+            try {
+                val results = YouTubeHighlightClient.searchHighlights(query)
+                if (results.isNotEmpty()) return results.take(8)
+            } catch (_: Exception) {}
+        }
+        return emptyList()
     }
-    return EspnProcessedEvent(
-        id = "sdb_${idEvent}",
-        title = strEvent,
-        homeTeam = homeName,
-        awayTeam = awayName,
-        homeScore = intHomeScore,
-        awayScore = intAwayScore,
-        homeLogo = strThumb,
-        awayLogo = null,
-        channel = strChannel,
-        status = status,
-        detail = strTime,
-        date = strDate.take(10),
-        sport = when (strSport.lowercase()) {
-            "american football" -> "Football"
-            "baseball" -> "Baseball"
-            "basketball" -> "Basketball"
-            "ice hockey" -> "Hockey"
-            "soccer" -> "Soccer"
-            "mma", "ufc", "boxing" -> "Fighting"
-            else -> strSport.replaceFirstChar { it.uppercase() }
-        },
-        league = strLeague,
-        isLive = isLive,
-        isPpv = strFilename?.uppercase() == "PPV",
-    )
 }

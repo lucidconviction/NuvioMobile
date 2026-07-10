@@ -4,6 +4,7 @@ import com.nuvio.app.features.addons.httpGetText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -40,11 +41,38 @@ object EspnClient {
         "rugby/english-premiership",
     )
 
-    suspend fun fetchAll(date: String? = null): List<EspnProcessedEvent> = coroutineScope {
+    private val prioritizedSports = listOf(
+        "mma/ufc", "fighting/ufc",
+        "mma/pfl", "fighting/pfl",
+        "mma/boxing", "fighting/boxing",
+        "mma/bellator", "fighting/bellator",
+        "football/nfl", "basketball/nba", "baseball/mlb", "hockey/nhl",
+        "football/college-football", "basketball/mens-college-basketball",
+        "soccer/eng.1", "soccer/usa.1", "soccer/esp.1", "soccer/ita.1", "soccer/ger.1", "soccer/fra.1",
+        "basketball/wnba",
+        "racing/f1", "golf/pga", "tennis/atp", "tennis/wta", "rugby/english-premiership",
+    )
+
+    private const val PER_SPORT_TIMEOUT_MS = 5_000L
+    private const val EARLY_BAIL_EVENT_COUNT = 40
+
+    suspend fun fetchLeague(sport: String, league: String): List<EspnProcessedEvent> {
+        val url = "$BASE/$sport/$league/scoreboard"
+        return try {
+            val response = httpGetText(url)
+            val parsed = json.decodeFromString<EspnResponse>(response)
+            parsed.events.flatMap { event -> processEvent(event, "$sport/$league") }
+        } catch (_: Exception) { emptyList() }
+    }
+
+    suspend fun fetchAll(date: String? = null): List<EspnProcessedEvent> {
         val dateParam = if (!date.isNullOrBlank()) "?dates=${date.replace("-", "")}" else ""
         val skipFilter = !date.isNullOrBlank()
-        sports.map { sport ->
-            async {
+        val results = mutableListOf<EspnProcessedEvent>()
+
+        for (sport in prioritizedSports) {
+            if (results.size >= EARLY_BAIL_EVENT_COUNT && date.isNullOrBlank()) break
+            val events = withTimeoutOrNull(PER_SPORT_TIMEOUT_MS) {
                 try {
                     val url = "$BASE/$sport/scoreboard$dateParam"
                     val response = httpGetText(url)
@@ -57,8 +85,11 @@ object EspnClient {
                 } catch (_: Exception) {
                     emptyList()
                 }
-            }
-        }.awaitAll().flatten()
+            } ?: emptyList()
+            results.addAll(events)
+            if (results.size >= EARLY_BAIL_EVENT_COUNT && date.isNullOrBlank()) break
+        }
+        return results
     }
 
     private fun detailWithinHours(detail: String, hours: Int): Boolean {
@@ -68,7 +99,7 @@ object EspnClient {
         return true
     }
 
-    private fun processEvent(event: EspnEvent, sportPath: String): List<EspnProcessedEvent> {
+    fun processEvent(event: EspnEvent, sportPath: String): List<EspnProcessedEvent> {
         val sport = when (val raw = sportPath.split("/").firstOrNull() ?: "Sport") {
             "mma" -> "Fighting"
             else -> raw.replaceFirstChar { it.uppercase() }

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -102,9 +103,31 @@ fun IptvScreen(
 ) {
     val uiState by IptvRepository.uiState.collectAsStateWithLifecycle()
     var showAddSourceSheet by remember { mutableStateOf(false) }
+    var loadError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        IptvRepository.ensureLoaded()
+        try {
+            IptvRepository.ensureLoaded()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            loadError = e.message ?: "Failed to load IPTV"
+        }
+    }
+
+    if (loadError != null) {
+        Box(Modifier.fillMaxSize().background(ObsidianBg), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Failed to load IPTV", color = OnSurfaceVariant, fontSize = 16.sp)
+                Spacer(Modifier.height(12.dp))
+                Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(SurfaceCard).clickable {
+                    loadError = null
+                    try { IptvRepository.ensureLoaded() } catch (e: Exception) { loadError = e.message }
+                }.padding(horizontal = 24.dp, vertical = 10.dp)) {
+                    Text("Retry", color = AccentGray, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        return
     }
 
     val listState = rememberLazyListState()
@@ -183,12 +206,10 @@ fun IptvScreen(
 
                 if (uiState.channelsExpanded) {
                     val now = TraktPlatformClock.nowEpochMs()
-                    val grouped = channels.groupBy { it.group ?: "Other" }.toSortedMap()
-                    val gridItems = mutableListOf<Pair<String?, List<IptvChannel>>>()
+                    val grouped = channels.groupBy { it.group ?: "Other" }
+                        .toList()
+                        .sortedBy { it.first }
                     grouped.forEach { (group, chs) ->
-                        gridItems.add(group to chs)
-                    }
-                    gridItems.forEach { (group, chs) ->
                         item(key = "grp_$group") {
                             Text(
                                 text = group ?: "Other",
@@ -200,7 +221,7 @@ fun IptvScreen(
                             )
                         }
                         val chunked = chs.chunked(2)
-                        items(chunked, key = { row -> "${group}_" + row.joinToString("-") { it.id } }) { rowChannels ->
+                        itemsIndexed(chunked, key = { index, row -> "${group}_${index}_" + row.joinToString("-") { "${it.id}_${it.sourceId}" } }) { index, rowChannels ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -245,7 +266,7 @@ fun IptvScreen(
                 if (uiState.favoritesExpanded) {
                     val nowFav = TraktPlatformClock.nowEpochMs()
                     val favChunked = allFavorites.chunked(2)
-                    items(favChunked, key = { row -> "allfav_" + row.joinToString("-") { it.id + it.sourceId } }) { rowChannels ->
+                    itemsIndexed(favChunked, key = { index, row -> "allfav_${index}_" + row.joinToString("-") { "${it.id}_${it.sourceId}" } }) { index, rowChannels ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -358,7 +379,7 @@ private fun QuickAccessSection(
         }
 
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(favorites.take(10), key = { "fav_" + it.id + it.sourceId }) { channel ->
+            itemsIndexed(favorites.take(10), key = { index, channel -> "fav_${index}_${channel.id}_${channel.sourceId}" }) { index, channel ->
                 QuickAccessCard(channel = channel, onPlay = { playChannel(channel, onPlayChannel) })
             }
         }
@@ -384,7 +405,7 @@ private fun HistorySection(
         Spacer(Modifier.height(8.dp))
 
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(history.take(15), key = { "hist_" + it.id + it.sourceId }) { channel ->
+            itemsIndexed(history.take(15), key = { index, channel -> "hist_${index}_${channel.id}_${channel.sourceId}" }) { index, channel ->
                 QuickAccessCard(channel = channel, onPlay = { playChannel(channel, onPlayChannel) })
             }
         }

@@ -211,3 +211,16 @@ Ghost CH button (transparent bg, accent on tap), slide-up channel list with all 
 - `MusicNutzScreen.kt` — monochrome UI, persistent search bar, Tracks/Albums toggle, 2-column grid, album detail view, swipe, Load More, D-pad focus
 - `RobbdeezeNutzHubScreen.kt` — hub screen with persistent title, 4 glass cards, inline sub-screens with back navigation
 - `sidebar_hub.xml` — dashboard icon for the hub tab
+
+### Phase 16 — TV Sports Hub Features Ported to Mobile (July 2026)
+- **Orientation fix** — `LockPlayerToLandscape` now checks device rotation first; only locks to sensor landscape if user is *already* in landscape (no forced orientation switch)
+- **TV-style league chips** — combat sports first (`⚡ Sports Now`, UFC, Boxing, PFL, PPV) ahead of NFL/NBA/MLB/NHL/MLS; tapping a chip filters events or triggers special views
+- **"Sports Now" live aggregation** — scans all ESPN leagues for in-progress events, displays in 2-column grid, stores in `SportsNowStore` singleton for player overlay
+- **PPV / Special Events league** — bypasses ESPN, searches YouTube for PPV content (UFC, boxing, WrestleMania)
+- **GameToChannelMatcher** — 3-tier matching engine (LEAGUE → TEAM → GENERAL_SPORTS) with region detection (US/UK/CA)
+- **"Find Channel" button** — on live score cards, taps select event and open detail panel
+- **Event detail panel** — full-screen with 3-tab system: LIVE (matched channels + region filter chips), HIGHLIGHTS (YouTube grid), PRE-MATCH (preview videos); "Watch Highlights Instead" fallback
+- **45s auto-refresh** — polling for selected league
+- **Live Games overlay** — "LIVE" pill button in IPTV player controls (when live events exist), slide-up sheet with scores + Switch
+- **SportsNowStore** — singleton bridge for live events between sports repo and player
+- **New/Modified files:** `GameToChannelMatcher.kt`, `SportsNowStore.kt`, `SportsModels.kt`, `SportsRepository.kt`, `SportsScreen.kt`, `EspnClient.kt`, `PlayerPlatformEffects.android.kt`, `PlayerScreenRuntimeState.kt`, `PlayerPlaybackOverlays.kt`, `PlayerControls.kt`, `PlayerScreenRuntimeUi.kt`

@@ -26,7 +26,13 @@ actual fun LockPlayerToLandscape() {
 
     DisposableEffect(activity) {
         val previousOrientation = activity.requestedOrientation
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        val currentRotation = activity.window?.windowManager?.defaultDisplay?.rotation
+        val isNaturallyLandscape = currentRotation == android.view.Surface.ROTATION_90 ||
+            currentRotation == android.view.Surface.ROTATION_270
+
+        if (isNaturallyLandscape) {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
 
         onDispose {
             activity.requestedOrientation = previousOrientation

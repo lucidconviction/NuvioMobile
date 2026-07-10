@@ -7,6 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +26,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -32,9 +36,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -51,6 +59,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -71,12 +80,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
+import coil3.compose.LocalPlatformContext
 import com.nuvio.app.features.iptv.EspnClient
 import com.nuvio.app.features.iptv.EspnProcessedEvent
 import com.nuvio.app.features.iptv.IptvChannel
 import com.nuvio.app.features.iptv.IptvRepository
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.player.PlayerLaunchStore
+import com.nuvio.app.features.player.SportsNowStore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -95,23 +108,6 @@ private val Secondary @Composable get() = MaterialTheme.colorScheme.secondary
 private val ErrorRed @Composable get() = MaterialTheme.colorScheme.error
 private val AccentOrange @Composable get() = MaterialTheme.colorScheme.tertiary
 
-private val sportDisplayOrder = listOf(
-    "Fighting" to "MMA",
-    "Basketball" to "Basketball",
-    "Football" to "Football",
-    "Soccer" to "Soccer",
-    "Baseball" to "Baseball",
-    "Hockey" to "Hockey",
-)
-
-private fun displayLabel(sport: String): String =
-    sportDisplayOrder.firstOrNull { it.first == sport }?.second ?: sport
-
-private fun categorySortIndex(sport: String): Int {
-    val idx = sportDisplayOrder.indexOfFirst { it.first == sport }
-    return if (idx >= 0) idx else sportDisplayOrder.size
-}
-
 // ── Main Screen ───────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -124,12 +120,29 @@ fun SportsScreen(
     val uiState by SportsRepository.uiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
+    // Load trending YouTube highlights on first open (fast)
     LaunchedEffect(Unit) {
-        SportsRepository.refresh()
-        while (true) {
-            delay(60_000L)
+        if (uiState.trendingNewsVideos.isEmpty()) {
             SportsRepository.refresh()
         }
+    }
+
+    // League selection effect
+    LaunchedEffect(uiState.selectedLeague) {
+        val league = uiState.selectedLeague
+        when (league?.id) {
+            "now" -> SportsRepository.loadAllLiveEvents()
+            "ppv" -> SportsRepository.loadPpvEvents()
+            null -> {}
+            else -> {
+                SportsRepository.loadLeagueEvents(league)
+                SportsRepository.startAutoRefresh(league)
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { SportsRepository.stopAutoRefresh() }
     }
 
     val listState = rememberLazyListState()
@@ -180,8 +193,16 @@ fun SportsScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = {
-                    Text("Sports Hub", color = Primary, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, letterSpacing = (-0.5).sp)
+                title = {},
+                actions = {
+                    if (uiState.isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Primary, strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                    } else {
+                        IconButton(onClick = { SportsRepository.refresh() }) {
+                            Text("↻", color = Primary, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                        }
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceBg.copy(alpha = 0.9f)),
             )
@@ -192,6 +213,76 @@ fun SportsScreen(
             onRefresh = { SportsRepository.refresh() },
             modifier = Modifier.padding(padding).fillMaxSize().then(Modifier),
         ) {
+            // ── Event Detail Panel (when an event is selected) ──
+            if (uiState.selectedEvent != null) {
+                SportEventDetailPanel(
+                    event = uiState.selectedEvent!!,
+                    matchedChannels = uiState.matchedChannels,
+                    channelsLoading = uiState.channelsLoading,
+                    videos = uiState.sportEventVideos,
+                    videosLoading = uiState.sportVideosLoading,
+                    regionFilter = uiState.regionFilter,
+                    activeTab = uiState.activeEventTab,
+                    onBack = { SportsRepository.clearSportSelection() },
+                    onPlayChannel = { channel ->
+                        val allChannels = IptvRepository.getAllChannels()
+                        launchChannel(channel, allChannels, onPlayChannel!!)
+                    },
+                    onSetRegion = { SportsRepository.setRegionFilter(it) },
+                    onSetTab = { SportsRepository.setActiveEventTab(it) },
+                    onSearchVideos = { isFuture -> SportsRepository.searchSportVideos(uiState.selectedEvent!!, isFuture) },
+                    onPlayHighlight = { event ->
+                        scope.launch {
+                            val query = "${event.awayTeam} vs ${event.homeTeam} highlights"
+                            val searchResults = YouTubeHighlightClient.searchHighlights(query)
+                            searchResults.firstOrNull()?.let { ytVideo ->
+                                val streamResult = YouTubeStreamResolver.resolveStream(ytVideo.videoId)
+                                streamResult?.let { sr ->
+                                    val launch = PlayerLaunch(
+                                        profileId = 0, title = ytVideo.title, sourceUrl = sr.url,
+                                        sourceHeaders = sr.headers, streamTitle = ytVideo.title,
+                                        providerName = "YouTube", parentMetaId = "youtube",
+                                        parentMetaType = "youtube",
+                                    )
+                                    onPlayChannel?.invoke(launch)
+                                }
+                            }
+                        }
+                    },
+                )
+                return@PullToRefreshBox
+            }
+
+            // ── "Sports Now" All Live Events Grid ──
+            if (uiState.selectedLeague?.id == "now") {
+                if (uiState.allLiveLoading) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = Primary)
+                            Spacer(Modifier.height(8.dp))
+                            Text("Scanning all leagues for live events...", color = OnSurfaceVariant, fontSize = 13.sp)
+                        }
+                    }
+                } else if (uiState.allLiveEvents.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No live events right now", color = OnSurfaceVariant)
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                    ) {
+                        items(uiState.allLiveEvents, key = { it.id }) { event ->
+                            ScoreCard(event = event, isLive = true, onClick = { SportsRepository.selectEvent(event) },
+                                onTeamClick = onTeamClick)
+                        }
+                    }
+                }
+                return@PullToRefreshBox
+            }
+
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
@@ -214,19 +305,13 @@ fun SportsScreen(
                         }
                     }
                 }
-            } else if (uiState.events.isEmpty() && uiState.news.isEmpty()) {
-                item {
-                    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        Text(text = "Sports content coming soon", color = OnSurfaceVariant, textAlign = TextAlign.Center, fontSize = 16.sp)
-                    }
-                }
             } else {
-                // ── Category Chips ──
+                // ── League Chips (single combined row) ──
                 item {
-                    CategoryChipsRow(
-                        events = uiState.events,
-                        selectedSport = uiState.selectedSport,
-                        onSportSelected = { SportsRepository.selectSport(it) },
+                    LeagueChipsRow(
+                        leagues = SportsRepository.leagues,
+                        selectedLeague = uiState.selectedLeague,
+                        onLeagueSelected = { SportsRepository.selectLeague(it) },
                     )
                 }
 
@@ -280,8 +365,18 @@ fun SportsScreen(
                 item {
                     LiveScoresSection(
                         events = uiState.events,
-                        selectedSport = uiState.selectedSport,
-                        onEventClick = playOrShowPicker,
+                        selectedSport = uiState.selectedLeague?.let { league ->
+                            when (league.id) {
+                                "ufc", "boxing", "pfl", "ppv" -> "Fighting"
+                                "nfl" -> "Football"
+                                "nba" -> "Basketball"
+                                "mlb" -> "Baseball"
+                                "nhl" -> "Hockey"
+                                "soccer" -> "Soccer"
+                                else -> null
+                            }
+                        },
+                        onEventClick = { event -> SportsRepository.selectEvent(event) },
                         onTeamClick = onTeamClick,
                     )
                 }
@@ -291,19 +386,29 @@ fun SportsScreen(
                     item {
                         StandingsSection(
                             standings = uiState.standings,
-                            selectedSport = uiState.selectedSport,
+                            selectedSport = uiState.selectedLeague?.let { league ->
+                                when (league.id) {
+                                    "ufc", "boxing", "pfl", "ppv" -> "Fighting"
+                                    "nfl" -> "Football"
+                                    "nba" -> "Basketball"
+                                    "mlb" -> "Baseball"
+                                    "nhl" -> "Hockey"
+                                    "soccer" -> "Soccer"
+                                    else -> null
+                                }
+                            },
                             onTeamClick = onTeamClick,
                         )
                     }
                 }
 
-                // ── 3. YouTube Highlights (top of highlights) ──
+                // ── 3. YouTube Highlights ──
                 if (uiState.highlightVideos.isNotEmpty()) {
                     item {
                         HighlightVideosSection(
                             videos = uiState.highlightVideos,
                             events = uiState.events,
-                            selectedSport = uiState.selectedSport,
+                            selectedSport = null,
                             onPlayVideo = { v ->
                                 scope.launch {
                                     try {
@@ -452,7 +557,7 @@ private fun SearchResultsSection(
                     Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(SurfaceContainer).clickable { onPlayVideo(video) }) {
                         Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Box(modifier = Modifier.size(width = 120.dp, height = 68.dp).clip(RoundedCornerShape(8.dp)).background(SurfaceContainerHigh), contentAlignment = Alignment.Center) {
-                                AsyncImage(model = video.thumbnail, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+SportsAsyncImage(model = video.thumbnail, contentDescription = null, modifier = Modifier.fillMaxSize())
                                 Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
                                     Text(text = "\u25B6", color = Color.White, fontSize = 16.sp)
                                 }
@@ -467,28 +572,6 @@ private fun SearchResultsSection(
                 }
             }
         }
-    }
-}
-
-// ── Category Chips ────────────────────────────────────────────────────────
-@Composable
-private fun CategoryChipsRow(events: List<EspnProcessedEvent>, selectedSport: String?, onSportSelected: (String?) -> Unit) {
-    val uniqueSports = events.map { it.sport }.distinct().sortedBy { categorySortIndex(it) }
-    val displaySports = uniqueSports.map { displayLabel(it) to it }
-    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Chip("All", selectedSport == null) { onSportSelected(null) }
-        displaySports.forEach { (display, actual) ->
-            Chip(display, selectedSport == actual) { onSportSelected(if (selectedSport == actual) null else actual) }
-        }
-    }
-}
-
-@Composable
-private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val bgColor = if (selected) PrimaryContainer else SurfaceContainerHigh
-    val textColor = if (selected) Color(0xFF00363A) else OnSurfaceVariant
-    Box(modifier = Modifier.clip(RoundedCornerShape(24.dp)).background(bgColor).clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 8.dp)) {
-        Text(text = label, color = textColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
     }
 }
 
@@ -564,16 +647,29 @@ private fun ScoreCard(event: EspnProcessedEvent, isLive: Boolean, onClick: () ->
     val homeWinning = homeScore != null && awayScore != null && homeScore > awayScore
     val awayWinning = homeScore != null && awayScore != null && awayScore > homeScore
     Box(modifier = Modifier.width(280.dp).clip(RoundedCornerShape(16.dp)).background(if (isLive) SurfaceContainer.copy(alpha = 0.85f) else SurfaceContainer.copy(alpha = 0.7f)).clickable(onClick = onClick)) {
-        if (isLive) Box(modifier = Modifier.width(4.dp).height(140.dp).align(Alignment.CenterStart).clip(RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)).background(Secondary))
+        if (isLive) Box(modifier = Modifier.width(4.dp).height(if (isLive) 180.dp else 140.dp).align(Alignment.CenterStart).clip(RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)).background(Secondary))
         Column(modifier = Modifier.fillMaxWidth().padding(start = if (isLive) 16.dp else 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(text = event.detail.ifBlank { if (event.status.contains("FINAL")) "Final" else "Scheduled" }, color = OnSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp, modifier = Modifier.background(SurfaceContainerHighest, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isLive) {
+                        Text("LIVE", color = Color(0xFF00FF00), fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.background(Color(0xFF00FF00).copy(alpha = 0.2f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Text(text = event.detail.ifBlank { if (event.status.contains("FINAL")) "Final" else "Scheduled" }, color = OnSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp, modifier = Modifier.background(SurfaceContainerHighest, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
+                }
             }
             Spacer(Modifier.height(12.dp))
             TeamScoreRow(event.homeLogo, event.homeTeam, event.homeScore, homeWinning, onTeamClick = { onTeamClick?.invoke(event.homeTeam, event.homeLogo, event.sport) })
             Spacer(Modifier.height(10.dp))
             TeamScoreRow(event.awayLogo, event.awayTeam, event.awayScore, awayWinning, onTeamClick = { onTeamClick?.invoke(event.awayTeam, event.awayLogo, event.sport) })
             if (event.channel.isNotBlank()) { Spacer(Modifier.height(8.dp)); Text(text = event.channel, color = OnSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            if (isLive) {
+                Spacer(Modifier.height(6.dp))
+                Box(modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(PrimaryContainer).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                    Text("CH", color = Color(0xFF00363A), fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 1.sp)
+                }
+            }
         }
     }
 }
@@ -583,7 +679,7 @@ private fun TeamScoreRow(logoUrl: String?, teamName: String, score: String?, isW
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(SurfaceContainerHighest), contentAlignment = Alignment.Center) {
-                if (!logoUrl.isNullOrBlank()) AsyncImage(model = logoUrl, contentDescription = teamName, contentScale = ContentScale.Fit, modifier = Modifier.size(28.dp))
+                if (!logoUrl.isNullOrBlank()) SportsAsyncImage(model = logoUrl, contentDescription = teamName, modifier = Modifier.size(28.dp), contentScale = ContentScale.Fit)
                 else Text(text = teamName.take(2).uppercase(), color = OnSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
             Text(
@@ -612,7 +708,7 @@ private fun StandingsSection(standings: List<TeamStanding>, selectedSport: Strin
                     Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(SurfaceContainer).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(SurfaceContainerHigh), contentAlignment = Alignment.Center) {
-                                if (standing.logo != null) AsyncImage(model = standing.logo, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size(20.dp))
+                                if (standing.logo != null) SportsAsyncImage(model = standing.logo, contentDescription = null, modifier = Modifier.size(20.dp), contentScale = ContentScale.Fit)
                                 else Text(text = standing.teamName.take(2).uppercase(), color = OnSurfaceVariant, fontSize = 9.sp)
                             }
                             Text(
@@ -652,7 +748,7 @@ private fun HighlightVideosSection(
                     Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         // Thumbnail with play overlay
                         Box(modifier = Modifier.size(width = 120.dp, height = 68.dp).clip(RoundedCornerShape(8.dp)).background(SurfaceContainerHigh), contentAlignment = Alignment.Center) {
-                            AsyncImage(model = highlight.video.thumbnail, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            SportsAsyncImage(model = highlight.video.thumbnail, contentDescription = null, modifier = Modifier.fillMaxSize())
                             Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
                                 Text(text = "\u25B6", color = Color.White, fontSize = 16.sp)
                             }
@@ -682,7 +778,7 @@ private fun TrendingNewsVideosSection(
                 Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(SurfaceContainer).clickable { onPlayVideo(video) }) {
                     Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Box(modifier = Modifier.size(width = 120.dp, height = 68.dp).clip(RoundedCornerShape(8.dp)).background(SurfaceContainerHigh), contentAlignment = Alignment.Center) {
-                            AsyncImage(model = video.thumbnail, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            SportsAsyncImage(model = video.thumbnail, contentDescription = null, modifier = Modifier.fillMaxSize())
                             Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
                                 Text(text = "\u25B6", color = Color.White, fontSize = 16.sp)
                             }
@@ -727,7 +823,7 @@ private fun ChannelPickerDialog(title: String, channels: List<IptvChannel>, onDi
                 channels.forEach { ch ->
                     Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(SurfaceContainerHigh).clickable { onSelect(ch) }.padding(horizontal = 14.dp, vertical = 12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            if (ch.logo != null) AsyncImage(model = ch.logo, contentDescription = null, modifier = Modifier.size(28.dp).clip(CircleShape), contentScale = ContentScale.Crop)
+                            if (ch.logo != null) SportsAsyncImage(model = ch.logo, contentDescription = null, modifier = Modifier.size(28.dp).clip(CircleShape), contentScale = ContentScale.Crop)
                             Text(text = ch.name, color = OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         }
                     }
@@ -737,6 +833,253 @@ private fun ChannelPickerDialog(title: String, channels: List<IptvChannel>, onDi
         confirmButton = { Text(text = "Cancel", color = Primary, fontWeight = FontWeight.Bold, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onDismiss() }.padding(horizontal = 16.dp, vertical = 10.dp)) },
         containerColor = SurfaceContainer,
         shape = RoundedCornerShape(20.dp),
+    )
+}
+
+// ── League Chips Row (TV-style) ──────────────────────────────────────────────
+@Composable
+private fun LeagueChipsRow(
+    leagues: List<SportLeague>,
+    selectedLeague: SportLeague?,
+    onLeagueSelected: (SportLeague?) -> Unit,
+) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        items(leagues) { league ->
+            val isSelected = selectedLeague?.id == league.id
+            val bgColor = if (isSelected) PrimaryContainer else SurfaceContainerHigh
+            val textColor = if (isSelected) Color(0xFF00363A) else OnSurfaceVariant
+            Box(modifier = Modifier.clip(RoundedCornerShape(24.dp)).background(bgColor)
+                .clickable {
+                    onLeagueSelected(if (isSelected) null else league)
+                }
+                .padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(text = league.name, color = textColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+            }
+        }
+    }
+}
+
+// ── Sport Event Detail Panel (with tabs) ─────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SportEventDetailPanel(
+    event: EspnProcessedEvent,
+    matchedChannels: List<MatchedChannel>,
+    channelsLoading: Boolean,
+    videos: List<SportEventVideo>,
+    videosLoading: Boolean,
+    regionFilter: String,
+    activeTab: EventTab,
+    onBack: () -> Unit,
+    onPlayChannel: (IptvChannel) -> Unit,
+    onSetRegion: (String) -> Unit,
+    onSetTab: (EventTab) -> Unit,
+    onSearchVideos: (Boolean) -> Unit,
+    onPlayHighlight: (EspnProcessedEvent) -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val isLive = event.isLive
+    val tabs = buildList {
+        if (isLive) add(EventTab.LIVE)
+        add(EventTab.HIGHLIGHTS)
+        if (!isLive) add(EventTab.PRE_MATCH)
+    }
+
+    LaunchedEffect(event) {
+        onSetTab(tabs.first())
+        if (!isLive) onSearchVideos(false)
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Primary)
+            }
+            Spacer(Modifier.width(8.dp))
+            Column {
+                Text("${event.awayTeam} vs ${event.homeTeam}", color = OnSurface, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 16.sp)
+                Text(event.detail, color = OnSurfaceVariant, fontSize = 12.sp)
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            tabs.forEach { tab ->
+                val isSelected = tab == activeTab
+                Box(modifier = Modifier.clip(RoundedCornerShape(50))
+                    .background(if (isSelected) PrimaryContainer else SurfaceContainerHigh)
+                    .clickable {
+                        onSetTab(tab)
+                        if (tab == EventTab.HIGHLIGHTS || tab == EventTab.PRE_MATCH) {
+                            onSearchVideos(tab == EventTab.PRE_MATCH)
+                        }
+                    }
+                    .padding(horizontal = 14.dp, vertical = 7.dp)) {
+                    Text(tab.label, color = if (isSelected) Color(0xFF00363A) else OnSurfaceVariant,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        when (activeTab) {
+            EventTab.LIVE -> {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    listOf("ALL" to "All", "US" to "US", "UK" to "UK", "CA" to "CA").forEach { (id, label) ->
+                        val isSelected = regionFilter == id
+                        Box(modifier = Modifier.clip(RoundedCornerShape(50))
+                            .background(if (isSelected) Primary else SurfaceContainerHigh)
+                            .clickable { onSetRegion(id) }
+                            .padding(horizontal = 12.dp, vertical = 5.dp)) {
+                            Text(label, color = if (isSelected) Color.White else OnSurfaceVariant,
+                                fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                val filtered = if (regionFilter == "ALL") matchedChannels
+                else matchedChannels.filter { it.region == regionFilter || (it.region == "Other" && regionFilter == "US") }
+                ChannelListContent(filtered, channelsLoading, event, onPlayChannel, onPlayHighlight)
+            }
+            EventTab.HIGHLIGHTS, EventTab.PRE_MATCH -> {
+                if (videosLoading) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Primary)
+                    }
+                } else if (videos.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("No videos found", color = OnSurfaceVariant, fontSize = 14.sp)
+                            Spacer(Modifier.height(8.dp))
+                            Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(SurfaceContainerHigh)
+                                .clickable { onSearchVideos(activeTab == EventTab.PRE_MATCH) }
+                                .padding(horizontal = 20.dp, vertical = 10.dp)) {
+                                Text("Retry", color = Primary, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(videos, key = { it.videoId }) { video ->
+                            VideoCardSmall(
+                                video = video,
+                                onClick = {
+                                    scope.launch {
+                                        val result = YouTubeStreamResolver.resolveStream(video.videoId)
+                                        result?.let { sr ->
+                                            val launch = PlayerLaunch(
+                                                profileId = 0, title = video.title, sourceUrl = sr.url,
+                                                sourceHeaders = sr.headers, streamTitle = video.title,
+                                                providerName = "YouTube", parentMetaId = "youtube",
+                                                parentMetaType = "youtube",
+                                            )
+                                            // Ignoring onPlayChannel here since we're in an overlay - will be handled by parent
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChannelListContent(
+    matchedChannels: List<MatchedChannel>,
+    isLoading: Boolean,
+    event: EspnProcessedEvent,
+    onPlayChannel: (IptvChannel) -> Unit,
+    onPlayHighlight: (EspnProcessedEvent) -> Unit,
+) {
+    if (isLoading) {
+        Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = Primary.copy(alpha = 0.5f), strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+        }
+    } else if (matchedChannels.isEmpty()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("No IPTV channels found for this game", color = OnSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(bottom = 12.dp))
+            Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(SurfaceContainerHigh).clickable { onPlayHighlight(event) }
+                .padding(horizontal = 20.dp, vertical = 10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.PlayArrow, "Play", tint = Primary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Watch Highlights Instead", color = Primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+    } else {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(matchedChannels) { matched ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(SurfaceContainer)
+                        .clickable { onPlayChannel(matched.channel) }.padding(12.dp),
+                ) {
+                    Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(4.dp)).background(SurfaceContainerHigh), contentAlignment = Alignment.Center) {
+                        if (!matched.channel.logo.isNullOrBlank()) {
+                            SportsAsyncImage(model = matched.channel.logo, contentDescription = null, modifier = Modifier.size(32.dp), contentScale = ContentScale.Fit)
+                        } else {
+                            Text(matched.channel.name.take(2).uppercase(), color = OnSurfaceVariant, fontSize = 10.sp)
+                        }
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(matched.channel.name, color = OnSurface, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
+                        Text(matched.sourceName, color = OnSurfaceVariant, fontSize = 11.sp)
+                    }
+                    Text(matched.matchType.label, color = Color(0xFF00363A), fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.background(PrimaryContainer.copy(alpha = 0.9f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoCardSmall(video: SportEventVideo, onClick: () -> Unit) {
+    val ts = RoundedCornerShape(8.dp)
+    Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(ts).background(SurfaceContainerHigh)) {
+            SportsAsyncImage(model = video.thumbnailUrl, video.title, Modifier.fillMaxSize())
+            if (video.durationSeconds > 0) {
+                Box(Modifier.align(Alignment.BottomEnd).padding(4.dp).background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 2.dp)) {
+                    Text(formatDuration(video.durationSeconds), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Icon(Icons.Default.PlayArrow, "Play", tint = Color.White, modifier = Modifier.size(32.dp).align(Alignment.Center).clip(CircleShape).background(Color.Black.copy(alpha = 0.4f)).padding(6.dp))
+        }
+        Text(video.title, color = OnSurface, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
+    }
+}
+
+private fun formatDuration(seconds: Int): String {
+    val m = seconds / 60
+    val s = seconds % 60
+    return "${m}:${s.toString().padStart(2, '0')}"
+}
+
+@Composable
+private fun SportsAsyncImage(model: String?, contentDescription: String?, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop) {
+    val context = LocalPlatformContext.current
+    AsyncImage(
+        model = ImageRequest.Builder(context).data(model).crossfade(true).build(),
+        contentDescription = contentDescription,
+        modifier = modifier,
+        contentScale = contentScale,
     )
 }
 

@@ -74,7 +74,6 @@ internal fun PlayerScreenContent(args: PlayerScreenArgs) {
     runtime.args = args
 
     PlatformBackHandler(enabled = true) {
-        runtime.flushWatchProgress()
         args.onBack()
     }
 

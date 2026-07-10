@@ -31,7 +31,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,7 +51,7 @@ private val SurfaceCard = Color(0xFF1A1A1A)
 private val OnSurface = Color(0xFFE0E0E0)
 private val OnSurfaceVariant = Color(0xFFB0B0B0)
 
-private enum class HubSubScreen : java.io.Serializable { Hub, Iptv, Sports, VidNutz, Music }
+private enum class HubSubScreen { Hub, Iptv, Sports, VidNutz, Music }
 
 @Composable
 fun RobbdeezeNutzHubScreen(
@@ -63,11 +62,31 @@ fun RobbdeezeNutzHubScreen(
     sportsScrollToTopRequests: Flow<Unit> = emptyFlow(),
     resetTrigger: Int = 0,
 ) {
-    var subScreen by rememberSaveable { mutableStateOf(HubSubScreen.Hub) }
+    var subScreen by remember { mutableStateOf(HubSubScreen.Hub) }
 
-    // Reset to main hub view when tab is re-tapped
+    LaunchedEffect(Unit) {
+        val saved = HubReturnStore.subScreen
+        subScreen = when (saved) {
+            "Iptv" -> HubSubScreen.Iptv
+            "Sports" -> HubSubScreen.Sports
+            "VidNutz" -> HubSubScreen.VidNutz
+            "Music" -> HubSubScreen.Music
+            else -> HubSubScreen.Hub
+        }
+        if (subScreen != HubSubScreen.Hub) {
+            HubReturnStore.subScreen = "Hub"
+        }
+    }
+
     LaunchedEffect(resetTrigger) {
         subScreen = HubSubScreen.Hub
+    }
+
+    val onPlayChannelSave: ((PlayerLaunch) -> Unit)? = onPlayChannel?.let { original ->
+        { launch ->
+            HubReturnStore.subScreen = subScreen.name
+            original(launch)
+        }
     }
 
     BoxWithConstraints(
@@ -115,7 +134,7 @@ fun RobbdeezeNutzHubScreen(
                         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("IPTVNutz Hub", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(start = 12.dp))
                         }
-                        Box(Modifier.fillMaxSize()) { IptvScreen(modifier = Modifier.fillMaxSize(), onPlayChannel = onPlayChannel, scrollToTopRequests = iptvScrollToTopRequests) }
+                        Box(Modifier.fillMaxSize()) { IptvScreen(modifier = Modifier.fillMaxSize(), onPlayChannel = onPlayChannelSave, scrollToTopRequests = iptvScrollToTopRequests) }
                     }
                 }
                 HubSubScreen.Sports -> {
@@ -123,7 +142,7 @@ fun RobbdeezeNutzHubScreen(
                         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("SportNutz Hub", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(start = 12.dp))
                         }
-                        Box(Modifier.fillMaxSize()) { SportsScreen(modifier = Modifier.fillMaxSize(), onPlayChannel = onPlayChannel, scrollToTopRequests = sportsScrollToTopRequests, onTeamClick = onTeamClick) }
+                        Box(Modifier.fillMaxSize()) { SportsScreen(modifier = Modifier.fillMaxSize(), onPlayChannel = onPlayChannelSave, scrollToTopRequests = sportsScrollToTopRequests, onTeamClick = onTeamClick) }
                     }
                 }
                 HubSubScreen.VidNutz -> {
@@ -131,7 +150,7 @@ fun RobbdeezeNutzHubScreen(
                         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("VidNutz Hub", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(start = 12.dp))
                         }
-                        Box(Modifier.fillMaxSize()) { VidNutzScreen(onPlayChannel = onPlayChannel) }
+                        Box(Modifier.fillMaxSize()) { VidNutzScreen(onPlayChannel = onPlayChannelSave) }
                     }
                 }
                 HubSubScreen.Music -> {
@@ -139,7 +158,7 @@ fun RobbdeezeNutzHubScreen(
                         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("MusicNutz Hub", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(start = 12.dp))
                         }
-                        Box(Modifier.fillMaxSize()) { MusicNutzScreen(onPlayChannel = onPlayChannel) }
+                        Box(Modifier.fillMaxSize()) { MusicNutzScreen(onPlayChannel = onPlayChannelSave) }
                     }
                 }
             }

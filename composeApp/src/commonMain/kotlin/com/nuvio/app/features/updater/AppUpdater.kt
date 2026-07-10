@@ -40,6 +40,7 @@ import com.nuvio.app.core.i18n.localizedByteUnit
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.features.addons.httpRequestRaw
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -225,6 +226,32 @@ class AppUpdaterController internal constructor(
     val uiState: StateFlow<AppUpdaterUiState> = _uiState.asStateFlow()
 
     private var autoCheckStarted = false
+    private var backgroundPollingStarted = false
+
+    fun startBackgroundPolling() {
+        if (backgroundPollingStarted || !AppFeaturePolicy.inAppUpdaterEnabled || !AppUpdaterPlatform.isSupported) return
+        backgroundPollingStarted = true
+        scope.launch {
+            while (true) {
+                delay(86_400_000L)
+                val result = AppUpdaterRepository.getLatestChannelUpdate()
+                result.onSuccess { update ->
+                    val remoteNewer = VersionUtils.isRemoteNewer(update.tag, AppVersionConfig.VERSION_NAME)
+                    val ignoredTag = AppUpdaterPlatform.getIgnoredTag()
+                    if (remoteNewer && ignoredTag != update.tag) {
+                        _uiState.update { state ->
+                            state.copy(
+                                update = update,
+                                isUpdateAvailable = true,
+                                showDialog = true,
+                                isChecking = false,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     fun ensureAutoCheckStarted() {
         if (autoCheckStarted || !AppFeaturePolicy.inAppUpdaterEnabled || !AppUpdaterPlatform.isSupported) {

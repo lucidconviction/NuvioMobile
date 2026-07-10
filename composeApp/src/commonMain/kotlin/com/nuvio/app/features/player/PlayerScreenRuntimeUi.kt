@@ -4,9 +4,18 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -152,6 +161,15 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             )
         }
 
+        Box(
+            modifier = Modifier.align(Alignment.TopStart).padding(8.dp).size(40.dp).zIndex(10f).clickable {
+                args.onBack()
+            },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("\u2190", color = Color.White, fontSize = 22.sp)
+        }
+
         AnimatedVisibility(
             visible = pausedOverlayVisible && !controlsVisible && !playerControlsLocked,
             enter = fadeIn(animationSpec = tween(durationMillis = 220)),
@@ -236,6 +254,7 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             } else {
                 null
             },
+            onLiveGamesClick = if (SportsNowStore.liveEvents.isNotEmpty()) { { showLiveGamesOverlay = !showLiveGamesOverlay } } else null,
             onSourcesClick = if (activeVideoId != null) { { openSourcesPanel() } } else null,
             onChannelsClick = if (args.parentMetaId == "iptv") { { channelOverlayTrigger++ } } else null,
             onEpisodesClick = if (isSeries) { { openEpisodesPanel() } } else null,
@@ -323,6 +342,7 @@ private fun BoxScope.RenderPlaybackOverlays(
         PlayerPlaybackOverlays(
             channelOverlayTrigger = channelOverlayTrigger,
             historyOverlayTrigger = historyOverlayTrigger,
+            showLiveGamesOverlay = showLiveGamesOverlay,
             playerControlsLocked = playerControlsLocked,
             lockedOverlayVisible = lockedOverlayVisible,
             playbackSnapshot = playbackSnapshot,

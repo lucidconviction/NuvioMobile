@@ -1,5 +1,7 @@
 package com.nuvio.app.features.player
 
+import com.nuvio.app.features.trakt.TraktPlatformClock
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContent
@@ -63,6 +66,7 @@ import com.nuvio.app.features.player.skip.SkipInterval
 internal fun BoxScope.PlayerPlaybackOverlays(
     channelOverlayTrigger: Long = 0L,
     historyOverlayTrigger: Long = 0L,
+    showLiveGamesOverlay: Boolean = false,
     playerControlsLocked: Boolean,
     lockedOverlayVisible: Boolean,
     playbackSnapshot: PlayerPlaybackSnapshot,
@@ -213,6 +217,47 @@ internal fun BoxScope.PlayerPlaybackOverlays(
         )
     }
 
+    // Live Games overlay
+    if (showLiveGamesOverlay) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)).clickable { /* dismiss handled by parent */ },
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).background(Color(0xFF1A1A1A), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                    .padding(top = 16.dp, bottom = 32.dp, start = 16.dp, end = 16.dp),
+            ) {
+                Text("Live Games", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Spacer(Modifier.height(12.dp))
+                if (SportsNowStore.liveEvents.isEmpty()) {
+                    Text("No live games right now", color = Color(0xFF888888))
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(320.dp)) {
+                        itemsIndexed(SportsNowStore.liveEvents) { _, event ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().background(Color(0xFF111111), RoundedCornerShape(8.dp)).clickable {
+                                    SportsNowStore.onSwitchToEvent?.invoke(event)
+                                }.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("${event.awayTeam} vs ${event.homeTeam}", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(event.league, color = Color(0xFF4A90D9), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(event.detail, color = Color(0xFF00FF00), fontSize = 11.sp)
+                                    }
+                                }
+                                Text("${event.awayScore ?: "-"} - ${event.homeScore ?: "-"}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(horizontal = 12.dp))
+                                Text("Switch", color = Color(0xFF4A90D9), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if (channelNames != null && channelUrls != null && onSwitchChannel != null && !playerControlsLocked) {
         var overlayMode by remember { mutableStateOf<String?>(null) }
         var searchQuery by remember { mutableStateOf("") }
@@ -262,7 +307,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                 }
                 LaunchedEffect(overlayMode) {
                     if (overlayMode != null) {
-                        lastScrollTime = System.currentTimeMillis()
+                        lastScrollTime = TraktPlatformClock.nowEpochMs()
                     }
                 }
                 LaunchedEffect(overlayMode, listState) {
@@ -270,14 +315,14 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                     snapshotFlow {
                         listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
                     }.collect {
-                        lastScrollTime = System.currentTimeMillis()
+                        lastScrollTime = TraktPlatformClock.nowEpochMs()
                     }
                 }
                 LaunchedEffect(overlayMode) {
                     if (overlayMode == null) return@LaunchedEffect
                     while (true) {
                         delay(500)
-                        val idleMs = System.currentTimeMillis() - lastScrollTime
+                        val idleMs = TraktPlatformClock.nowEpochMs() - lastScrollTime
                         if (idleMs >= 8_000L) {
                             overlayMode = null
                             searchQuery = ""

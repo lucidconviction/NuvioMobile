@@ -43,23 +43,33 @@ object IptvRepository {
     fun ensureLoaded() {
         if (hasLoaded) return
         hasLoaded = true
-        loadFromStorage()
+        try {
+            loadFromStorage()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            settings = IptvPlaylistSettings()
+            saveToStorage()
+            refreshUi()
+        }
     }
 
     private fun loadFromStorage() {
-        val payload = IptvStorage.loadSettings()
+        val payload = try {
+            IptvStorage.loadSettings()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            IptvStorage.saveSettings(json.encodeToString(StoredIptvSettings.fromSettings(IptvPlaylistSettings())))
+            null
+        }
         if (payload != null) {
             try {
                 settings = json.decodeFromString<StoredIptvSettings>(payload).toSettings()
             } catch (_: Exception) {
                 settings = IptvPlaylistSettings()
+                IptvStorage.saveSettings(json.encodeToString(StoredIptvSettings.fromSettings(settings)))
             }
         }
         refreshUi()
-        if (settings.epgSources.isNotEmpty()) {
-            loadCachedEpg()
-            refreshEpg()
-        }
     }
 
     private fun saveToStorage() {
@@ -235,7 +245,12 @@ object IptvRepository {
                                 val displayName = result.channelDisplayNames[chId]
                                 if (displayName != null) {
                                     val key = displayName.lowercase().trim()
-                                    programsByName.merge(key, progs) { old, new -> (old + new).sortedBy { it.startTime } }
+                                    val existing = programsByName[key]
+                                    programsByName[key] = if (existing == null) {
+                                        progs
+                                    } else {
+                                        (existing + progs).sortedBy { it.startTime }
+                                    }
                                 }
                             }
                         } catch (e: kotlinx.coroutines.CancellationException) {

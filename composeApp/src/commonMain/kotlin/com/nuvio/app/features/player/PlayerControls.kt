@@ -93,6 +93,7 @@ internal fun PlayerControlsShell(
     onSourcesClick: (() -> Unit)? = null,
     onChannelsClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
+    onLiveGamesClick: (() -> Unit)? = null,
     onOpenInExternalPlayer: (() -> Unit)? = null,
     onSubmitIntroClick: (() -> Unit)? = null,
     parentalWarnings: List<ParentalWarning> = emptyList(),
@@ -194,6 +195,7 @@ internal fun PlayerControlsShell(
                     onSubtitleClick = onSubtitleClick,
                     onAudioClick = onAudioClick,
                     onHistoryClick = onHistoryClick,
+                    onLiveGamesClick = onLiveGamesClick,
                     onSourcesClick = onSourcesClick,
                     onChannelsClick = onChannelsClick,
                     onEpisodesClick = onEpisodesClick,
@@ -507,6 +509,7 @@ private fun ProgressControls(
     onSourcesClick: (() -> Unit)? = null,
     onChannelsClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
+    onLiveGamesClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val durationMs = playbackSnapshot.durationMs.coerceAtLeast(1L)
@@ -588,6 +591,13 @@ private fun ProgressControls(
                             label = stringResource(Res.string.compose_player_audio),
                             painter = audioPainter,
                             onClick = onAudioClick,
+                        )
+                    }
+                    if (onLiveGamesClick != null) {
+                        PlayerActionPillButton(
+                            label = "LIVE",
+                            icon = Icons.Rounded.List,
+                            onClick = onLiveGamesClick,
                         )
                     }
                     if (onSourcesClick != null) {

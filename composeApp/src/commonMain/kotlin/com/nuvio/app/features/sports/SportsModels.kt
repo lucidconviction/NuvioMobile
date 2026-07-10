@@ -2,6 +2,7 @@ package com.nuvio.app.features.sports
 
 import com.nuvio.app.features.iptv.EspnNewsArticle
 import com.nuvio.app.features.iptv.EspnProcessedEvent
+import com.nuvio.app.features.iptv.IptvChannel
 
 data class TeamStanding(
     val teamName: String,
@@ -17,6 +18,41 @@ data class HighlightVideo(
     val sport: String = "",
 )
 
+data class SportLeague(
+    val id: String,
+    val name: String,
+    val abbreviation: String,
+    val slug: String,
+)
+
+data class SportEventVideo(
+    val videoId: String,
+    val title: String,
+    val thumbnailUrl: String,
+    val channelName: String,
+    val durationSeconds: Int,
+    val category: String = "",
+)
+
+data class MatchedChannel(
+    val channel: IptvChannel,
+    val matchType: MatchType,
+    val sourceName: String = "",
+    val region: String = "",
+)
+
+enum class MatchType(val label: String) {
+    LEAGUE("League"),
+    TEAM("Team"),
+    GENERAL_SPORTS("Sports"),
+}
+
+enum class EventTab(val label: String) {
+    LIVE("Watch Live"),
+    HIGHLIGHTS("Highlights"),
+    PRE_MATCH("Pre-Match"),
+}
+
 data class SportsUiState(
     val events: List<EspnProcessedEvent> = emptyList(),
     val news: List<EspnNewsArticle> = emptyList(),
@@ -31,6 +67,17 @@ data class SportsUiState(
     val searchResults: List<YouTubeVideo> = emptyList(),
     val searchedEvents: List<EspnProcessedEvent> = emptyList(),
     val isSearching: Boolean = false,
+    val selectedLeague: SportLeague? = null,
+    val leagues: List<SportLeague> = emptyList(),
+    val allLiveEvents: List<EspnProcessedEvent> = emptyList(),
+    val allLiveLoading: Boolean = false,
+    val selectedEvent: EspnProcessedEvent? = null,
+    val matchedChannels: List<MatchedChannel> = emptyList(),
+    val channelsLoading: Boolean = false,
+    val sportEventVideos: List<SportEventVideo> = emptyList(),
+    val sportVideosLoading: Boolean = false,
+    val regionFilter: String = "ALL",
+    val activeEventTab: EventTab = EventTab.LIVE,
 )
 
 sealed class SportsTab {

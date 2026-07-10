@@ -23,27 +23,54 @@ object VidNutzRepository {
         "https://piped-api.garudalinux.org",
     )
 
+    private var invidiousIndex = 0
+    private var pipedIndex = 0
+
     private val json = Json { ignoreUnknownKeys = true }
+
+    private fun rotatedInvidious(): List<String> {
+        val current = invidiousIndex
+        invidiousIndex = (invidiousIndex + 1) % 1_000_000
+        val start = current % invidiousInstances.size
+        return invidiousInstances.subList(start, invidiousInstances.size) +
+            invidiousInstances.subList(0, start)
+    }
+
+    private fun rotatedPiped(): List<String> {
+        val current = pipedIndex
+        pipedIndex = (pipedIndex + 1) % 1_000_000
+        val start = current % pipedInstances.size
+        return pipedInstances.subList(start, pipedInstances.size) +
+            pipedInstances.subList(0, start)
+    }
 
     suspend fun fetchTrending(page: Int = 1): List<VidNutzVideo> {
         if (page == 1) {
-            val platformResult = platformYouTubeSearch("trending")
-            if (platformResult != null) {
-                return platformResult.map { fromYouTubeVideo(it) }
+            try {
+                val platformResult = platformYouTubeSearch("trending")
+                if (platformResult != null) {
+                    return platformResult.map { fromYouTubeVideo(it) }.shuffled()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
 
-        for (instance in invidiousInstances) {
+        val offset = (page - 1) * 3
+        for (instance in rotatedInvidious()) {
             try {
-                val url = "$instance/api/v1/trending?type=video&page=$page"
+                val url = "$instance/api/v1/trending?type=video&page=${page + offset}"
                 val response = httpGetText(url)
                 val raw = json.decodeFromString<List<InvidiousVideo>>(response)
                 if (raw.isNotEmpty()) {
                     return raw.filter { it.lengthSeconds in 30..1800 }
                         .take(20)
                         .map { it.toVidNutz() }
+                        .shuffled()
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
 
         return emptyList()
@@ -53,30 +80,38 @@ object VidNutzRepository {
         if (query.isBlank()) return emptyList()
 
         if (page == 1) {
-            val platformResult = platformYouTubeSearch(query)
-            if (platformResult != null) {
-                return platformResult.map { fromYouTubeVideo(it) }
+            try {
+                val platformResult = platformYouTubeSearch(query)
+                if (platformResult != null) {
+                    return platformResult.map { fromYouTubeVideo(it) }.shuffled()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
 
         val encodedQuery = encodeUrl(query)
+        val offset = (page - 1) * 3
 
-        for (instance in invidiousInstances) {
+        for (instance in rotatedInvidious()) {
             try {
-                val url = "$instance/api/v1/search?q=${encodedQuery}&type=video&sort=relevance&page=$page"
+                val url = "$instance/api/v1/search?q=${encodedQuery}&type=video&sort=relevance&page=${page + offset}"
                 val response = httpGetText(url)
                 val raw = json.decodeFromString<List<InvidiousVideo>>(response)
                 if (raw.isNotEmpty()) {
                     return raw.filter { it.lengthSeconds in 30..1800 }
                         .take(20)
                         .map { it.toVidNutz() }
+                        .shuffled()
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
 
-        for (instance in pipedInstances) {
+        for (instance in rotatedPiped()) {
             try {
-                val url = "$instance/search?q=${encodedQuery}&filter=videos&page=$page"
+                val url = "$instance/search?q=${encodedQuery}&filter=videos&page=${page + offset}"
                 val response = httpGetText(url)
                 val parsed = json.decodeFromString<PipedSearchResponse>(response)
                 if (parsed.items.isNotEmpty()) {
@@ -84,8 +119,11 @@ object VidNutzRepository {
                         .filter { it.duration in 30..1800 }
                         .take(20)
                         .map { it.toVidNutz() }
+                        .shuffled()
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
 
         return emptyList()
