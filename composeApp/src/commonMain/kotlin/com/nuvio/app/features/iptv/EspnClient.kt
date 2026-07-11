@@ -4,6 +4,7 @@ import com.nuvio.app.features.addons.httpGetText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -55,13 +56,18 @@ object EspnClient {
 
     private const val PER_SPORT_TIMEOUT_MS = 5_000L
     private const val EARLY_BAIL_EVENT_COUNT = 40
+    private const val WIKI_API = "https://en.wikipedia.org/api/rest_v1/page/summary"
+
+    private val wikiThumbnailCache = mutableMapOf<String, String?>()
+    private val fetchedWikiPages = mutableSetOf<String>()
 
     suspend fun fetchLeague(sport: String, league: String): List<EspnProcessedEvent> {
         val url = "$BASE/$sport/$league/scoreboard"
         return try {
             val response = httpGetText(url)
             val parsed = json.decodeFromString<EspnResponse>(response)
-            parsed.events.flatMap { event -> processEvent(event, "$sport/$league") }
+            val events = parsed.events.flatMap { event -> processEvent(event, "$sport/$league") }
+            enrichEventImages(events)
         } catch (_: Exception) { emptyList() }
     }
 
@@ -89,7 +95,7 @@ object EspnClient {
             results.addAll(events)
             if (results.size >= EARLY_BAIL_EVENT_COUNT && date.isNullOrBlank()) break
         }
-        return results
+        return enrichEventImages(results)
     }
 
     private fun detailWithinHours(detail: String, hours: Int): Boolean {
@@ -128,6 +134,10 @@ object EspnClient {
                 ?.takeIf { it.isNotBlank() }
                 ?: event.thumbnail?.takeIf { it.isNotBlank() }
 
+            val wikiPage = if (eventImage == null && sport == "Fighting") {
+                guessWikipediaPage(event.shortName.ifBlank { event.name })
+            } else null
+
             EspnProcessedEvent(
                 id = event.id + "_" + comp.id,
                 title = event.shortName.ifBlank { event.name },
@@ -146,8 +156,65 @@ object EspnClient {
                 league = league,
                 isLive = isLive,
                 isPpv = isPpv,
+                wikipediaPage = wikiPage,
             )
         }
+    }
+
+    suspend fun enrichEventImages(events: List<EspnProcessedEvent>): List<EspnProcessedEvent> {
+        val needWiki = events.filter { it.eventImage == null && it.wikipediaPage != null }
+        if (needWiki.isEmpty()) return events
+
+        for (e in needWiki) {
+            val page = e.wikipediaPage ?: continue
+            if (page in wikiThumbnailCache) continue
+            if (page in fetchedWikiPages) continue
+            fetchedWikiPages.add(page)
+            val url = withTimeoutOrNull(3_000L) {
+                try {
+                    val resp = httpGetText("$WIKI_API/${urlEncode(page)}")
+                    val parsed = json.decodeFromString<WikipediaPageSummary>(resp)
+                    parsed.thumbnail?.source
+                } catch (_: Exception) { null }
+            }
+            wikiThumbnailCache[page] = url
+        }
+
+        return events.map { e ->
+            val wikiUrl = e.wikipediaPage?.let { wikiThumbnailCache[it] }
+            if (wikiUrl != null && e.eventImage == null) e.copy(eventImage = wikiUrl) else e
+        }
+    }
+
+    private fun guessWikipediaPage(title: String): String? {
+        if (title.isBlank()) return null
+        val cleaned = title
+            .replace(":", "")
+            .replace("–", "-")
+            .replace("—", "-")
+            .trim()
+        val segments = cleaned.split(" vs ", " Vs ", " VS ")
+        if (segments.size >= 2) {
+            return segments.first().trim().replace(" ", "_").takeIf { it.length in 4..60 }
+        }
+        return cleaned.replace(" ", "_").takeIf { it.length in 3..60 }
+    }
+
+    private fun urlEncode(s: String): String {
+        return s.map { c ->
+            when {
+                c == ' ' -> "%20"
+                c == '_' -> "_"
+                c == '/' -> "%2F"
+                c == '?' -> "%3F"
+                c == '&' -> "%26"
+                c == '#' -> "%23"
+                c == '%' -> "%25"
+                c == '\'' -> "%27"
+                c in 'A'..'Z' || c in 'a'..'z' || c in '0'..'9' || c == '-' || c == '.' || c == '~' -> c.toString()
+                else -> "%" + c.code.toString(16).uppercase().padStart(2, '0')
+            }
+        }.joinToString("")
     }
 
     fun toSportEvents(processed: List<EspnProcessedEvent>): List<SportEvent> {

@@ -105,6 +105,19 @@ data class EspnNote(
     val type: String = "",
 )
 
+@Serializable
+data class WikipediaPageSummary(
+    val title: String? = null,
+    val thumbnail: WikipediaThumbnail? = null,
+)
+
+@Serializable
+data class WikipediaThumbnail(
+    val source: String? = null,
+    val width: Int? = null,
+    val height: Int? = null,
+)
+
 data class EspnProcessedEvent(
     val id: String,
     val title: String,
@@ -123,4 +136,5 @@ data class EspnProcessedEvent(
     val league: String,
     val isLive: Boolean,
     val isPpv: Boolean,
+    val wikipediaPage: String? = null,
 )
