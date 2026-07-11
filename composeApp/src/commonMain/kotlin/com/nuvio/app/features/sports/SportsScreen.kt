@@ -228,6 +228,7 @@ fun SportsScreen(
                         val allChannels = IptvRepository.getAllChannels()
                         launchChannel(channel, allChannels, onPlayChannel!!)
                     },
+                    onPlayPlayerLaunch = onPlayChannel,
                     onSetRegion = { SportsRepository.setRegionFilter(it) },
                     onSetTab = { SportsRepository.setActiveEventTab(it) },
                     onSearchVideos = { isFuture -> SportsRepository.searchSportVideos(uiState.selectedEvent!!, isFuture) },
@@ -603,11 +604,17 @@ private fun LiveScoresSection(events: List<EspnProcessedEvent>, selectedSport: S
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(text = "Live Now", color = Primary, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            if (liveEvents.isNotEmpty()) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    LivePulseDot()
-                    Text(text = "${liveEvents.size} Active Game${if (liveEvents.size != 1) "s" else ""}", color = ErrorRed, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+            Text(text = "Live / Upcoming", color = Primary, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (liveEvents.isNotEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        LivePulseDot()
+                        Text(text = "${liveEvents.size} Active Game${if (liveEvents.size != 1) "s" else ""}", color = ErrorRed, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    }
+                }
+                if (upcomingEvents.isNotEmpty()) {
+                    Text(text = "•", color = OnSurfaceVariant, fontSize = 12.sp)
+                    Text(text = "${upcomingEvents.size} Upcoming", color = OnSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -660,6 +667,12 @@ private fun ScoreCard(event: EspnProcessedEvent, isLive: Boolean, onClick: () ->
                 }
             }
             Spacer(Modifier.height(12.dp))
+            if (event.homeLogo.isNullOrBlank() && event.awayLogo.isNullOrBlank() && !event.eventImage.isNullOrBlank()) {
+                Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)).background(SurfaceContainerHighest), contentAlignment = Alignment.Center) {
+                    SportsAsyncImage(model = event.eventImage, null, Modifier.fillMaxSize(), ContentScale.Crop)
+                }
+                Spacer(Modifier.height(10.dp))
+            }
             TeamScoreRow(event.homeLogo, event.homeTeam, event.homeScore, homeWinning, onTeamClick = { onTeamClick?.invoke(event.homeTeam, event.homeLogo, event.sport) })
             Spacer(Modifier.height(10.dp))
             TeamScoreRow(event.awayLogo, event.awayTeam, event.awayScore, awayWinning, onTeamClick = { onTeamClick?.invoke(event.awayTeam, event.awayLogo, event.sport) })
@@ -875,6 +888,7 @@ private fun SportEventDetailPanel(
     activeTab: EventTab,
     onBack: () -> Unit,
     onPlayChannel: (IptvChannel) -> Unit,
+    onPlayPlayerLaunch: ((PlayerLaunch) -> Unit)? = null,
     onSetRegion: (String) -> Unit,
     onSetTab: (EventTab) -> Unit,
     onSearchVideos: (Boolean) -> Unit,
@@ -984,7 +998,7 @@ private fun SportEventDetailPanel(
                                                 providerName = "YouTube", parentMetaId = "youtube",
                                                 parentMetaType = "youtube",
                                             )
-                                            // Ignoring onPlayChannel here since we're in an overlay - will be handled by parent
+                                            onPlayPlayerLaunch?.invoke(launch)
                                         }
                                     }
                                 },
@@ -1075,12 +1089,20 @@ private fun formatDuration(seconds: Int): String {
 @Composable
 private fun SportsAsyncImage(model: String?, contentDescription: String?, modifier: Modifier = Modifier, contentScale: ContentScale = ContentScale.Crop) {
     val context = LocalPlatformContext.current
-    AsyncImage(
-        model = ImageRequest.Builder(context).data(model).crossfade(true).build(),
-        contentDescription = contentDescription,
-        modifier = modifier,
-        contentScale = contentScale,
-    )
+    if (model.isNullOrBlank()) {
+        Box(modifier = modifier.background(SurfaceContainerHigh), contentAlignment = Alignment.Center) {
+            Text("?", color = OnSurfaceVariant.copy(alpha = 0.3f), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        }
+    } else {
+        Box(modifier = modifier) {
+            AsyncImage(
+                model = ImageRequest.Builder(context).data(model).crossfade(true).build(),
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = contentScale,
+            )
+        }
+    }
 }
 
 // ── Skeleton Loader ─────────────────────────────────────────────────────────

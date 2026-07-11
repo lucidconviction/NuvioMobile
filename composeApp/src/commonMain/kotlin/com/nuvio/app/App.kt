@@ -3157,7 +3157,6 @@ private fun AppTabHost(
                         modifier = Modifier.fillMaxSize(),
                         onPlayChannel = { launch ->
                             onIptvPlayChannel?.invoke(launch)
-                            onSportsPlayChannel?.invoke(launch)
                         },
                         iptvScrollToTopRequests = iptvScrollToTopRequests,
                         sportsScrollToTopRequests = sportsScrollToTopRequests,

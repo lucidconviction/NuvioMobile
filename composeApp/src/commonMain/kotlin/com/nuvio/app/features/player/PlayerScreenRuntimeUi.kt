@@ -20,6 +20,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
+import com.nuvio.app.features.hub.HubReturnStore
+import com.nuvio.app.features.hub.MultiWindowPushStore
+import com.nuvio.app.features.hub.MultiWindowStore
 import com.nuvio.app.features.p2p.P2pStreamingState
 import com.nuvio.app.features.p2p.formatP2pMegabytes
 import com.nuvio.app.features.p2p.formatP2pSpeed
@@ -161,15 +164,6 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             )
         }
 
-        Box(
-            modifier = Modifier.align(Alignment.TopStart).padding(8.dp).size(40.dp).zIndex(10f).clickable {
-                args.onBack()
-            },
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("\u2190", color = Color.White, fontSize = 22.sp)
-        }
-
         AnimatedVisibility(
             visible = pausedOverlayVisible && !controlsVisible && !playerControlsLocked,
             enter = fadeIn(animationSpec = tween(durationMillis = 220)),
@@ -246,6 +240,19 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                 showAudioModal = true
             },
             onHistoryClick = if (args.parentMetaId == "iptv") { { historyOverlayTrigger++ } } else null,
+            onMultiWindowClick = if (args.parentMetaId == "iptv") { {
+                val channel = com.nuvio.app.features.hub.MultiWindowPushStore.pendingChannel
+                if (channel != null) {
+                    val emptySlot = (0 until 9).firstOrNull { MultiWindowStore.isSlotAvailable(it) }
+                    if (emptySlot != null) {
+                        MultiWindowStore.addToSlot(channel, emptySlot)
+                        com.nuvio.app.features.hub.MultiWindowPushStore.pendingChannel = null
+                        HubReturnStore.subScreen = "Multi"
+                        flushWatchProgress()
+                        args.onBack()
+                    }
+                }
+            } } else null,
             onVideoSettingsClick = if (isIos) {
                 {
                     showVideoSettingsModal = true

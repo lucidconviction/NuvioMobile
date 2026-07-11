@@ -92,6 +92,7 @@ internal fun PlayerControlsShell(
     onVideoSettingsClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
     onChannelsClick: (() -> Unit)? = null,
+    onMultiWindowClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
     onLiveGamesClick: (() -> Unit)? = null,
     onOpenInExternalPlayer: (() -> Unit)? = null,
@@ -195,6 +196,7 @@ internal fun PlayerControlsShell(
                     onSubtitleClick = onSubtitleClick,
                     onAudioClick = onAudioClick,
                     onHistoryClick = onHistoryClick,
+                    onMultiWindowClick = onMultiWindowClick,
                     onLiveGamesClick = onLiveGamesClick,
                     onSourcesClick = onSourcesClick,
                     onChannelsClick = onChannelsClick,
@@ -505,6 +507,7 @@ private fun ProgressControls(
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
     onHistoryClick: (() -> Unit)? = null,
+    onMultiWindowClick: (() -> Unit)? = null,
     onVideoSettingsClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
     onChannelsClick: (() -> Unit)? = null,
@@ -612,6 +615,13 @@ private fun ProgressControls(
                             label = stringResource(Res.string.compose_player_episodes),
                             icon = Icons.Rounded.VideoLibrary,
                             onClick = onEpisodesClick,
+                        )
+                    }
+                    if (onMultiWindowClick != null) {
+                        PlayerActionPillButton(
+                            label = "Multi",
+                            icon = Icons.Rounded.SwapHoriz,
+                            onClick = onMultiWindowClick,
                         )
                     }
                 }

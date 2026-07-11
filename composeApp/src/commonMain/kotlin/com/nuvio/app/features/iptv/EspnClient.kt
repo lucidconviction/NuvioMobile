@@ -122,6 +122,12 @@ object EspnClient {
 
             val dateStr = (event.date.takeIf { it.isNotBlank() } ?: comp.date).take(10)
 
+            val eventImage = comp.logos
+                ?.maxByOrNull { it.width * it.height }
+                ?.href
+                ?.takeIf { it.isNotBlank() }
+                ?: event.thumbnail?.takeIf { it.isNotBlank() }
+
             EspnProcessedEvent(
                 id = event.id + "_" + comp.id,
                 title = event.shortName.ifBlank { event.name },
@@ -131,6 +137,7 @@ object EspnClient {
                 awayScore = away?.score,
                 homeLogo = home?.team?.logo,
                 awayLogo = away?.team?.logo,
+                eventImage = eventImage,
                 channel = channel,
                 status = statusName,
                 detail = detail,

@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.nuvio.app.features.hub.MultiWindowStore
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.player.PlayerLaunchStore
 import com.nuvio.app.features.trakt.TraktPlatformClock
@@ -100,10 +101,12 @@ fun IptvScreen(
     modifier: Modifier = Modifier,
     onPlayChannel: ((PlayerLaunch) -> Unit)? = null,
     scrollToTopRequests: Flow<Unit> = emptyFlow(),
+    onMultiWindowAdded: (() -> Unit)? = null,
 ) {
     val uiState by IptvRepository.uiState.collectAsStateWithLifecycle()
     var showAddSourceSheet by remember { mutableStateOf(false) }
     var loadError by remember { mutableStateOf<String?>(null) }
+    var pickerChannel by remember { mutableStateOf<com.nuvio.app.features.iptv.IptvChannel?>(null) }
 
     LaunchedEffect(Unit) {
         try {
@@ -128,6 +131,17 @@ fun IptvScreen(
             }
         }
         return
+    }
+
+    pickerChannel?.let { ch ->
+        com.nuvio.app.features.hub.MultiWindowPositionPicker(
+            channel = ch,
+            onDismiss = { pickerChannel = null },
+            onSlotSelected = { slot ->
+                com.nuvio.app.features.hub.MultiWindowStore.addToSlot(ch, slot)
+                pickerChannel = null
+            },
+        )
     }
 
     val listState = rememberLazyListState()
@@ -234,6 +248,7 @@ fun IptvScreen(
                                             isFavorite = channel.id in uiState.favoriteChannelIds,
                                             onPlay = { playChannel(channel, onPlayChannel) },
                                             onToggleFavorite = { IptvRepository.toggleFavorite(channel.id) },
+                                            onAddToMultiWindow = { pickerChannel = channel },
                                         )
                                     }
                                 }
@@ -585,6 +600,7 @@ private fun ChannelCard(
     isFavorite: Boolean,
     onPlay: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onAddToMultiWindow: (() -> Unit)? = null,
 ) {
 
     Card(
@@ -640,16 +656,20 @@ private fun ChannelCard(
                         .background(OnSurface),
                 )
 
-                IconButton(
-                    onClick = onToggleFavorite,
-                    modifier = Modifier.align(Alignment.TopEnd).size(32.dp),
-                ) {
-                    Icon(
-                        if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        contentDescription = if (isFavorite) "Unfavorite" else "Favorite",
-                        tint = if (isFavorite) FavoriteRed else OnSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.size(18.dp),
-                    )
+                Row(Modifier.align(Alignment.TopEnd).padding(end = 4.dp)) {
+                    if (onAddToMultiWindow != null) {
+                        IconButton(onClick = onAddToMultiWindow, modifier = Modifier.size(28.dp)) {
+                            Text("⊕", color = OnSurfaceVariant.copy(alpha = 0.6f), fontSize = 14.sp)
+                        }
+                    }
+                    IconButton(onClick = onToggleFavorite, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = if (isFavorite) "Unfavorite" else "Favorite",
+                            tint = if (isFavorite) FavoriteRed else OnSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
                 }
             }
         }
@@ -834,6 +854,7 @@ private fun playChannel(channel: IptvChannel, onPlayChannel: ((PlayerLaunch) -> 
         historyChannelLogos = history.map { it.logo ?: "" },
         historyChannelIds = history.map { it.id },
     )
+    com.nuvio.app.features.hub.MultiWindowPushStore.pendingChannel = channel
     val id = PlayerLaunchStore.put(launch)
     PlayerLaunchStore.get(id)?.let { onPlayChannel?.invoke(it) }
 }

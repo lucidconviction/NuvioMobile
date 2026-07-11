@@ -1,0 +1,97 @@
+package com.nuvio.app.features.hub
+
+import android.view.ViewGroup
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
+
+actual object MultiWindowPlayerManager {
+    internal val players = mutableMapOf<Int, ExoPlayer>()
+    private var nextId = 1
+    private const val MAX_PLAYERS = 9
+
+    private lateinit var appContext: android.content.Context
+
+    fun initialize(context: android.content.Context) {
+        appContext = context.applicationContext
+    }
+
+    actual fun createPlayer(sourceUrl: String, headers: Map<String, String>): PlayerHandle {
+        if (players.size >= MAX_PLAYERS) {
+            val oldest = players.keys.first()
+            releasePlayer(PlayerHandle(oldest))
+        }
+        val id = nextId++
+        val player = ExoPlayer.Builder(appContext).build().apply {
+            val mediaItem = MediaItem.Builder().setUri(sourceUrl).build()
+            setMediaItem(mediaItem)
+            prepare()
+            playWhenReady = true
+        }
+        players[id] = player
+        return PlayerHandle(id)
+    }
+
+    actual fun setVolume(handle: PlayerHandle, volume: Float) {
+        players[handle.id]?.volume = volume.coerceIn(0f, 1f)
+    }
+
+    actual fun setAudioFocus(handleId: Int) {
+        players.forEach { (pid, player) ->
+            player.volume = if (pid == handleId) 1f else 0f
+        }
+    }
+
+    actual fun releasePlayer(handle: PlayerHandle) {
+        players.remove(handle.id)?.run { stop(); release() }
+    }
+
+    actual fun releaseAll() {
+        players.values.forEach { it.stop(); it.release() }
+        players.clear()
+    }
+}
+
+private fun mapResizeMode(mode: Int): Int {
+    return when (mode) {
+        RESIZE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+        RESIZE_FIXED_WIDTH -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+        RESIZE_FIXED_HEIGHT -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
+        RESIZE_ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        else -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+    }
+}
+
+@Composable
+actual fun MultiWindowVideoSurface(handle: PlayerHandle?, modifier: Modifier, resizeMode: Int) {
+    val rm = mapResizeMode(resizeMode)
+    DisposableEffect(handle?.id) {
+        onDispose { handle?.let { MultiWindowPlayerManager.setVolume(it, 0f) } }
+    }
+    if (handle == null) return
+    val player = remember(handle.id) { MultiWindowPlayerManager.players[handle.id] }
+    key(handle.id) {
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    this.player = player
+                    useController = false
+                    this.resizeMode = rm
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    )
+                }
+            },
+            update = { view -> view.resizeMode = rm },
+            modifier = modifier,
+        )
+    }
+}

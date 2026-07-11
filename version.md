@@ -212,6 +212,157 @@ Ghost CH button (transparent bg, accent on tap), slide-up channel list with all 
 - `RobbdeezeNutzHubScreen.kt` — hub screen with persistent title, 4 glass cards, inline sub-screens with back navigation
 - `sidebar_hub.xml` — dashboard icon for the hub tab
 
+### Multi-Window Hub — Live IPTV Grid (July 2026)
+
+**Why:** Users wanted to watch multiple live IPTV streams at the same time (e.g. watching 4 NFL games simultaneously on a tablet, or monitoring all security cameras on one screen). A single full-screen player can only show one channel. The multi-window hub solves this by letting you tile up to 9 live streams in a grid, each with its own ExoPlayer instance, with audio from only one cell at a time.
+
+#### Core Architecture — What You Need to Build
+
+**MultiWindowStore** — a singleton that holds ALL runtime state for the multi-window feature. In your TV app, create this as a class or object in your DI container. It stores:
+- `streams`: a reactive list of `WindowStream` objects (channel + slotIndex + unique ID)
+- `volumes`: per-stream float 0–1
+- `playerHandleIds`: maps stream ID to player handle (used to wire the volume slider to the correct `ExoPlayer`)
+- `resizeModes`: per-stream scaling mode (Fill/Fit/16:9/4:3/Zoom)
+- `audioFocusId`: which stream currently owns audio (all others are muted)
+- `currentLayout` / `layoutLocked`: which grid layout is active and whether auto-switch is locked
+
+**WindowStream** — data class: `id: String`, `channel: IptvChannel`, `slotIndex: Int`, `isPlaying: Boolean`. On TV, replace `IptvChannel` with your channel model.
+
+**PlayerManager** — an ExoPlayer pool. Key details:
+- Cap at `MAX_PLAYERS` (9 in our case). When adding a new stream at capacity, evict the oldest (LRU-style).
+- Track players by integer handle ID in a `Map<Int, ExoPlayer>`.
+- `createPlayer(url)` builds an `ExoPlayer` with `MediaItem`, calls `prepare()` and `playWhenReady = true`.
+- `setVolume(handle, 0f..1f)` sets volume on that player only.
+- `setAudioFocus(handleId)` sets one player's volume to 1f and all others to 0f. This is how only one cell has audio at a time.
+- `releasePlayer(handle)` stops and releases the player, removes from pool.
+- On TV, you can likely skip the pool pattern and create/destroy players per cell since TV has more memory slack.
+
+#### Layout System — How Grid Positions Are Calculated
+
+The layout system replaces a `LazyVerticalGrid` with manual `Row`/`Column` positioning. You MUST do the same on TV because standard grids can't support non-uniform layouts (e.g. "1 cell wide on top, 3 cells below").
+
+**SlotPos** — data class mapping a stream index to a grid position: `(index, row, col, rowSpan, colSpan)`. The rendering loop:
+1. Compute `totalRows = maxOf(slots.row + rowSpan)` and `totalCols = maxOf(slots.col + colSpan)`.
+2. For each row 0..totalRows-1, create a `Row` with equal weight.
+3. For each col 0..totalCols-1, find the `SlotPos` at `(row, col)`. If found, render the stream at that index as a cell, with width proportional to `colSpan`. If no slot, render an empty spacer.
+4. Column spanning only (`colSpan > 1`). Vertical spanning (`rowSpan > 1`) is not supported — all current layouts use `rowSpan = 1`.
+
+**Supported Layouts (18 presets):**
+
+| Count | Portrait | Landscape |
+|-------|----------|-----------|
+| 2 | `1×2` | — |
+| 3 | `1+2` (top 1 wide, bottom 2 equal), `3 vert` (stacked) | `2+1` (left 2, right 1 tall), `3 vert` |
+| 4 | `2×2`, `1-2-1` (top 1 wide, middle 2, bottom 1 wide) | — |
+| 5 | `1+4` (top 1 wide, bottom 2×2), `4+1` (4 grid + bottom 1 wide) | `3+2` (left 3 stacked, right 2 stacked), `4+1` |
+| 6 | `3×2` (3 rows × 2 cols), `1-2-2-1` (1-2-2-1 vertical) | `2×3` (2 rows × 3 cols), `1-2-2-1` |
+| 7 | `1-3-3` (top 1 wide, middle 3 equal, bottom 3 equal), `1+6` (top 1 wide, bottom 3 rows × 2 cols) | `1-3-3` |
+| 8 | `4×2` (4 rows × 2 cols), `1-3-3-1` (1-3-3-1 vertical) | `2×4` (2 rows × 4 cols), `4×2` |
+| 9 | `3×3` | — |
+
+**Auto-selection:** `getValidLayouts(count, isPortrait)` returns layouts for a given stream count and orientation. `defaultLayout()` picks the first one. When the stream count or orientation changes, the grid autocalls `resolveLayout()` which returns the manual override if set, otherwise the default.
+
+**On TV:** You can add more presets (e.g. 4×3 for 12 streams, picture-in-picture for 2, a 5+1 sports layout). Just add enum entries, add cases to `calculateSlots()`, and add to `getValidLayouts()`.
+
+#### Grid UI (`MultiWindowGrid.kt`) — The Visual Shell
+
+**Layout pills row** — a horizontally scrollable row of pills above the grid. Shows "Auto" + all valid layouts for current count/orientation. "Auto" resets to automatic mode. Tapping a layout locks it (prevents auto-switch when count/orientation changes). Active pill in accent color, inactive in surface card color.
+
+**Grid body** — the Row/Column loop described above. Each cell is either a `VideoCell` or an empty spacer. **Critical:** wrap each `VideoCell` in `key(stream.id)` so Compose preserves the composable across layout changes. Without this, changing layouts would dispose and recreate all players (causing freeze/restart).
+
+**"Add Channel" button** — a row at the bottom when under max capacity (9 on tablet, 6 on phone). Tapping navigates to the IPTV channel browser. On TV, this could open a side panel channel picker.
+
+#### VideoCell — The Individual Stream Tile
+
+Each cell is a self-contained unit:
+1. **Player creation:** `remember(stream.id) { playerManager.createPlayer(channel.url) }`. The `key()` wrapper ensures this `remember` survives layout reordering.
+2. **Lifecycle:** `DisposableEffect(stream.id)` sets initial volume on composition and releases the player on disposal. When the cell is disposed (stream removed or count drops), the player is cleaned up automatically.
+3. **Video surface:** A full-size video renderer. On Android, this is `PlayerView` with `useController = false`. Pass `resizeMode` from the store so scaling pills work.
+4. **Overlays (drawn on top of video):**
+   - **Slot label** (top-left): semi-transparent black background, shows "1 Channel Name". 8sp font, 3dp padding. Helps identify which slot is which.
+   - **Play/Pause** (center): 28dp circle at 60% black, toggles `isPlaying` state. On TV, use D-pad select instead of click.
+   - **Volume toggle** (bottom-right): 18dp rounded square. Tapping toggles mute/unmute. When unmuted: sets volume to 1f, calls `setAudioFocus(thisHandleId)` which mutes ALL other cells, draws a 2dp accent border around the active cell. Only ONE cell can have audio at a time.
+   - **⋮ menu** (bottom-left): opens the cell options bottom sheet. On TV, map to the "Menu" button on the remote.
+
+#### Slot Picker (`MultiWindowPositionPicker.kt`) — Adding Streams
+
+Triggered by long-pressing an IPTV channel in the channel browser. Shows a bottom sheet with a 3-column grid of square cells:
+- Each cell represents a slot (numbered 1–9 on tablet, 1–6 on phone)
+- Occupied slots show the current channel logo + name
+- Empty slots show "Slot N" / "Empty"
+- Tapping a slot adds the channel there via `MultiWindowStore.addToSlot(channel, slotIndex)` and dismisses
+
+**Why stays on IPTV:** Previously, picking a slot navigated to the Multi hub automatically. Users found this jarring — they want to batch-add several channels before going to the grid. Now it stays on the IPTV screen so you can keep adding.
+
+**On TV:** Replace the bottom sheet with a side panel or overlay. Long-press can be the "OK" hold on the remote. Show the grid as a floating overlay rather than a sheet.
+
+#### Cell Options (`MultiWindowCellOptions.kt`) — Per-Stream Controls
+
+A bottom sheet with four sections. On TV, use a side panel or dialog instead.
+
+**CH / History / Fav buttons** — three pill buttons. Tapping any one replaces the sheet content with a scrollable channel list (`LazyColumn`):
+- "CH" shows all IPTV channels (from `IptvRepository.getAllChannels()`)
+- "History" shows recently watched channels (from `getHistoryChannels()`)
+- "Fav" shows favorite channels (from `getFavoriteChannels()`)
+- Each row shows the channel logo + name + "Slot N" label
+- Tapping a channel calls `MultiWindowStore.addToSlot(channel, currentSlotIndex)` which replaces the current slot's channel and dismisses the sheet
+- "← Back" button returns to the main options
+
+**Why this exists:** Without it, the only way to change what's playing in a cell is to close it and re-add from IPTV. This is tedious. The channel overlay lets you hot-swap any cell's channel from the full list, history, or favorites — same UX as the in-player channel overlay.
+
+**Volume slider** — a `Slider` from 0% to 100%, with labels on each side. Wrapped in `animateFloatAsState(targetValue, tween(300))` so programmatic volume changes animate smoothly instead of jumping. Active track in accent color.
+
+**Scaling pills** — a horizontal scrollable row: Fill / Fit / 16:9 / 4:3 / Zoom. Each corresponds to a `RESIZE_*` constant. Tapping stores the mode in `MultiWindowStore.resizeModes` (which uses `SnapshotStateMap` so the grid cell recomposes). The video surface reads this mode and applies it to `PlayerView.resizeMode`.
+
+**Why scaling matters:** Different IPTV channels have different aspect ratios. A 4:3 security camera feed should not be stretched to Fill. A 16:9 sports stream should not have black bars. Per-cell scaling lets the user optimize each tile.
+
+**Close Channel** — red row. Calls `MultiWindowStore.remove(stream.id)` → removes from grid, releases player, dismisses sheet.
+
+#### Navigation — Back from Full-Screen Player
+
+**Critical bug found:** The hub's `onPlayChannel` was calling BOTH `onIptvPlayChannel` AND `onSportsPlayChannel`. Both do `navController.navigate(PlayerRoute(id))`. This pushed TWO `PlayerRoute` entries onto the nav stack. The user had to press back TWICE — the first press popped to the duplicate player (flicker), the second popped back to the hub.
+
+**Fix:** Only call `onIptvPlayChannel?.invoke(launch)`. Both handlers do the same thing (navigate to the same player), so the second call was redundant.
+
+**On TV:** Your navigation may use a different pattern (fragment transactions, `startActivity`, or a custom router). The key takeaway: the player launch source should only fire once. If you have multiple "play channel" handlers, make sure only one navigates.
+
+#### Tablet Detection
+
+`BoxWithConstraints(width >= 600.dp)` in both the grid and the slot picker:
+- Phone: max 6 streams, picker shows 6 slots (2 rows × 3 cols)
+- Tablet: max 9 streams, picker shows 9 slots (3 rows × 3 cols)
+
+**Why 600dp:** This is the standard Material Design breakpoint for "compact" vs "medium" screens. At 600dp+ (7-inch tablet portrait, 10-inch landscape), there's enough room for 9 tiles. On phones, 9 tiles would be too small to be usable.
+
+**On TV:** TV screens are always large enough for 9 tiles. You can set `MAX_PLAYERS = 9` unconditionally and skip the phone/tablet gate. You might even go to 12+ tiles since TV screens are much larger.
+
+#### What's NOT in the Mobile Version (for TV Considerations)
+
+| Feature | Mobile | TV Suggestion |
+|---------|--------|---------------|
+| Bottom sheets | Used for picker + cell options | Replace with side panels / floating dialogs / on-screen overlays |
+| Long-press for picker | Works with touch | On TV, use "Menu" button or a dedicated "Add to Multi" action in the channel context menu |
+| Touch overlays (play/pause, volume, ⋮) | Click targets over video | On TV, use D-pad navigation between tiles + a system overlay bar at the bottom |
+| `BoxWithConstraints` tablet gate | 600dp break | Not needed — TV is always large. Use a higher `MAX_PLAYERS` (12–16) and add more layouts |
+| Swipeable layout pills | Horizontal scroll | On TV, use digital channel navigation (left/right on D-pad) |
+| `animateFloatAsState` for volume | Nice-to-have animation | Optional — TV can use direct slider value |
+| Audio focus (one cell unmuted) | Mutes all others when one is active | Same concept on TV — only one tile has audio at a time |
+| Player pool (MAX=9, evict oldest) | Memory management | TV may not need pooling — create/destroy per cell freely |
+| `SnapshotStateList` / `SnapshotStateMap` | Compose reactivity | If using Jetpack Compose for TV, same approach works. If using a different UI framework, use your framework's reactive state (StateFlow, LiveData, etc.) |
+
+#### Files — What to Create on TV
+
+| File | Purpose | Notes for TV Port |
+|------|---------|-------------------|
+| `MultiWindowStore.kt` | Reactive state singleton | Use `mutableStateListOf`/`mutableStateMapOf` (Compose TV) or `StateFlow` (non-Compose) |
+| `MultiWindowLayouts.kt` | Layout enum + slot calculator | Pure logic — copy verbatim. Add more presets for TV screen size |
+| `MultiWindowGrid.kt` | Grid composable + VideoCell | Replace overlays with D-pad-friendly UI. Use `key()` wrapper for player stability |
+| `MultiWindowPositionPicker.kt` | Slot picker | Replace bottom sheet with overlay panel. 3×3 grid works for TV too |
+| `MultiWindowCellOptions.kt` | Per-cell controls | Replace bottom sheet with side panel. Keep CH/History/Fav, volume, scaling, close |
+| `MultiWindowPlayerEngine.kt` | Common expect/actual | Define player interface. Add more resize constants if needed |
+| `MultiWindowPlayerEngine.android.kt` | ExoPlayer pool | `MAX_PLAYERS = 12+` for TV. Use `PlayerView` same as mobile |
+| `MultiWindowPlayerEngine.ios.kt` | iOS stub | Not needed for Android TV |
+
 ### Phase 16 — TV Sports Hub Features Ported to Mobile (July 2026)
 - **Orientation fix** — `LockPlayerToLandscape` now checks device rotation first; only locks to sensor landscape if user is *already* in landscape (no forced orientation switch)
 - **TV-style league chips** — combat sports first (`⚡ Sports Now`, UFC, Boxing, PFL, PPV) ahead of NFL/NBA/MLB/NHL/MLS; tapping a chip filters events or triggers special views
@@ -224,3 +375,33 @@ Ghost CH button (transparent bg, accent on tap), slide-up channel list with all 
 - **Live Games overlay** — "LIVE" pill button in IPTV player controls (when live events exist), slide-up sheet with scores + Switch
 - **SportsNowStore** — singleton bridge for live events between sports repo and player
 - **New/Modified files:** `GameToChannelMatcher.kt`, `SportsNowStore.kt`, `SportsModels.kt`, `SportsRepository.kt`, `SportsScreen.kt`, `EspnClient.kt`, `PlayerPlatformEffects.android.kt`, `PlayerScreenRuntimeState.kt`, `PlayerPlaybackOverlays.kt`, `PlayerControls.kt`, `PlayerScreenRuntimeUi.kt`
+
+### Phase 17 — MultiNutz Hub Vol. 2: Scaling, Swap, Overhaul & Bugfixes (July 2026)
+- **Real-time scaling fix** — `AndroidView` in `MultiWindowPlayerEngine.android.kt` now has `update = { view -> view.resizeMode = rm }` so scaling changes apply immediately instead of being frozen at factory time
+- **Phone↔tablet freeze fix** — wrapped `AndroidView` in `key(handle.id)` so layout transitions (phone 6-slot ↔ tablet 9-slot) don't dispose and recreate `PlayerView`, keeping the player surface alive across orientation/size changes
+- **Default video fit** — `getResizeMode()` default changed from `RESIZE_FILL` to `RESIZE_FIT` so streams don't crop by default
+- **Volume discrete step dots** — removed `Slider`, replaced with 7 pill buttons: Mute / 15 / 30 / 45 / 70 / 85 / Max. Active step highlights in accent color. Reactive via `mutableStateMapOf` for `volumes`.
+- **Stream refresh** — "Refresh Stream" row in cell options releases the current player and re-creates it with the same channel at the same slot
+- **Swap positions** — "Swap" pill in cell options opens slot picker showing occupied slots; tapping swaps the two streams via `MultiWindowStore.swapSlots()`
+- **Mute All / Close All / Pause All** — three pills in the grid layout row. Mute All sets all volumes to 0. Close All removes all streams. Pause All releases all player handles.
+- **Push-to-multi from ExoPlayer** — "Multi" pill button in IPTV player controls (shown when `parentMetaId == "iptv"`). Uses `MultiWindowPushStore.pendingChannel` (set before player launch in `IptvScreen.playChannel()`) to find the channel without URL lookup. Adds to first empty slot, sets `HubReturnStore.subScreen = "Multi"`, pops back.
+- **MultiNutz rename** — "MultiWindow Hub" → "MultiNutz Hub" in hub card and sub-screen header
+- **Layout bookmarks** — ★ pill opens `MultiWindowBookmarksSheet` with save/load/delete. `MultiWindowBookmark` stores layout + slot→channel map. Load restores all channels to their slots.
+- **2×1 layout** — added `V2_STACK("2×1")` layout for portrait stacking
+- **Layout pills reactive** — `_currentLayout` and `_layoutLocked` changed to `mutableStateOf` so tapping a layout pill triggers immediate grid recomposition
+
+### Phase 17b — Channel Overlay Overhaul: Sources, Groups, Search
+- **Source filter pills** — channel overlay now shows "All" + each M3U/Xtream/Stalker source by name as filter pills at the top
+- **Group filter pills** — channels grouped by `group` field, shown as scrollable filter pills below sources
+- **Search field** — `OutlinedTextField` at top of channel overlay filters channels by name in real-time
+- **Group subtitle** — each channel row shows its group name as a smaller subtitle when no group filter is active
+- **Swap position overlay** — new overlay in cell options showing slot grid; tapping an occupied slot swaps the two streams
+
+### Phase 17c — Sports Hub Fixes (July 2026)
+- **"Live Now" → "Live/Upcoming"** — header shows both active game count with pulse dot AND upcoming count
+- **Highlight/prematch video streaming fix** — `VideoCardSmall.onClick` in `SportEventDetailPanel` was silently creating a `PlayerLaunch` and dropping it. Added `onPlayPlayerLaunch` callback wired to the outer `onPlayChannel`, so tapping a highlight/prematch video now actually plays.
+- **Event images for UFC/fighting sports** — added `eventImage` field to `EspnProcessedEvent` extracted from `competition.logos` (picks largest logo). Added `thumbnail` fallback from `EspnEvent.thumbnail`. Renders event image as a banner in `ScoreCard` when both team logos are null (the case for UFC/boxing fighters who have no team logo).
+- **`SportsAsyncImage` fallback** — handles null/blank URLs with a `?` placeholder. Wraps `AsyncImage` in `Box` for stable sizing.
+- **ESPN models** — added `EspnLogo` data class, `logos` field to `EspnCompetition`, `thumbnail` field to `EspnEvent`
+- **Back navigation preserved** — `SportsRepository` singleton state (selected event, videos, active tab) persists across player navigation lifecycle. `HubReturnStore.subScreen` restores Sports sub-screen on player exit.
+- **MultiWindowPushStore** — stores the `IptvChannel` before player launch so the push-to-multi callback can find the channel without a fragile URL-based lookup

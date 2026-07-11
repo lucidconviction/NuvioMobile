@@ -12,6 +12,16 @@ data class EspnEvent(
     val shortName: String = "",
     val date: String = "",
     val competitions: List<EspnCompetition> = emptyList(),
+    val thumbnail: String? = null,
+)
+
+@Serializable
+data class EspnLogo(
+    val href: String = "",
+    val alt: String? = null,
+    val rel: List<String>? = null,
+    val width: Int = 0,
+    val height: Int = 0,
 )
 
 @Serializable
@@ -24,6 +34,7 @@ data class EspnCompetition(
     val status: EspnStatus? = null,
     val series: EspnSeries? = null,
     val notes: List<EspnNote>? = null,
+    val logos: List<EspnLogo>? = null,
 )
 
 @Serializable
@@ -98,6 +109,7 @@ data class EspnProcessedEvent(
     val id: String,
     val title: String,
     val homeTeam: String,
+    val eventImage: String? = null,
     val awayTeam: String,
     val homeScore: String?,
     val awayScore: String?,

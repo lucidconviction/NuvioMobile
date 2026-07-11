@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nuvio.app.features.iptv.IptvChannel
 import com.nuvio.app.features.iptv.IptvScreen
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.sports.SportsScreen
@@ -51,7 +53,7 @@ private val SurfaceCard = Color(0xFF1A1A1A)
 private val OnSurface = Color(0xFFE0E0E0)
 private val OnSurfaceVariant = Color(0xFFB0B0B0)
 
-private enum class HubSubScreen { Hub, Iptv, Sports, VidNutz, Music }
+private enum class HubSubScreen { Hub, Iptv, Sports, VidNutz, Music, Multi }
 
 @Composable
 fun RobbdeezeNutzHubScreen(
@@ -62,24 +64,19 @@ fun RobbdeezeNutzHubScreen(
     sportsScrollToTopRequests: Flow<Unit> = emptyFlow(),
     resetTrigger: Int = 0,
 ) {
-    var subScreen by remember { mutableStateOf(HubSubScreen.Hub) }
-
-    LaunchedEffect(Unit) {
+    var subScreen by remember(resetTrigger) {
         val saved = HubReturnStore.subScreen
-        subScreen = when (saved) {
-            "Iptv" -> HubSubScreen.Iptv
-            "Sports" -> HubSubScreen.Sports
-            "VidNutz" -> HubSubScreen.VidNutz
-            "Music" -> HubSubScreen.Music
-            else -> HubSubScreen.Hub
+        if (resetTrigger > 0) {
+            mutableStateOf(HubSubScreen.Hub)
+        } else {
+            val restored = when (saved) {
+                "Iptv" -> HubSubScreen.Iptv; "Sports" -> HubSubScreen.Sports
+                "VidNutz" -> HubSubScreen.VidNutz; "Music" -> HubSubScreen.Music
+                "Multi" -> HubSubScreen.Multi; else -> HubSubScreen.Hub
+            }
+            if (restored != HubSubScreen.Hub) HubReturnStore.subScreen = "Hub"
+            mutableStateOf(restored)
         }
-        if (subScreen != HubSubScreen.Hub) {
-            HubReturnStore.subScreen = "Hub"
-        }
-    }
-
-    LaunchedEffect(resetTrigger) {
-        subScreen = HubSubScreen.Hub
     }
 
     val onPlayChannelSave: ((PlayerLaunch) -> Unit)? = onPlayChannel?.let { original ->
@@ -126,6 +123,7 @@ fun RobbdeezeNutzHubScreen(
                         HubCard("SportNutz Hub", "Real-time scores, highlights, and live match coverage.", "SP") { subScreen = HubSubScreen.Sports }
                         HubCard("VidNutz Hub", "Browse, search, and watch videos from across the web.", "VN") { subScreen = HubSubScreen.VidNutz }
                         HubCard("MusicNutz Hub", "Search and stream millions of tracks from across the web.", "MU") { subScreen = HubSubScreen.Music }
+                        HubCard("MultiNutz Hub", "Watch multiple IPTV channels in a grid.", "MW") { subScreen = HubSubScreen.Multi }
                         Spacer(Modifier.height(32.dp))
                     }
                 }
@@ -134,7 +132,7 @@ fun RobbdeezeNutzHubScreen(
                         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("IPTVNutz Hub", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(start = 12.dp))
                         }
-                        Box(Modifier.fillMaxSize()) { IptvScreen(modifier = Modifier.fillMaxSize(), onPlayChannel = onPlayChannelSave, scrollToTopRequests = iptvScrollToTopRequests) }
+                        Box(Modifier.fillMaxSize()) { IptvScreen(modifier = Modifier.fillMaxSize(), onPlayChannel = onPlayChannelSave, scrollToTopRequests = iptvScrollToTopRequests, onMultiWindowAdded = { subScreen = HubSubScreen.Multi }) }
                     }
                 }
                 HubSubScreen.Sports -> {
@@ -159,6 +157,94 @@ fun RobbdeezeNutzHubScreen(
                             Text("MusicNutz Hub", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(start = 12.dp))
                         }
                         Box(Modifier.fillMaxSize()) { MusicNutzScreen(onPlayChannel = onPlayChannelSave) }
+                    }
+                }
+                HubSubScreen.Multi -> {
+                    Column(Modifier.fillMaxSize()) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("MultiNutz Hub", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(start = 12.dp))
+                        }
+                        var selectedCell by remember { mutableStateOf<WindowStream?>(null) }
+                        var showBookmarks by remember { mutableStateOf(false) }
+                        Box(Modifier.fillMaxSize()) {
+                            MultiWindowGrid(
+                                streams = MultiWindowStore.allStreams,
+                                onRemoveStream = { MultiWindowStore.remove(it) },
+                                onAddMore = { subScreen = HubSubScreen.Iptv },
+                                onCellLongPress = { selectedCell = it },
+                                onCellVolumeToggle = { stream, active ->
+                                    MultiWindowStore.setVolume(stream.id, if (active) 1f else 0f)
+                                    if (active) MultiWindowStore.setAudioFocus(stream.id)
+                                },
+                                onBookmarksClick = { showBookmarks = true },
+                                onMuteAll = {
+                                    MultiWindowStore.allStreams.forEach { s ->
+                                        MultiWindowStore.setVolume(s.id, 0f)
+                                        val hid = MultiWindowStore.getPlayerHandleId(s.id)
+                                        if (hid != null) {
+                                            com.nuvio.app.features.hub.MultiWindowPlayerManager.setVolume(
+                                                com.nuvio.app.features.hub.PlayerHandle(hid), 0f,
+                                            )
+                                        }
+                                    }
+                                },
+                                onCloseAll = {
+                                    MultiWindowStore.allStreams.toList().forEach { s ->
+                                        MultiWindowStore.remove(s.id)
+                                    }
+                                },
+                                onPauseAll = {
+                                    MultiWindowStore.allStreams.toList().forEach { s ->
+                                        val hid = MultiWindowStore.getPlayerHandleId(s.id)
+                                        if (hid != null) {
+                                            com.nuvio.app.features.hub.MultiWindowPlayerManager.releasePlayer(
+                                                com.nuvio.app.features.hub.PlayerHandle(hid),
+                                            )
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                        if (showBookmarks) {
+                            MultiWindowBookmarksSheet(
+                                bookmarks = MultiWindowBookmarkStore.all(),
+                                onSave = { MultiWindowBookmarkStore.save(it) },
+                                onLoad = { MultiWindowBookmarkStore.load(it) },
+                                onDelete = { MultiWindowBookmarkStore.delete(it) },
+                                onDismiss = { showBookmarks = false },
+                            )
+                        }
+                        selectedCell?.let { stream ->
+                            MultiWindowCellOptions(
+                                stream = stream,
+                                volume = MultiWindowStore.getVolume(stream.id),
+                                onVolumeChange = { vol ->
+                                    MultiWindowStore.setVolume(stream.id, vol)
+                                    val hid = MultiWindowStore.getPlayerHandleId(stream.id)
+                                    if (hid != null) {
+                                        com.nuvio.app.features.hub.MultiWindowPlayerManager.setVolume(
+                                            com.nuvio.app.features.hub.PlayerHandle(hid), vol,
+                                        )
+                                    }
+                                },
+                                onRefresh = {
+                                    val slot = stream.slotIndex
+                                    val channel = stream.channel
+                                    MultiWindowStore.remove(stream.id)
+                                    MultiWindowStore.addToSlot(channel, slot)
+                                    selectedCell = null
+                                },
+                                onSwap = { targetSlot ->
+                                    MultiWindowStore.swapSlots(stream.slotIndex, targetSlot)
+                                    selectedCell = null
+                                },
+                                onClose = {
+                                    MultiWindowStore.remove(stream.id)
+                                    selectedCell = null
+                                },
+                                onDismiss = { selectedCell = null },
+                            )
+                        }
                     }
                 }
             }
