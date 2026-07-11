@@ -23,29 +23,33 @@
 ## Screenshots
 
 <div align="center">
-  <img src="assets/screenshots/photo_2026-07-06%2015.10.32.jpeg" alt="Sports Hub" width="30%" />
-  <img src="assets/screenshots/photo_2026-07-06%2015.10.36.jpeg" alt="Sports Hub" width="30%" />
-  <img src="assets/screenshots/photo_2026-07-06%2015.10.40.jpeg" alt="Sports Hub" width="30%" />
-</div>
-<div align="center">
-  <img src="assets/screenshots/photo_2026-07-06%2015.10.43.jpeg" alt="IPTV" width="30%" />
+  <img src="assets/screenshots/photo_2026-07-07%2022.46.26.jpeg" alt="RobbdeezeNutz Hub" width="30%" />
+  <img src="assets/screenshots/photo_2026-07-06%2015.10.43.jpeg" alt="IPTV Hub" width="30%" />
   <img src="assets/screenshots/photo_2026-07-06%2015.10.47.jpeg" alt="Player Controls" width="30%" />
-  <img src="assets/screenshots/photo_2026-07-06%2015.10.51.jpeg" alt="Channel Overlay" width="30%" />
 </div>
 <div align="center">
+  <img src="assets/screenshots/photo_2026-07-06%2015.10.51.jpeg" alt="Channel Overlay" width="30%" />
   <img src="assets/screenshots/photo_2026-07-06%2015.10.54.jpeg" alt="IPTV" width="30%" />
   <img src="assets/screenshots/photo_2026-07-06%2019.54.01.jpeg" alt="Trakt Login" width="30%" />
-  <img src="assets/screenshots/photo_2026-07-07%2022.46.26.jpeg" alt="RobbdeezeNutz Hub" width="30%" />
 </div>
 <div align="center">
-  <img src="assets/screenshots/photo_2026-07-07%2022.46.39.jpeg" alt="VidNutz Hub" width="30%" />
-  <img src="assets/screenshots/photo_2026-07-07%2022.46.47.jpeg" alt="MusicNutz Hub" width="30%" />
+  <img src="assets/screenshots/photo_2026-07-06%2015.10.32.jpeg" alt="Sports Hub" width="30%" />
+  <img src="assets/screenshots/photo_2026-07-06%2015.10.36.jpeg" alt="Sports Hub - Details" width="30%" />
+  <img src="assets/screenshots/photo_2026-07-06%2015.10.40.jpeg" alt="Sports Hub - Highlights" width="30%" />
 </div>
 <div align="center">
-  <img src="assets/screenshots/multinutz-1.jpeg" alt="MultiNutz Hub" width="30%" />
-  <img src="assets/screenshots/multinutz-2.jpeg" alt="MultiNutz Hub" width="30%" />
-  <img src="assets/screenshots/multinutz-3.jpeg" alt="MultiNutz Hub" width="30%" />
-  <img src="assets/screenshots/multinutz-4.jpeg" alt="MultiNutz Hub" width="30%" />
+  <img src="assets/screenshots/photo_2026-07-07%2022.46.39.jpeg" alt="VidNutz Hub" width="45%" />
+  <img src="assets/screenshots/photo_2026-07-07%2022.46.47.jpeg" alt="MusicNutz Hub" width="45%" />
+</div>
+
+<h3 align="center">MultiNutz Hub — Watch up to 9 live streams at once</h3>
+<div align="center">
+  <img src="assets/screenshots/multinutz-1.jpeg" alt="MultiNutz Grid" width="30%" />
+  <img src="assets/screenshots/multinutz-2.jpeg" alt="Cell Options" width="30%" />
+  <img src="assets/screenshots/multinutz-3.jpeg" alt="Slot Picker" width="30%" />
+</div>
+<div align="center">
+  <img src="assets/screenshots/multinutz-4.jpeg" alt="Layout Bookmarks" width="30%" />
 </div>
 
 ## Hubs
