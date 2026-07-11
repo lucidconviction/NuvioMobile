@@ -41,6 +41,12 @@
   <img src="assets/screenshots/photo_2026-07-07%2022.46.39.jpeg" alt="VidNutz Hub" width="30%" />
   <img src="assets/screenshots/photo_2026-07-07%2022.46.47.jpeg" alt="MusicNutz Hub" width="30%" />
 </div>
+<div align="center">
+  <img src="assets/screenshots/multinutz-1.jpeg" alt="MultiNutz Hub" width="30%" />
+  <img src="assets/screenshots/multinutz-2.jpeg" alt="MultiNutz Hub" width="30%" />
+  <img src="assets/screenshots/multinutz-3.jpeg" alt="MultiNutz Hub" width="30%" />
+  <img src="assets/screenshots/multinutz-4.jpeg" alt="MultiNutz Hub" width="30%" />
+</div>
 
 ## Hubs
 
