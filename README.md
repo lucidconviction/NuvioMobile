@@ -47,11 +47,32 @@
 ### RobbdeezeNutz Hub
 The main screen with four glass-style cards. Tap any card to open its sub-hub. The "RobbdeezeNutz Hubz" header stays visible across all screens. Tap the Hubz tab again to return to the main view.
 
+### MultiNutz Hub (New!)
+Watch up to 9 live IPTV streams simultaneously in a resizable grid. Tap the "MultiNutz Hub" card from the main hub to open.
+
+#### Quick Start
+1. **Add streams** — Open IPTVNutz Hub, long-press any channel, select a slot (1–9) to add it to the grid
+2. **Audio focus** — Tap the volume icon on any cell to hear that stream (all others mute)
+3. **Change layout** — Tap a layout pill above the grid (2×2, 3×3, 1+2, etc.) to rearrange tiles
+4. **Per-cell controls** — Tap ⋮ on any cell to: change channel (CH/History/Favorites), adjust volume (Mute/15/30/45/70/85/Max), change scaling (Fill/Fit/16:9/4:3/Zoom), refresh the stream, swap with another cell, or close it
+
+#### Layouts
+18 presets for 2–9 streams: 2×2, 3×3, 1+2, 1-2-1, 1+4, 3+2, 2×3, 1-3-3, 4×2, and more. Layout auto-selects based on stream count and orientation, or you can lock a specific layout.
+
+#### Bulk Actions
+- **Mute All** — silence all streams
+- **Close All** — remove all streams at once
+- **Pause All** — freeze all streams (playback resumes individually)
+- **★ Bookmarks** — save your current layout + channels, load them later
+
+#### Push-to-Multi
+While watching any IPTV channel full-screen, tap the **Multi** button to send it to the first empty slot in MultiNutz Hub.
+
 ### IPTVNutz Hub
-Live TV with M3U, Xtream Codes, and Stalker Portal support. Built-in iptv-org source (12,000+ channels). In-player channel overlay with search, favorites, history, and one-tap switching.
+Live TV with M3U, Xtream Codes, and Stalker Portal support. Built-in iptv-org source (12,000+ channels). In-player channel overlay with search, source/group filters, favorites, history, and one-tap switching.
 
 ### SportNutz Hub
-Real-time scores and standings from ESPN + TheSportsDB. YouTube highlights, date navigation, team detail pages. Pull-to-refresh and per-date caching.
+Real-time scores and standings from ESPN + TheSportsDB. YouTube highlights, date navigation, team detail pages. Pull-to-refresh and per-date caching. Live/Upcoming game counts with pulsing indicators.
 
 ### VidNutz Hub
 YouTube video browser with 12 categories (Trending, Politics, News, Music, Sports, etc.). Persistent search with debounce, swipe between categories, Load More for pagination, and full ExoPlayer playback.
@@ -61,7 +82,7 @@ Browse millions of tracks by genre. Search by song or album. Toggle between Trac
 
 ## Download
 
-[Download the latest APK](https://github.com/Robbdeeze/NuvioMobile/releases/download/v1.0.0-rnutz/androidApp-full-debug.apk) (234 MB)
+[Download the latest APK](https://github.com/Robbdeeze/NuvioMobile/releases/download/v0.2.20/androidApp-full-debug.apk) (245 MB)
 
 ## Build from source
 
@@ -71,6 +92,8 @@ Browse millions of tracks by genre. Search by song or album. Toggle between Trac
 
 ## Features
 
+- **MultiNutz Hub** — watch up to 9 live streams simultaneously with per-cell controls, audio focus, scaling, swap, and layout bookmarks
+- **Push-to-multi** — send any IPTV stream to the multi-view grid with one tap
 - **D-pad / TV remote navigation** across all hubs
 - **Installs alongside stock Nuvio** — separate package name
 - **Monochrome grayscale design** throughout
