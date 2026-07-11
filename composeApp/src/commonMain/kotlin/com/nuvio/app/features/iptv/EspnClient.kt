@@ -135,7 +135,7 @@ object EspnClient {
                 ?: event.thumbnail?.takeIf { it.isNotBlank() }
 
             val wikiPage = if (eventImage == null && sport == "Fighting") {
-                guessWikipediaPage(event.shortName.ifBlank { event.name })
+                guessWikipediaPage(event.name.ifBlank { event.shortName })
             } else null
 
             EspnProcessedEvent(
@@ -188,16 +188,25 @@ object EspnClient {
 
     private fun guessWikipediaPage(title: String): String? {
         if (title.isBlank()) return null
-        val cleaned = title
-            .replace(":", "")
-            .replace("–", "-")
-            .replace("—", "-")
-            .trim()
-        val segments = cleaned.split(" vs ", " Vs ", " VS ")
+        // Try "UFC 313" pattern first — most reliable
+        val ufcMatch = Regex("""UFC\s+\d+""").find(title)
+        if (ufcMatch != null) return ufcMatch.value.replace(" ", "_")
+        // Try "PFL \d+" or "PFL (year)"
+        val pflMatch = Regex("""PFL\s+\d+""").find(title)
+        if (pflMatch != null) return pflMatch.value.replace(" ", "_")
+        val pflYearMatch = Regex("""PFL\s+\d{4}""").find(title)
+        if (pflYearMatch != null) return pflYearMatch.value.replace(" ", "_")
+        // Try "Bellator \d+"
+        val bellatorMatch = Regex("""Bellator\s+\d+""", RegexOption.IGNORE_CASE).find(title)
+        if (bellatorMatch != null) return bellatorMatch.value.replace(" ", "_")
+        // For boxing PPV: try the full event name (e.g. "Canelo_Álvarez_vs._John_Ryder")
+        val segments = title.split(" vs ", " Vs ", " VS ", " vs. ", " Vs. ")
         if (segments.size >= 2) {
-            return segments.first().trim().replace(" ", "_").takeIf { it.length in 4..60 }
+            val first = segments.first().trim()
+            // If the first segment is longer than "UFC 313" style, use full title
+            if (first.length <= 25) return null // too short to be useful alone
         }
-        return cleaned.replace(" ", "_").takeIf { it.length in 3..60 }
+        return null
     }
 
     private fun urlEncode(s: String): String {

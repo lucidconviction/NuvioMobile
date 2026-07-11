@@ -667,7 +667,7 @@ private fun ScoreCard(event: EspnProcessedEvent, isLive: Boolean, onClick: () ->
                 }
             }
             Spacer(Modifier.height(12.dp))
-            if (event.homeLogo.isNullOrBlank() && event.awayLogo.isNullOrBlank() && !event.eventImage.isNullOrBlank()) {
+            if (!event.eventImage.isNullOrBlank()) {
                 Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp)).background(SurfaceContainerHighest), contentAlignment = Alignment.Center) {
                     SportsAsyncImage(model = event.eventImage, null, Modifier.fillMaxSize(), ContentScale.Crop)
                 }
