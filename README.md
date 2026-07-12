@@ -50,6 +50,7 @@
 </div>
 <div align="center">
   <img src="assets/screenshots/multinutz-4.jpeg" alt="Layout Bookmarks" width="30%" />
+  <img src="assets/screenshots/multinutz-max-screens.jpeg" alt="Max Screens" width="30%" />
 </div>
 
 ## Hubs
