@@ -108,6 +108,21 @@ private val Secondary @Composable get() = MaterialTheme.colorScheme.secondary
 private val ErrorRed @Composable get() = MaterialTheme.colorScheme.error
 private val AccentOrange @Composable get() = MaterialTheme.colorScheme.tertiary
 
+// ── Page Navigation ──────────────────────────────────────────────────────
+private enum class SportNutzPage { LIVE, FIGHT_CENTER, STANDINGS }
+
+private val pageLabels = mapOf(
+    SportNutzPage.LIVE to "Live",
+    SportNutzPage.FIGHT_CENTER to "Fight Center",
+    SportNutzPage.STANDINGS to "Standings",
+)
+
+private val pageIcons = mapOf(
+    SportNutzPage.LIVE to "⚡",
+    SportNutzPage.FIGHT_CENTER to "🥊",
+    SportNutzPage.STANDINGS to "🏆",
+)
+
 // ── Main Screen ───────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -119,6 +134,9 @@ fun SportsScreen(
 ) {
     val uiState by SportsRepository.uiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+
+    // Page navigation state
+    var currentPage by remember { mutableStateOf(SportNutzPage.LIVE) }
 
     // Load trending YouTube highlights on first open (fast)
     LaunchedEffect(Unit) {
@@ -175,6 +193,11 @@ fun SportsScreen(
         }
     }
 
+    val onEventClick: (EspnProcessedEvent) -> Unit = { event ->
+        SportsRepository.selectEvent(event)
+        currentPage = SportNutzPage.FIGHT_CENTER
+    }
+
     if (showChannelPicker) {
         ChannelPickerDialog(
             title = pickerTitle,
@@ -188,116 +211,132 @@ fun SportsScreen(
         )
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize().background(SurfaceBg),
-        containerColor = Color.Transparent,
-        topBar = {
-            TopAppBar(
-                title = {},
-                actions = {
-                    if (uiState.isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Primary, strokeWidth = 2.dp)
-                        Spacer(Modifier.width(8.dp))
-                    } else {
-                        IconButton(onClick = { SportsRepository.refresh() }) {
-                            Text("↻", color = Primary, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceBg.copy(alpha = 0.9f)),
-            )
-        },
-    ) { padding ->
-        PullToRefreshBox(
-            isRefreshing = uiState.isLoading,
-            onRefresh = { SportsRepository.refresh() },
-            modifier = Modifier.padding(padding).fillMaxSize().then(Modifier),
-        ) {
-            // ── Event Detail Panel (when an event is selected) ──
-            if (uiState.selectedEvent != null) {
-                SportEventDetailPanel(
-                    event = uiState.selectedEvent!!,
-                    matchedChannels = uiState.matchedChannels,
-                    channelsLoading = uiState.channelsLoading,
-                    videos = uiState.sportEventVideos,
-                    videosLoading = uiState.sportVideosLoading,
-                    regionFilter = uiState.regionFilter,
-                    activeTab = uiState.activeEventTab,
-                    onBack = { SportsRepository.clearSportSelection() },
-                    onPlayChannel = { channel ->
-                        val allChannels = IptvRepository.getAllChannels()
-                        launchChannel(channel, allChannels, onPlayChannel!!)
-                    },
-                    onPlayPlayerLaunch = onPlayChannel,
-                    onSetRegion = { SportsRepository.setRegionFilter(it) },
-                    onSetTab = { SportsRepository.setActiveEventTab(it) },
-                    onSearchVideos = { isFuture -> SportsRepository.searchSportVideos(uiState.selectedEvent!!, isFuture) },
-                    onPlayHighlight = { event ->
-                        scope.launch {
-                            val query = "${event.awayTeam} vs ${event.homeTeam} highlights"
-                            val searchResults = YouTubeHighlightClient.searchHighlights(query)
-                            searchResults.firstOrNull()?.let { ytVideo ->
-                                val streamResult = YouTubeStreamResolver.resolveStream(ytVideo.videoId)
-                                streamResult?.let { sr ->
-                                    val launch = PlayerLaunch(
-                                        profileId = 0, title = ytVideo.title, sourceUrl = sr.url,
-                                        sourceHeaders = sr.headers, streamTitle = ytVideo.title,
-                                        providerName = "YouTube", parentMetaId = "youtube",
-                                        parentMetaType = "youtube",
-                                    )
-                                    onPlayChannel?.invoke(launch)
-                                }
-                            }
-                        }
-                    },
-                )
-                return@PullToRefreshBox
-            }
+    val goToLive: () -> Unit = { currentPage = SportNutzPage.LIVE }
+    val goToFightCenter: () -> Unit = { currentPage = SportNutzPage.FIGHT_CENTER }
+    val goToStandings: () -> Unit = { currentPage = SportNutzPage.STANDINGS }
 
-            // ── "Sports Now" All Live Events Grid ──
-            if (uiState.selectedLeague?.id == "now") {
-                if (uiState.allLiveLoading) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = Primary)
-                            Spacer(Modifier.height(8.dp))
-                            Text("Scanning all leagues for live events...", color = OnSurfaceVariant, fontSize = 13.sp)
-                        }
-                    }
-                } else if (uiState.allLiveEvents.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No live events right now", color = OnSurfaceVariant)
-                    }
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                    ) {
-                        items(uiState.allLiveEvents, key = { it.id }) { event ->
-                            ScoreCard(event = event, isLive = true, onClick = { SportsRepository.selectEvent(event) },
-                                onTeamClick = onTeamClick)
-                        }
+    Column(modifier = modifier.fillMaxSize().background(SurfaceBg)) {
+        // ── Content Area ──
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            when (currentPage) {
+                SportNutzPage.LIVE -> Page1Live(
+                    uiState = uiState,
+                    scope = scope,
+                    listState = listState,
+                    onPlayChannel = onPlayChannel,
+                    onTeamClick = onTeamClick,
+                    onEventClick = onEventClick,
+                    playOrShowPicker = playOrShowPicker,
+                    onStandingsClick = goToStandings,
+                )
+                SportNutzPage.FIGHT_CENTER -> Page2FightCenter(
+                    uiState = uiState,
+                    scope = scope,
+                    onPlayChannel = onPlayChannel,
+                    onTeamClick = onTeamClick,
+                    onBack = goToLive,
+                    onStandingsClick = goToStandings,
+                )
+                SportNutzPage.STANDINGS -> Page3Standings(
+                    uiState = uiState,
+                    onTeamClick = onTeamClick,
+                    onBack = goToLive,
+                    onEventClick = onEventClick,
+                )
+            }
+        }
+
+        // ── Bottom Navigation Pills ──
+        Row(
+            modifier = Modifier.fillMaxWidth().background(SurfaceBg).padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            SportNutzPage.entries.forEach { page ->
+                val isActive = currentPage == page
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (isActive) PrimaryContainer else SurfaceContainerHigh)
+                        .clickable { currentPage = page }
+                        .padding(horizontal = 16.dp, vertical = 7.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(pageIcons[page] ?: "", fontSize = 12.sp)
+                        Text(
+                            pageLabels[page] ?: "",
+                            color = if (isActive) Color(0xFF00363A) else OnSurfaceVariant,
+                            fontSize = 12.sp,
+                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                        )
                     }
                 }
-                return@PullToRefreshBox
             }
+        }
+    }
+}
 
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                if (uiState.isLoading) {
-                    item { SportsSkeletonLoader() }
-                } else if (uiState.error != null) {
+// ── Page 1: Live ─────────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun Page1Live(
+    uiState: SportsUiState,
+    scope: kotlinx.coroutines.CoroutineScope,
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    onPlayChannel: ((PlayerLaunch) -> Unit)?,
+    onTeamClick: ((teamName: String, teamLogo: String?, sport: String) -> Unit)?,
+    onEventClick: (EspnProcessedEvent) -> Unit,
+    playOrShowPicker: (EspnProcessedEvent) -> Unit,
+    onStandingsClick: () -> Unit,
+) {
+    PullToRefreshBox(
+        isRefreshing = uiState.isLoading,
+        onRefresh = { SportsRepository.refresh() },
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        // ── "Sports Now" All Live Events Grid ──
+        if (uiState.selectedLeague?.id == "now") {
+            if (uiState.allLiveLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = Primary)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Scanning all leagues for live events...", color = OnSurfaceVariant, fontSize = 13.sp)
+                    }
+                }
+            } else if (uiState.allLiveEvents.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No live events right now", color = OnSurfaceVariant)
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                ) {
+                    items(uiState.allLiveEvents, key = { it.id }) { event ->
+                        ScoreCard(event = event, isLive = true, onClick = { onEventClick(event) },
+                            onTeamClick = onTeamClick)
+                    }
+                }
+            }
+            return@PullToRefreshBox
+        }
+
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (uiState.isLoading) {
+                item { SportsSkeletonLoader() }
+            } else if (uiState.error != null) {
                 item {
-                    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = uiState.error ?: "Unknown error", color = ErrorRed, textAlign = TextAlign.Center, fontSize = 14.sp)
-                            Spacer(Modifier.height(12.dp))
+                            Text(text = uiState.error ?: "Unknown error", color = ErrorRed, fontSize = 14.sp)
+                            Spacer(Modifier.height(10.dp))
                             Text(
                                 text = "Tap to retry", color = Primary, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { SportsRepository.refresh() }
@@ -307,7 +346,7 @@ fun SportsScreen(
                     }
                 }
             } else {
-                // ── League Chips (single combined row) ──
+                // ── League Chips ──
                 item {
                     LeagueChipsRow(
                         leagues = SportsRepository.leagues,
@@ -316,12 +355,30 @@ fun SportsScreen(
                     )
                 }
 
-                // ── Date Navigation ──
+                // ── Date Nav + Standings link + Refresh ──
                 item {
-                    DateNavigationRow(
-                        selectedDate = uiState.selectedDate,
-                        onDateSelected = { SportsRepository.selectDate(it) },
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        DateNavigationRow(
+                            selectedDate = uiState.selectedDate,
+                            onDateSelected = { SportsRepository.selectDate(it) },
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(Modifier.clip(RoundedCornerShape(16.dp)).background(SurfaceContainerHigh)
+                                .clickable(onClick = onStandingsClick)
+                                .padding(horizontal = 10.dp, vertical = 6.dp)) {
+                                Text("🏆 Standings", color = OnSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Box(Modifier.clip(RoundedCornerShape(16.dp)).background(SurfaceContainerHigh)
+                                .clickable { SportsRepository.refresh() }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)) {
+                                Text("↻", color = Primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
 
                 // ── Search Bar ──
@@ -362,7 +419,7 @@ fun SportsScreen(
                     }
                 }
 
-                // ── 1. Live & Upcoming Scores ──
+                // ── Live & Upcoming Scores ──
                 item {
                     LiveScoresSection(
                         events = uiState.events,
@@ -377,33 +434,44 @@ fun SportsScreen(
                                 else -> null
                             }
                         },
-                        onEventClick = { event -> SportsRepository.selectEvent(event) },
+                        onEventClick = onEventClick,
                         onTeamClick = onTeamClick,
                     )
                 }
 
-                // ── 2. Standings (if available) ──
+                // ── Standings preview (compact) ──
                 if (uiState.standings.isNotEmpty()) {
                     item {
-                        StandingsSection(
-                            standings = uiState.standings,
-                            selectedSport = uiState.selectedLeague?.let { league ->
-                                when (league.id) {
-                                    "ufc", "boxing", "pfl", "ppv" -> "Fighting"
-                                    "nfl" -> "Football"
-                                    "nba" -> "Basketball"
-                                    "mlb" -> "Baseball"
-                                    "nhl" -> "Hockey"
-                                    "soccer" -> "Soccer"
-                                    else -> null
-                                }
-                            },
-                            onTeamClick = onTeamClick,
-                        )
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text("Standings", color = Primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("View All →", color = Primary.copy(alpha = 0.7f), fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onStandingsClick).padding(horizontal = 8.dp, vertical = 2.dp))
+                            }
+                            StandingsSection(
+                                standings = uiState.standings.take(4),
+                                selectedSport = uiState.selectedLeague?.let { league ->
+                                    when (league.id) {
+                                        "ufc", "boxing", "pfl", "ppv" -> "Fighting"
+                                        "nfl" -> "Football"
+                                        "nba" -> "Basketball"
+                                        "mlb" -> "Baseball"
+                                        "nhl" -> "Hockey"
+                                        "soccer" -> "Soccer"
+                                        else -> null
+                                    }
+                                },
+                                onTeamClick = onTeamClick,
+                            )
+                        }
                     }
                 }
 
-                // ── 3. YouTube Highlights ──
+                // ── YouTube Highlights ──
                 if (uiState.highlightVideos.isNotEmpty()) {
                     item {
                         HighlightVideosSection(
@@ -416,13 +484,9 @@ fun SportsScreen(
                                         val result = YouTubeStreamResolver.resolveStream(v.videoId)
                                         if (result != null && onPlayChannel != null) {
                                             val launch = PlayerLaunch(
-                                                profileId = 0,
-                                                title = v.title,
-                                                sourceUrl = result.url,
-                                                sourceHeaders = result.headers,
-                                                streamTitle = v.title,
-                                                providerName = "YouTube",
-                                                parentMetaId = "youtube",
+                                                profileId = 0, title = v.title, sourceUrl = result.url,
+                                                sourceHeaders = result.headers, streamTitle = v.title,
+                                                providerName = "YouTube", parentMetaId = "youtube",
                                                 parentMetaType = "youtube",
                                             )
                                             onPlayChannel(launch)
@@ -434,7 +498,7 @@ fun SportsScreen(
                     }
                 }
 
-                // ── 4. Trending News Videos ──
+                // ── Trending News Videos ──
                 if (uiState.trendingNewsVideos.isNotEmpty()) {
                     item {
                         TrendingNewsVideosSection(
@@ -445,13 +509,9 @@ fun SportsScreen(
                                         val result = YouTubeStreamResolver.resolveStream(v.videoId)
                                         if (result != null && onPlayChannel != null) {
                                             val launch = PlayerLaunch(
-                                                profileId = 0,
-                                                title = v.title,
-                                                sourceUrl = result.url,
-                                                sourceHeaders = result.headers,
-                                                streamTitle = v.title,
-                                                providerName = "YouTube",
-                                                parentMetaId = "youtube",
+                                                profileId = 0, title = v.title, sourceUrl = result.url,
+                                                sourceHeaders = result.headers, streamTitle = v.title,
+                                                providerName = "YouTube", parentMetaId = "youtube",
                                                 parentMetaType = "youtube",
                                             )
                                             onPlayChannel(launch)
@@ -463,11 +523,212 @@ fun SportsScreen(
                     }
                 }
 
-                item { Spacer(Modifier.height(24.dp)) }
+                item { Spacer(Modifier.height(8.dp)) }
             }
         }
     }
 }
+
+// ── Page 2: Fight Center ──────────────────────────────────────────────────
+@Composable
+private fun Page2FightCenter(
+    uiState: SportsUiState,
+    scope: kotlinx.coroutines.CoroutineScope,
+    onPlayChannel: ((PlayerLaunch) -> Unit)?,
+    onTeamClick: ((teamName: String, teamLogo: String?, sport: String) -> Unit)?,
+    onBack: () -> Unit,
+    onStandingsClick: () -> Unit,
+) {
+    val event = uiState.selectedEvent
+
+    if (event == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("🥊", fontSize = 40.sp)
+                Spacer(Modifier.height(12.dp))
+                Text("Select an event from the Live page", color = OnSurfaceVariant, fontSize = 14.sp)
+                Spacer(Modifier.height(8.dp))
+                Box(Modifier.clip(RoundedCornerShape(8.dp)).background(PrimaryContainer).clickable(onClick = onBack).padding(horizontal = 20.dp, vertical = 8.dp)) {
+                    Text("Browse Events", color = Color(0xFF00363A), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+        return
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        // ── Compact header with back + standings link ──
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.clip(RoundedCornerShape(12.dp)).background(SurfaceContainerHigh).clickable(onClick = onBack).padding(horizontal = 10.dp, vertical = 6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("←", color = OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("Live", color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(event.awayTeam + " vs " + event.homeTeam, color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(formatEventDetail(event), color = OnSurfaceVariant, fontSize = 10.sp)
+            }
+            Box(Modifier.clip(RoundedCornerShape(12.dp)).background(SurfaceContainerHigh).clickable(onClick = onStandingsClick).padding(horizontal = 10.dp, vertical = 6.dp)) {
+                Text("🏆", color = OnSurfaceVariant, fontSize = 13.sp)
+            }
+        }
+
+        // ── Event detail panel ──
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            SportEventDetailPanel(
+                event = event,
+                matchedChannels = uiState.matchedChannels,
+                channelsLoading = uiState.channelsLoading,
+                videos = uiState.sportEventVideos,
+                videosLoading = uiState.sportVideosLoading,
+                regionFilter = uiState.regionFilter,
+                activeTab = uiState.activeEventTab,
+                onBack = {
+                    SportsRepository.clearSportSelection()
+                    onBack()
+                },
+                onPlayChannel = { channel ->
+                    val allChannels = IptvRepository.getAllChannels()
+                    launchChannel(channel, allChannels, onPlayChannel!!)
+                },
+                onPlayPlayerLaunch = onPlayChannel,
+                onSetRegion = { SportsRepository.setRegionFilter(it) },
+                onSetTab = { SportsRepository.setActiveEventTab(it) },
+                onSearchVideos = { isFuture -> SportsRepository.searchSportVideos(event, isFuture) },
+                onPlayHighlight = { ev ->
+                    scope.launch {
+                        val query = "${ev.awayTeam} vs ${ev.homeTeam} highlights"
+                        val searchResults = YouTubeHighlightClient.searchHighlights(query)
+                        searchResults.firstOrNull()?.let { ytVideo ->
+                            val streamResult = YouTubeStreamResolver.resolveStream(ytVideo.videoId)
+                            streamResult?.let { sr ->
+                                val launch = PlayerLaunch(
+                                    profileId = 0, title = ytVideo.title, sourceUrl = sr.url,
+                                    sourceHeaders = sr.headers, streamTitle = ytVideo.title,
+                                    providerName = "YouTube", parentMetaId = "youtube",
+                                    parentMetaType = "youtube",
+                                )
+                                onPlayChannel?.invoke(launch)
+                            }
+                        }
+                    }
+                },
+            )
+        }
+    }
+}
+
+// ── Page 3: Standings ────────────────────────────────────────────────────
+@Composable
+private fun Page3Standings(
+    uiState: SportsUiState,
+    onTeamClick: ((teamName: String, teamLogo: String?, sport: String) -> Unit)?,
+    onBack: () -> Unit,
+    onEventClick: (EspnProcessedEvent) -> Unit,
+) {
+    var selectedSportId by remember { mutableStateOf<String?>(null) }
+
+    Column(Modifier.fillMaxSize()) {
+        // ── Header ──
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(Modifier.clip(RoundedCornerShape(12.dp)).background(SurfaceContainerHigh)
+                .clickable(onClick = onBack).padding(horizontal = 10.dp, vertical = 6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("←", color = OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("Live", color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Text("Standings & Rankings", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+
+        // ── League chips ──
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp).horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            val allSports = listOf("All" to null) + SportsRepository.leagues.map { it.name to it.id }
+            allSports.forEach { (name, id) ->
+                val isSelected = selectedSportId == id
+                Box(Modifier.clip(RoundedCornerShape(16.dp)).background(if (isSelected) PrimaryContainer else SurfaceContainerHigh)
+                    .clickable { selectedSportId = id }.padding(horizontal = 10.dp, vertical = 5.dp)) {
+                    Text(name, color = if (isSelected) Color(0xFF00363A) else OnSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        // ── Content ──
+        if (uiState.standings.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🏆", fontSize = 40.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("No standings data yet", color = OnSurfaceVariant, fontSize = 14.sp)
+                }
+            }
+        } else {
+            val filtered = if (selectedSportId != null) {
+                uiState.standings.filter { it.league == selectedSportId }
+            } else uiState.standings
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                item {
+                    Spacer(Modifier.height(4.dp))
+                    Text("${filtered.size} team${if (filtered.size != 1) "s" else ""}", color = OnSurfaceVariant, fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp))
+                }
+                if (filtered.isEmpty()) {
+                    item {
+                        Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                            Text("No standings for this league", color = OnSurfaceVariant, fontSize = 13.sp)
+                        }
+                    }
+                }
+                items(filtered, key = { it.teamName + it.league }) { standing ->
+                    StandingsRow(standing = standing, onTeamClick = onTeamClick, onEventClick = onEventClick)
+                }
+                item { Spacer(Modifier.height(40.dp)) }
+            }
+        }
+    }
+}
+
+// ── Standings Row (compact) ──────────────────────────────────────────────
+@Composable
+private fun StandingsRow(
+    standing: TeamStanding,
+    onTeamClick: ((teamName: String, teamLogo: String?, sport: String) -> Unit)?,
+    onEventClick: (EspnProcessedEvent) -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(SurfaceContainer).padding(10.dp),
+    ) {
+        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(6.dp)).background(SurfaceContainerHigh), contentAlignment = Alignment.Center) {
+            if (!standing.logo.isNullOrBlank()) {
+                SportsAsyncImage(model = standing.logo, contentDescription = null, modifier = Modifier.size(28.dp))
+            } else {
+                Text(standing.teamName.take(2).uppercase(), color = OnSurfaceVariant, fontSize = 11.sp)
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(standing.teamName, color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(standing.record, color = OnSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.width(6.dp))
+        Text(standing.sport.take(3).uppercase(), color = Primary, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.background(PrimaryContainer, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
+    }
 }
 
 // ── Search Bar ─────────────────────────────────────────────────────────────
