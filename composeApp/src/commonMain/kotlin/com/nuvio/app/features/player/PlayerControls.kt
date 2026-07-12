@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -49,7 +48,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,7 +58,6 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,6 +65,8 @@ import com.nuvio.app.core.ui.AppIconResource
 import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.appIconPainter
 import com.nuvio.app.core.ui.nuvioTypeScale
+import com.nuvio.app.features.hub.MultiWindowPositionPicker
+import com.nuvio.app.features.iptv.IptvChannel
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 
@@ -99,8 +98,9 @@ internal fun PlayerControlsShell(
     onVideoSettingsClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
     onChannelsClick: (() -> Unit)? = null,
-    onMultiWindowAdd: (() -> Unit)? = null,
-    onMultiWindowOpenHub: (() -> Unit)? = null,
+    multiWindowChannel: IptvChannel? = null,
+    onAddToMultiSlot: ((Int) -> Unit)? = null,
+    onAddToMultiSlotAndOpenHub: ((Int) -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
     onLiveGamesClick: (() -> Unit)? = null,
     onOpenInExternalPlayer: (() -> Unit)? = null,
@@ -203,8 +203,9 @@ internal fun PlayerControlsShell(
                     onSubtitleClick = onSubtitleClick,
                     onAudioClick = onAudioClick,
                     onHistoryClick = onHistoryClick,
-                    onMultiWindowAdd = onMultiWindowAdd,
-                    onMultiWindowOpenHub = onMultiWindowOpenHub,
+                    multiWindowChannel = multiWindowChannel,
+                    onAddToMultiSlot = onAddToMultiSlot,
+                    onAddToMultiSlotAndOpenHub = onAddToMultiSlotAndOpenHub,
                     onLiveGamesClick = onLiveGamesClick,
                     onSourcesClick = onSourcesClick,
                     onChannelsClick = onChannelsClick,
@@ -514,8 +515,9 @@ private fun ProgressControls(
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
     onHistoryClick: (() -> Unit)? = null,
-    onMultiWindowAdd: (() -> Unit)? = null,
-    onMultiWindowOpenHub: (() -> Unit)? = null,
+    multiWindowChannel: IptvChannel? = null,
+    onAddToMultiSlot: ((Int) -> Unit)? = null,
+    onAddToMultiSlotAndOpenHub: ((Int) -> Unit)? = null,
     onVideoSettingsClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
     onChannelsClick: (() -> Unit)? = null,
@@ -527,7 +529,7 @@ private fun ProgressControls(
     val aspectRatioPainter = appIconPainter(AppIconResource.PlayerAspectRatio)
     val subtitlesPainter = appIconPainter(AppIconResource.PlayerSubtitles)
     val audioPainter = appIconPainter(AppIconResource.PlayerAudioFilled)
-    var showMultiPopup by mutableStateOf(false)
+    var showPositionPicker by mutableStateOf(false)
 
     Box(modifier = modifier) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -575,11 +577,11 @@ private fun ProgressControls(
                         painter = aspectRatioPainter,
                         onClick = onResizeModeClick,
                     )
-                    if (onMultiWindowAdd != null || onMultiWindowOpenHub != null) {
+                    if (multiWindowChannel != null && (onAddToMultiSlot != null || onAddToMultiSlotAndOpenHub != null)) {
                         PlayerActionPillButton(
                             label = "Multi",
                             icon = Icons.Rounded.SwapHoriz,
-                            onClick = { showMultiPopup = true },
+                            onClick = { showPositionPicker = true },
                         )
                     }
                     if (onChannelsClick != null) {
@@ -634,81 +636,20 @@ private fun ProgressControls(
         }
         }
 
-        // Multi-window options popup
-        if (showMultiPopup) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .offset(y = (-200).dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { showMultiPopup = false },
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF1A1A1A),
-                    shadowElevation = 8.dp,
-                    modifier = Modifier.width(240.dp),
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(16.dp),
-                    ) {
-                        Text("MultiNutz Options", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Spacer(Modifier.height(12.dp))
-
-                        if (onMultiWindowAdd != null) {
-                            Text(
-                                text = "Add to MultiNutz",
-                                color = Color.White,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFF2A2A2A))
-                                    .clickable { showMultiPopup = false; onMultiWindowAdd() }
-                                    .padding(vertical = 10.dp),
-                                textAlign = TextAlign.Center,
-                                fontSize = 13.sp,
-                            )
-                            Spacer(Modifier.height(6.dp))
-                        }
-
-                        if (onMultiWindowOpenHub != null) {
-                            Text(
-                                text = "Add & Open Hub",
-                                color = Color.White,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFF2A2A2A))
-                                    .clickable { showMultiPopup = false; onMultiWindowOpenHub() }
-                                    .padding(vertical = 10.dp),
-                                textAlign = TextAlign.Center,
-                                fontSize = 13.sp,
-                            )
-                            Spacer(Modifier.height(6.dp))
-                        }
-
-                        Text(
-                            text = "Cancel",
-                            color = Color(0xFF888888),
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { showMultiPopup = false }
-                                .padding(vertical = 8.dp),
-                            textAlign = TextAlign.Center,
-                            fontSize = 13.sp,
-                        )
-                    }
-                }
-            }
+        // Multi-window position picker
+        if (showPositionPicker && multiWindowChannel != null) {
+            MultiWindowPositionPicker(
+                channel = multiWindowChannel,
+                onDismiss = { showPositionPicker = false },
+                onSlotSelected = { slotIndex ->
+                    showPositionPicker = false
+                    onAddToMultiSlot?.invoke(slotIndex)
+                },
+                onSlotSelectedAndOpenHub = if (onAddToMultiSlotAndOpenHub != null) { { slotIndex ->
+                    showPositionPicker = false
+                    onAddToMultiSlotAndOpenHub?.invoke(slotIndex)
+                } } else null,
+            )
         }
     }
 }

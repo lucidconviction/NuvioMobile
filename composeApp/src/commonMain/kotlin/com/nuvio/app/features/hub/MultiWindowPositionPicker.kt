@@ -24,6 +24,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,8 +54,11 @@ fun MultiWindowPositionPicker(
     channel: IptvChannel,
     onDismiss: () -> Unit,
     onSlotSelected: (Int) -> Unit,
+    onSlotSelectedAndOpenHub: ((Int) -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
+    val isSelectionMode = onSlotSelectedAndOpenHub != null
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -77,13 +84,32 @@ fun MultiWindowPositionPicker(
                     items((0 until slotCount).toList()) { slotIndex ->
                     val existing = MultiWindowStore.getStreamsForSlot(slotIndex)
                     val isOccupied = existing != null
+                    val isSelected = selectedSlotIndex == slotIndex
+
+                    val borderMod = when {
+                        isSelected -> Modifier.border(2.dp, Accent, RoundedCornerShape(12.dp))
+                        isOccupied -> Modifier.border(1.dp, Accent.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        else -> Modifier
+                    }
 
                     Box(
                         modifier = Modifier.fillMaxWidth().aspectRatio(1f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isOccupied) SurfaceCard else SurfaceLow)
-                            .then(if (isOccupied) Modifier.border(1.dp, Accent.copy(alpha = 0.3f), RoundedCornerShape(12.dp)) else Modifier)
-                            .clickable { onSlotSelected(slotIndex) },
+                            .background(
+                                when {
+                                    isSelected -> Accent.copy(alpha = 0.25f)
+                                    isOccupied -> SurfaceCard
+                                    else -> SurfaceLow
+                                }
+                            )
+                            .then(borderMod)
+                            .clickable {
+                                if (isSelectionMode) {
+                                    selectedSlotIndex = if (isSelected) null else slotIndex
+                                } else {
+                                    onSlotSelected(slotIndex)
+                                }
+                            },
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -105,6 +131,51 @@ fun MultiWindowPositionPicker(
                             }
                         }
                     }
+                    }
+                }
+            }
+
+            if (isSelectionMode) {
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    // Add to slot button
+                    Box(
+                        modifier = Modifier.weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (selectedSlotIndex != null) Accent else Accent.copy(alpha = 0.3f))
+                            .clickable(enabled = selectedSlotIndex != null) {
+                                selectedSlotIndex?.let { onSlotSelected(it) }
+                            }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "Add to Slot",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                        )
+                    }
+                    // Add & Open Hub button
+                    Box(
+                        modifier = Modifier.weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (selectedSlotIndex != null) Accent.copy(alpha = 0.8f) else Accent.copy(alpha = 0.15f))
+                            .clickable(enabled = selectedSlotIndex != null) {
+                                selectedSlotIndex?.let { onSlotSelectedAndOpenHub?.invoke(it) }
+                            }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "Add & Open Hub",
+                            color = Color.White.copy(alpha = if (selectedSlotIndex != null) 1f else 0.4f),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                        )
                     }
                 }
             }

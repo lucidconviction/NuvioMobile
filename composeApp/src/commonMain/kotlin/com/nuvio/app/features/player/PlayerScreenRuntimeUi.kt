@@ -271,7 +271,18 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                 showAudioModal = true
             },
             onHistoryClick = if (args.parentMetaId == "iptv") { { historyOverlayTrigger++ } } else null,
-            onMultiWindowAdd = if (args.parentMetaId == "iptv") { {
+            multiWindowChannel = if (args.parentMetaId == "iptv") {
+                val idx = args.iptvCurrentChannelIndex
+                IptvChannel(
+                    id = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
+                    name = args.iptvChannelNames?.getOrNull(idx) ?: args.title,
+                    logo = args.iptvChannelLogos?.getOrNull(idx),
+                    url = args.iptvChannelUrls?.getOrNull(idx) ?: args.sourceUrl,
+                    sourceType = SourceType.M3U,
+                    sourceId = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
+                )
+            } else null,
+            onAddToMultiSlot = if (args.parentMetaId == "iptv") { { slotIndex ->
                 val idx = args.iptvCurrentChannelIndex
                 val channel = IptvChannel(
                     id = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
@@ -281,15 +292,14 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                     sourceType = SourceType.M3U,
                     sourceId = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
                 )
-                val emptySlot = (0 until 9).firstOrNull { MultiWindowStore.isSlotAvailable(it) }
-                if (emptySlot != null) {
-                    MultiWindowStore.addToSlot(channel, emptySlot)
-                    multiToastMessage = "Added to MultiNutz (slot ${emptySlot + 1})"
+                if (MultiWindowStore.isSlotAvailable(slotIndex)) {
+                    MultiWindowStore.addToSlot(channel, slotIndex)
+                    multiToastMessage = "Added to MultiNutz (slot ${slotIndex + 1})"
                 } else {
-                    multiToastMessage = "All 9 slots are full"
+                    multiToastMessage = "Slot ${slotIndex + 1} is already occupied"
                 }
             } } else null,
-            onMultiWindowOpenHub = if (args.parentMetaId == "iptv") { {
+            onAddToMultiSlotAndOpenHub = if (args.parentMetaId == "iptv") { { slotIndex ->
                 val idx = args.iptvCurrentChannelIndex
                 val channel = IptvChannel(
                     id = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
@@ -299,15 +309,14 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                     sourceType = SourceType.M3U,
                     sourceId = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
                 )
-                val emptySlot = (0 until 9).firstOrNull { MultiWindowStore.isSlotAvailable(it) }
-                if (emptySlot != null) {
-                    MultiWindowStore.addToSlot(channel, emptySlot)
-                    multiToastMessage = "Added to MultiNutz (slot ${emptySlot + 1})"
+                if (MultiWindowStore.isSlotAvailable(slotIndex)) {
+                    MultiWindowStore.addToSlot(channel, slotIndex)
+                    multiToastMessage = "Added to MultiNutz (slot ${slotIndex + 1})"
                     HubReturnStore.subScreen = "Multi"
                     flushWatchProgress()
                     args.onBack()
                 } else {
-                    multiToastMessage = "All 9 slots are full"
+                    multiToastMessage = "Slot ${slotIndex + 1} is already occupied"
                 }
             } } else null,
             onVideoSettingsClick = if (isIos) {
