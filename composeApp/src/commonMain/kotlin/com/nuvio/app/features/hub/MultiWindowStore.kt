@@ -62,8 +62,9 @@ object MultiWindowStore {
         if (idxA < 0 || idxB < 0) return
         val a = streams[idxA]
         val b = streams[idxB]
-        streams[idxA] = a.copy(slotIndex = slotB)
-        streams[idxB] = b.copy(slotIndex = slotA)
+        // Swap both list positions and slotIndex values so the grid (which renders by list order) visually updates
+        streams[idxA] = b.copy(slotIndex = slotA)
+        streams[idxB] = a.copy(slotIndex = slotB)
     }
 
     fun clear() {
