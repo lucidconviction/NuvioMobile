@@ -132,6 +132,8 @@ data class EspnProcessedEvent(
     val status: String,
     val detail: String,
     val date: String,
+    val rawDate: String? = null,     // full ISO timestamp like "2026-07-11T19:00Z"
+    val timeStr: String? = null,     // extracted local time like "7:00 PM"
     val sport: String,
     val league: String,
     val isLive: Boolean,

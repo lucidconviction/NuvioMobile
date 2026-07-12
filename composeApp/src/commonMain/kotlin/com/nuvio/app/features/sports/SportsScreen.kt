@@ -647,6 +647,24 @@ private fun LivePulseDot() {
     Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(ErrorRed.copy(alpha = alpha)))
 }
 
+private fun formatEventDetail(event: EspnProcessedEvent): String {
+    if (event.detail.isNotBlank()) return event.detail
+    if (event.status.contains("FINAL")) return "Final"
+    // Build from date + time when detail is missing
+    val parts = mutableListOf<String>()
+    if (event.date.length == 10) {
+        val months = listOf("", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+        val ym = event.date.split("-")
+        if (ym.size >= 3) {
+            val month = ym[1].toIntOrNull()?.let { months.getOrNull(it) } ?: ym[1]
+            val day = ym[2].toIntOrNull()?.toString() ?: ym[2]
+            parts.add("$month $day")
+        }
+    }
+    if (!event.timeStr.isNullOrBlank()) parts.add(event.timeStr!!)
+    return if (parts.isNotEmpty()) parts.joinToString(" · ") else "Scheduled"
+}
+
 @Composable
 private fun ScoreCard(event: EspnProcessedEvent, isLive: Boolean, onClick: () -> Unit, onTeamClick: ((teamName: String, teamLogo: String?, sport: String) -> Unit)? = null) {
     val homeScore = event.homeScore?.toIntOrNull()
@@ -663,7 +681,7 @@ private fun ScoreCard(event: EspnProcessedEvent, isLive: Boolean, onClick: () ->
                             modifier = Modifier.background(Color(0xFF00FF00).copy(alpha = 0.2f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
                         Spacer(Modifier.width(6.dp))
                     }
-                    Text(text = event.detail.ifBlank { if (event.status.contains("FINAL")) "Final" else "Scheduled" }, color = OnSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp, modifier = Modifier.background(SurfaceContainerHighest, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
+                    Text(text = formatEventDetail(event), color = OnSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp, modifier = Modifier.background(SurfaceContainerHighest, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
                 }
             }
             Spacer(Modifier.height(12.dp))

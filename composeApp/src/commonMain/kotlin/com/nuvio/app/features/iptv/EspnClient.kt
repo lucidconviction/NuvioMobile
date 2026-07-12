@@ -126,7 +126,9 @@ object EspnClient {
             val isLive = statusName == "STATUS_IN_PROGRESS"
             val detail = comp.status?.type?.detail ?: ""
 
-            val dateStr = (event.date.takeIf { it.isNotBlank() } ?: comp.date).take(10)
+            val rawDate = (event.date.takeIf { it.isNotBlank() } ?: comp.date).let { it.ifBlank { null } }
+            val dateStr = rawDate?.take(10) ?: ""
+            val timeStr = rawDate?.let { extractTime12h(it) }
 
             val eventImage = comp.logos
                 ?.maxByOrNull { it.width * it.height }
@@ -148,6 +150,8 @@ object EspnClient {
                 homeLogo = home?.team?.logo,
                 awayLogo = away?.team?.logo,
                 eventImage = eventImage,
+                rawDate = rawDate,
+                timeStr = timeStr,
                 channel = channel,
                 status = statusName,
                 detail = detail,
@@ -290,6 +294,27 @@ object EspnClient {
             }
         }
         return matched
+    }
+
+    /**
+     * Extracts time from an ISO 8601 timestamp and formats to 12-hour AM/PM.
+     * ESPN returns UTC times like "2026-07-11T19:00Z" or "2026-07-11T23:00:00Z".
+     */
+    private fun extractTime12h(iso: String): String? {
+        val timePart = iso.substringAfter("T", "").substringBefore("Z").substringBefore("+").substringBeforeLast("-")
+            .takeWhile { it.isDigit() || it == ':' }
+        if (timePart.isBlank()) return null
+        val parts = timePart.split(":")
+        val hour = parts.getOrNull(0)?.toIntOrNull() ?: return null
+        val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        val amPm = if (hour < 12) "AM" else "PM"
+        val hour12 = when {
+            hour == 0 -> 12
+            hour > 12 -> hour - 12
+            else -> hour
+        }
+        val minStr = minute.toString().padStart(2, '0')
+        return "$hour12:$minStr $amPm"
     }
 }
 
