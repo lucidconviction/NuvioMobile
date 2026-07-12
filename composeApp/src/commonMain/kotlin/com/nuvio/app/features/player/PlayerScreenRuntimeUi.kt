@@ -21,8 +21,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import com.nuvio.app.features.hub.HubReturnStore
-import com.nuvio.app.features.hub.MultiWindowPushStore
 import com.nuvio.app.features.hub.MultiWindowStore
+import com.nuvio.app.features.iptv.IptvChannel
+import com.nuvio.app.features.iptv.SourceType
 import com.nuvio.app.features.p2p.P2pStreamingState
 import com.nuvio.app.features.p2p.formatP2pMegabytes
 import com.nuvio.app.features.p2p.formatP2pSpeed
@@ -241,26 +242,36 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             },
             onHistoryClick = if (args.parentMetaId == "iptv") { { historyOverlayTrigger++ } } else null,
             onMultiWindowAdd = if (args.parentMetaId == "iptv") { {
-                val channel = com.nuvio.app.features.hub.MultiWindowPushStore.pendingChannel
-                if (channel != null) {
-                    val emptySlot = (0 until 9).firstOrNull { com.nuvio.app.features.hub.MultiWindowStore.isSlotAvailable(it) }
-                    if (emptySlot != null) {
-                        com.nuvio.app.features.hub.MultiWindowStore.addToSlot(channel, emptySlot)
-                        com.nuvio.app.features.hub.MultiWindowPushStore.pendingChannel = null
-                    }
+                val idx = args.iptvCurrentChannelIndex
+                val channel = IptvChannel(
+                    id = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
+                    name = args.iptvChannelNames?.getOrNull(idx) ?: args.title,
+                    logo = args.iptvChannelLogos?.getOrNull(idx),
+                    url = args.iptvChannelUrls?.getOrNull(idx) ?: args.sourceUrl,
+                    sourceType = SourceType.M3U,
+                    sourceId = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
+                )
+                val emptySlot = (0 until 9).firstOrNull { MultiWindowStore.isSlotAvailable(it) }
+                if (emptySlot != null) {
+                    MultiWindowStore.addToSlot(channel, emptySlot)
                 }
             } } else null,
             onMultiWindowOpenHub = if (args.parentMetaId == "iptv") { {
-                val channel = com.nuvio.app.features.hub.MultiWindowPushStore.pendingChannel
-                if (channel != null) {
-                    val emptySlot = (0 until 9).firstOrNull { com.nuvio.app.features.hub.MultiWindowStore.isSlotAvailable(it) }
-                    if (emptySlot != null) {
-                        com.nuvio.app.features.hub.MultiWindowStore.addToSlot(channel, emptySlot)
-                        com.nuvio.app.features.hub.MultiWindowPushStore.pendingChannel = null
-                        com.nuvio.app.features.hub.HubReturnStore.subScreen = "Multi"
-                        flushWatchProgress()
-                        args.onBack()
-                    }
+                val idx = args.iptvCurrentChannelIndex
+                val channel = IptvChannel(
+                    id = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
+                    name = args.iptvChannelNames?.getOrNull(idx) ?: args.title,
+                    logo = args.iptvChannelLogos?.getOrNull(idx),
+                    url = args.iptvChannelUrls?.getOrNull(idx) ?: args.sourceUrl,
+                    sourceType = SourceType.M3U,
+                    sourceId = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
+                )
+                val emptySlot = (0 until 9).firstOrNull { MultiWindowStore.isSlotAvailable(it) }
+                if (emptySlot != null) {
+                    MultiWindowStore.addToSlot(channel, emptySlot)
+                    HubReturnStore.subScreen = "Multi"
+                    flushWatchProgress()
+                    args.onBack()
                 }
             } } else null,
             onVideoSettingsClick = if (isIos) {

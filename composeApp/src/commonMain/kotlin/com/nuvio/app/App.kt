@@ -2562,6 +2562,10 @@ private fun MainAppContent(
                             navController.navigate(PlayerRoute(launchId = newLaunchId))
                         },
                         iptvChannelIds = launch.channelIds,
+                        iptvChannelNames = launch.channelNames,
+                        iptvChannelUrls = launch.channelUrls,
+                        iptvChannelLogos = launch.channelLogos,
+                        iptvCurrentChannelIndex = launch.currentChannelIndex,
                         iptvFavoriteIds = launch.channelIds?.filter { IptvRepository.isFavorite(it) }?.toSet(),
                         onToggleIptvFavorite = { channelId -> IptvRepository.toggleFavorite(channelId) },
                         iptvHistoryNames = launch.historyChannelNames,

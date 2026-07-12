@@ -854,7 +854,6 @@ private fun playChannel(channel: IptvChannel, onPlayChannel: ((PlayerLaunch) -> 
         historyChannelLogos = history.map { it.logo ?: "" },
         historyChannelIds = history.map { it.id },
     )
-    com.nuvio.app.features.hub.MultiWindowPushStore.pendingChannel = channel
     val id = PlayerLaunchStore.put(launch)
     PlayerLaunchStore.get(id)?.let { onPlayChannel?.invoke(it) }
 }
