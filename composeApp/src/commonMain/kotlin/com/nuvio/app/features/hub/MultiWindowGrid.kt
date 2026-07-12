@@ -1,5 +1,7 @@
 package com.nuvio.app.features.hub
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -39,10 +42,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 private val SurfaceCard = Color(0xFF1A1A1A)
 private val OnSurfaceVariant = Color(0xFFB0B0B0)
@@ -165,28 +170,62 @@ private fun VideoCell(stream: WindowStream, onRemove: () -> Unit, onLongPress: (
     }
     var isAudioActive by remember { mutableStateOf(MultiWindowStore.getVolume(stream.id) > 0f) }
     var isPlaying by remember { mutableStateOf(true) }
+    var controlsVisible by remember { mutableStateOf(true) }
+    var controlsInteractionTrigger by remember { mutableStateOf(0) }
     val borderModifier = if (isAudioActive) Modifier.border(2.dp, Accent, RoundedCornerShape(12.dp)) else Modifier
 
     val currentResizeMode = MultiWindowStore.getResizeMode(stream.id)
 
-    Box(modifier.clip(RoundedCornerShape(12.dp)).background(SurfaceCard).then(borderModifier)) {
+    // Auto-hide controls after 3.5s of inactivity
+    LaunchedEffect(controlsVisible, controlsInteractionTrigger) {
+        if (controlsVisible) {
+            delay(3500)
+            controlsVisible = false
+        }
+    }
+
+    fun onInteraction() {
+        controlsInteractionTrigger++
+        controlsVisible = true
+    }
+
+    // Smooth fade for overlay controls
+    val controlsAlpha by animateFloatAsState(
+        targetValue = if (controlsVisible) 1f else 0f,
+        animationSpec = tween(durationMillis = 300),
+        label = "multiWindowControlsAlpha",
+    )
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(SurfaceCard)
+            .then(borderModifier)
+            .clickable { onInteraction() },
+    ) {
         MultiWindowVideoSurface(handle = playerHandle, modifier = Modifier.fillMaxSize(), resizeMode = currentResizeMode)
-        Box(Modifier.align(Alignment.TopStart).padding(3.dp).clip(RoundedCornerShape(4.dp)).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 5.dp, vertical = 1.dp)) {
-            Text("${stream.slotIndex + 1} ${stream.channel.name}", color = Color.White, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Box(Modifier.align(Alignment.Center).size(28.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).clickable { isPlaying = !isPlaying }, contentAlignment = Alignment.Center) {
-            Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pause", tint = Color.White, modifier = Modifier.size(16.dp))
-        }
-        Box(Modifier.align(Alignment.BottomEnd).padding(3.dp).size(18.dp).clip(RoundedCornerShape(3.dp)).background(Color.Black.copy(alpha = 0.7f)).clickable {
-            isAudioActive = !isAudioActive; val vol = if (isAudioActive) 1f else 0f
-            MultiWindowPlayerManager.setVolume(playerHandle, vol); MultiWindowStore.setVolume(stream.id, vol)
-            if (isAudioActive) { MultiWindowPlayerManager.setAudioFocus(playerHandle.id); MultiWindowStore.setAudioFocus(stream.id) }
-            onVolumeToggle(isAudioActive)
-        }, contentAlignment = Alignment.Center) {
-            Icon(if (isAudioActive) Icons.Default.VolumeUp else Icons.Default.VolumeOff, "Audio", tint = if (isAudioActive) Accent else Color.White.copy(alpha = 0.6f), modifier = Modifier.size(10.dp))
-        }
-        Box(Modifier.align(Alignment.BottomStart).padding(3.dp).clip(RoundedCornerShape(3.dp)).background(Color.Black.copy(alpha = 0.7f)).clickable(onClick = onLongPress).padding(horizontal = 6.dp, vertical = 4.dp)) {
-            Text("⋮", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = controlsAlpha },
+        ) {
+            Box(Modifier.align(Alignment.TopStart).padding(3.dp).clip(RoundedCornerShape(4.dp)).background(Color.Black.copy(alpha = 0.7f)).padding(horizontal = 5.dp, vertical = 1.dp)) {
+                Text("${stream.slotIndex + 1} ${stream.channel.name}", color = Color.White, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Box(Modifier.align(Alignment.Center).size(28.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)).clickable { isPlaying = !isPlaying; onInteraction() }, contentAlignment = Alignment.Center) {
+                Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pause", tint = Color.White, modifier = Modifier.size(16.dp))
+            }
+            Box(Modifier.align(Alignment.BottomEnd).padding(3.dp).size(18.dp).clip(RoundedCornerShape(3.dp)).background(Color.Black.copy(alpha = 0.7f)).clickable {
+                isAudioActive = !isAudioActive; val vol = if (isAudioActive) 1f else 0f
+                MultiWindowPlayerManager.setVolume(playerHandle, vol); MultiWindowStore.setVolume(stream.id, vol)
+                if (isAudioActive) { MultiWindowPlayerManager.setAudioFocus(playerHandle.id); MultiWindowStore.setAudioFocus(stream.id) }
+                onVolumeToggle(isAudioActive); onInteraction()
+            }, contentAlignment = Alignment.Center) {
+                Icon(if (isAudioActive) Icons.Default.VolumeUp else Icons.Default.VolumeOff, "Audio", tint = if (isAudioActive) Accent else Color.White.copy(alpha = 0.6f), modifier = Modifier.size(10.dp))
+            }
+            Box(Modifier.align(Alignment.BottomStart).padding(3.dp).clip(RoundedCornerShape(3.dp)).background(Color.Black.copy(alpha = 0.7f)).clickable(onClick = { onLongPress(); onInteraction() }).padding(horizontal = 6.dp, vertical = 4.dp)) {
+                Text("⋮", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
