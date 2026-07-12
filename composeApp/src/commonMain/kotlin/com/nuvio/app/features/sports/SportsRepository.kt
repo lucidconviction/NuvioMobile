@@ -7,6 +7,8 @@ import com.nuvio.app.features.player.SportsNowStore
 import com.nuvio.app.features.trakt.TraktPlatformClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -27,7 +29,6 @@ object SportsRepository {
         SportLeague("ufc", "UFC MMA", "UFC", "mma/ufc"),
         SportLeague("boxing", "Boxing", "BOX", "boxing/_"),
         SportLeague("pfl", "PFL MMA", "PFL", "mma/pfl"),
-        SportLeague("ppv", "PPV / Special Events", "PPV", "ppv/_"),
         SportLeague("nfl", "NFL Football", "NFL", "football/nfl"),
         SportLeague("nba", "NBA Basketball", "NBA", "basketball/nba"),
         SportLeague("mlb", "MLB Baseball", "MLB", "baseball/mlb"),
@@ -47,17 +48,18 @@ object SportsRepository {
         }
     }
 
-    fun loadLeagueEvents(league: SportLeague) {
+    fun loadLeagueEvents(league: SportLeague, date: String? = null) {
         refreshJob?.cancel()
         val parts = league.slug.split("/")
         if (parts.size < 2) return
         val sport = parts[0]
         val leagueName = parts[1]
+        val queryDate = date ?: _uiState.value.selectedDate.ifBlank { null }
 
         scope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                val events = EspnClient.fetchLeague(sport, leagueName)
+                val events = EspnClient.fetchLeague(sport, leagueName, queryDate)
                 val highlights = YouTubeHighlightClient.searchHighlights("${league.name} highlights")
                 val highlightVideos = if (highlights.isNotEmpty()) {
                     listOf(HighlightVideo(eventId = "league_${league.id}", video = highlights.first(), sport = sport))
@@ -74,36 +76,6 @@ object SportsRepository {
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
             }
-        }
-    }
-
-    fun loadPpvEvents() {
-        refreshJob?.cancel()
-        scope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-            val events = mutableListOf<EspnProcessedEvent>()
-            try {
-                val queries = listOf("PPV events 2026 highlights", "UFC PPV", "WrestleMania highlights", "boxing PPV highlights", "MMA PPV")
-                val seen = mutableSetOf<String>()
-                for (q in queries) {
-                    val results = YouTubeHighlightClient.searchHighlights(q)
-                    for (v in results) {
-                        if (v.videoId in seen) continue
-                        seen.add(v.videoId)
-                        events.add(EspnProcessedEvent(
-                            id = "ppv_${v.videoId}", title = v.title,
-                            homeTeam = v.channelName, awayTeam = "PPV Event",
-                            homeScore = null, awayScore = null,
-                            homeLogo = v.thumbnail, awayLogo = null, channel = "",
-                            status = "Highlights", detail = "PPV", date = "",
-                            sport = "Fighting", league = "PPV", isLive = false, isPpv = true,
-                        ))
-                        if (events.size >= 20) break
-                    }
-                    if (events.size >= 20) break
-                }
-            } catch (_: Exception) {}
-            _uiState.value = _uiState.value.copy(events = events, isLoading = false)
         }
     }
 
@@ -219,11 +191,35 @@ object SportsRepository {
         _uiState.value = _uiState.value.copy(searchQuery = "", searchResults = emptyList(), searchedEvents = emptyList(), isSearching = false)
     }
 
+    fun loadStandings(league: SportLeague, season: Int? = null) {
+        scope.launch {
+            val parts = league.slug.split("/")
+            if (parts.size < 2) return@launch
+            val sport = parts[0]
+            val leagueName = parts[1]
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            try {
+                val standings = EspnClient.fetchStandings(sport, leagueName, season)
+                _uiState.value = _uiState.value.copy(standings = standings, isLoading = false)
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(isLoading = false)
+            }
+        }
+    }
+
+    val availableSeasons: List<Int> = (2020..2026).toList().reversed()
+
     fun selectSport(sport: String?) {
         _uiState.value = _uiState.value.copy(selectedSport = sport)
     }
 
-    fun selectDate(date: String) {}
+    fun selectDate(date: String) {
+        _uiState.value = _uiState.value.copy(selectedDate = date)
+        val league = _uiState.value.selectedLeague
+        if (league != null && league.id != "now") {
+            loadLeagueEvents(league, date)
+        }
+    }
 
     fun addDays(date: String, days: Int): String {
         var (y, m, d) = parseDate(date)

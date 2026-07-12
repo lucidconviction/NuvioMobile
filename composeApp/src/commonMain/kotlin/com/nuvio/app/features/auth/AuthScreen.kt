@@ -533,22 +533,23 @@ private fun AuthBrandLockup(
             modifier = Modifier.height(logoHeight),
             contentScale = ContentScale.Fit,
         )
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Fork by RobbdeezeNutz",
+            style = MaterialTheme.typography.bodySmall.copy(
+                color = AuthTextSecondary.copy(alpha = 0.5f),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Normal,
+                letterSpacing = 0.5.sp,
+            ),
+        )
+        Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = stringResource(Res.string.compose_auth_tagline),
             style = MaterialTheme.typography.bodyMedium.copy(
                 color = AuthTextSecondary,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
-                fontWeight = FontWeight.Normal,
-            ),
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "Fork by RobbdeezeNutz",
-            style = MaterialTheme.typography.bodySmall.copy(
-                color = AuthTextSecondary.copy(alpha = 0.6f),
-                fontSize = 11.sp,
                 fontWeight = FontWeight.Normal,
             ),
         )

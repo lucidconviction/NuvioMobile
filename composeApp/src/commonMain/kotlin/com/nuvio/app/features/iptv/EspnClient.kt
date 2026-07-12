@@ -1,5 +1,6 @@
 package com.nuvio.app.features.iptv
 
+import com.nuvio.app.features.sports.TeamStanding
 import com.nuvio.app.features.addons.httpGetText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -61,8 +62,9 @@ object EspnClient {
     private val wikiThumbnailCache = mutableMapOf<String, String?>()
     private val fetchedWikiPages = mutableSetOf<String>()
 
-    suspend fun fetchLeague(sport: String, league: String): List<EspnProcessedEvent> {
-        val url = "$BASE/$sport/$league/scoreboard"
+    suspend fun fetchLeague(sport: String, league: String, date: String? = null): List<EspnProcessedEvent> {
+        val dateParam = if (!date.isNullOrBlank()) "?dates=${date.replace("-", "")}" else ""
+        val url = "$BASE/$sport/$league/scoreboard$dateParam"
         return try {
             val response = httpGetText(url)
             val parsed = json.decodeFromString<EspnResponse>(response)
@@ -112,6 +114,72 @@ object EspnClient {
         }
         val league = sportPath.split("/").lastOrNull()?.replace("-", " ")?.replaceFirstChar { it.uppercase() } ?: ""
 
+        // ── Fighting sports: consolidate all competitions into one event card ──
+        if (sport == "Fighting") {
+            val firstComp = event.competitions.firstOrNull() ?: return emptyList()
+            val mainHome = firstComp.competitors.find { it.homeAway == "home" } ?: firstComp.competitors.firstOrNull()
+            val mainAway = firstComp.competitors.find { it.homeAway == "away" } ?: firstComp.competitors.getOrNull(1)
+
+            val channel = firstComp.broadcasts?.firstOrNull()
+                ?.names?.firstOrNull() ?: ""
+
+            val isPpv = channel.contains("PPV", ignoreCase = true) ||
+                firstComp.notes?.any { it.type == "ppv" || it.headline.contains("PPV", ignoreCase = true) } == true
+
+            val anyLive = event.competitions.any { it.status?.type?.name == "STATUS_IN_PROGRESS" }
+            val statusName = if (anyLive) "STATUS_IN_PROGRESS" else (firstComp.status?.type?.name ?: "")
+            val detail = firstComp.status?.type?.detail ?: ""
+
+            val rawDate = (event.date.takeIf { it.isNotBlank() } ?: firstComp.date).let { it.ifBlank { null } }
+            val dateStr = rawDate?.take(10) ?: ""
+            val timeStr = rawDate?.let { extractTime12h(it) }
+
+            // Use the first competition's logo, fall back to event thumbnail
+            val eventLogo = firstComp.logos
+                ?.maxByOrNull { it.width * it.height }
+                ?.href
+                ?.takeIf { it.isNotBlank() }
+                ?: event.thumbnail?.takeIf { it.isNotBlank() }
+
+            val wikiPage = if (eventLogo == null) {
+                guessWikipediaPage(event.name.ifBlank { event.shortName })
+            } else null
+
+            // Build title: event name with fight count
+            val fightCount = event.competitions.size
+            val titleSuffix = if (fightCount > 1) " (${fightCount} fights)" else ""
+            val title = (event.shortName.ifBlank { event.name }) + titleSuffix
+
+            val mainEventName = if (mainHome != null && mainAway != null) {
+                "${mainAway.team?.displayName ?: "TBD"} vs ${mainHome.team?.displayName ?: "TBD"}"
+            } else event.name
+
+            return listOf(EspnProcessedEvent(
+                id = event.id,
+                title = title,
+                homeTeam = mainHome?.team?.displayName ?: mainHome?.team?.name ?: "",
+                awayTeam = mainAway?.team?.displayName ?: mainAway?.team?.name ?: "",
+                homeScore = mainHome?.score,
+                awayScore = mainAway?.score,
+                homeLogo = eventLogo,   // event logo as card image (shown once)
+                awayLogo = null,
+                eventImage = eventLogo,
+                rawDate = rawDate,
+                timeStr = timeStr,
+                channel = channel,
+                status = statusName,
+                detail = detail,
+                date = dateStr,
+                sport = sport,
+                league = league,
+                isLive = anyLive,
+                isPpv = isPpv,
+                wikipediaPage = wikiPage,
+                subEventCount = if (fightCount > 1) fightCount else null,
+            ))
+        }
+
+        // ── Non-fighting sports: one card per competition (existing logic) ──
         return event.competitions.mapNotNull { comp ->
             val home = comp.competitors.find { it.homeAway == "home" } ?: comp.competitors.firstOrNull()
             val away = comp.competitors.find { it.homeAway == "away" } ?: comp.competitors.getOrNull(1)
@@ -163,6 +231,56 @@ object EspnClient {
                 wikipediaPage = wikiPage,
             )
         }
+    }
+
+    // ── Standings ───────────────────────────────────────────────────────────
+    suspend fun fetchStandings(sport: String, league: String, season: Int? = null): List<TeamStanding> {
+        val seasonParam = if (season != null) "?season=$season" else ""
+        val url = "$BASE/$sport/$league/standings$seasonParam"
+        return try {
+            val response = httpGetText(url)
+            val parsed = json.decodeFromString<EspnStandingsResponse>(response)
+            parseStandingsResponse(parsed, sport, league)
+        } catch (_: Exception) { emptyList() }
+    }
+
+    private fun parseStandingsResponse(response: EspnStandingsResponse, sport: String, league: String): List<TeamStanding> {
+        val result = mutableListOf<TeamStanding>()
+
+        fun extractTeams(entries: List<EspnStandingEntry>, prefix: String = "") {
+            for (entry in entries) {
+                val team = entry.team ?: continue
+                val stats = entry.stats?.associate { it.name to it.displayValue } ?: emptyMap()
+                val wins = stats["wins"] ?: "0"
+                val losses = stats["losses"] ?: "0"
+                val ties = stats["ties"]?.takeIf { it != "0" }?.let { "-$it" } ?: ""
+                val record = "$wins-$losses$ties"
+                val rank = result.size + 1
+                result.add(TeamStanding(
+                    teamName = team.displayName,
+                    logo = team.logo,
+                    record = record,
+                    league = league,
+                    sport = sport,
+                    rank = rank,
+                    netRating = stats["netRating"] ?: stats["pointDifferential"] ?: "",
+                    location = team.location,
+                ))
+            }
+        }
+
+        // Flatten the standings structure — handles both flat and grouped responses
+        for (container in response.standings) {
+            if (container.entries.isNotEmpty()) {
+                extractTeams(container.entries, container.name)
+            }
+            container.groups?.forEach { group ->
+                if (group.entries.isNotEmpty()) {
+                    extractTeams(group.entries, "${container.name} - ${group.name}")
+                }
+            }
+        }
+        return result
     }
 
     suspend fun enrichEventImages(events: List<EspnProcessedEvent>): List<EspnProcessedEvent> {

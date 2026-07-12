@@ -25,6 +25,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -37,7 +38,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.features.iptv.IptvChannel
 import com.nuvio.app.features.iptv.IptvRepository
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 
+@Serializable
 data class MultiWindowBookmark(
     val id: String,
     val name: String,
@@ -45,15 +51,44 @@ data class MultiWindowBookmark(
     val slotChannels: Map<Int, ChannelRef>,
 )
 
+@Serializable
 data class ChannelRef(val id: String, val sourceId: String, val url: String)
 
 object MultiWindowBookmarkStore {
-    private val bookmarks = mutableListOf<MultiWindowBookmark>()
+    private val _bookmarks = mutableStateListOf<MultiWindowBookmark>()
     private var idCounter = 0L
+    private var loaded = false
+    private val json = Json { ignoreUnknownKeys = true }
 
-    fun all(): List<MultiWindowBookmark> = bookmarks.toList()
+    /** Ensure storage is loaded before first use. Call this before reading/writing. */
+    fun ensureLoaded() {
+        if (loaded) return
+        loaded = true
+        val payload = try { MultiWindowStorage.loadBookmarks() } catch (_: Exception) { null }
+        if (payload != null) {
+            try {
+                val items = json.decodeFromString<List<StoredBookmark>>(payload)
+                _bookmarks.addAll(items.map { it.toBookmark() })
+                idCounter = _bookmarks.maxOfOrNull { it.id.removePrefix("bm_").toLongOrNull() ?: 0L } ?: 0L
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun persist() {
+        try {
+            val items = _bookmarks.map { StoredBookmark.fromBookmark(it) }
+            MultiWindowStorage.saveBookmarks(json.encodeToString(items))
+        } catch (_: Exception) {}
+    }
+
+    /** Returns the reactive list — Compose observes changes automatically. */
+    fun all(): List<MultiWindowBookmark> {
+        ensureLoaded()
+        return _bookmarks
+    }
 
     fun save(name: String): MultiWindowBookmark {
+        ensureLoaded()
         val layout = MultiWindowStore.currentLayout()
         val streams = MultiWindowStore.allStreams
         val slotChannels = streams.associate {
@@ -69,7 +104,8 @@ object MultiWindowBookmarkStore {
             layoutName = layout?.name ?: "",
             slotChannels = slotChannels,
         )
-        bookmarks.add(bm)
+        _bookmarks.add(bm)
+        persist()
         return bm
     }
 
@@ -84,7 +120,38 @@ object MultiWindowBookmarkStore {
         }
     }
 
-    fun delete(id: String) { bookmarks.removeAll { it.id == id } }
+    fun delete(id: String) {
+        _bookmarks.removeAll { it.id == id }
+        persist()
+    }
+}
+
+/** Internal serialization-friendly representation (Map<Int, *> can be tricky with JSON) */
+@Serializable
+private data class StoredBookmark(
+    val id: String,
+    val name: String,
+    val layoutName: String,
+    val slotChannels: List<StoredSlotEntry>,
+) {
+    fun toBookmark() = MultiWindowBookmark(
+        id = id, name = name, layoutName = layoutName,
+        slotChannels = slotChannels.associate { it.slot to it.channel.toChannelRef() },
+    )
+    companion object {
+        fun fromBookmark(bm: MultiWindowBookmark) = StoredBookmark(
+            id = bm.id, name = bm.name, layoutName = bm.layoutName,
+            slotChannels = bm.slotChannels.map { (slot, ref) -> StoredSlotEntry(slot, StoredChannelRef(ref.id, ref.sourceId, ref.url)) },
+        )
+    }
+}
+
+@Serializable
+private data class StoredSlotEntry(val slot: Int, val channel: StoredChannelRef)
+
+@Serializable
+private data class StoredChannelRef(val id: String, val sourceId: String, val url: String) {
+    fun toChannelRef() = ChannelRef(id, sourceId, url)
 }
 
 private val SurfaceBg = Color(0xFF000000)

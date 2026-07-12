@@ -49,6 +49,7 @@ import com.nuvio.app.features.trakt.TraktLibraryStorage
 import com.nuvio.app.features.trakt.TraktSettingsStorage
 import com.nuvio.app.features.tmdb.TmdbSettingsStorage
 import com.nuvio.app.features.hub.MultiWindowPlayerManager
+import com.nuvio.app.features.hub.MultiWindowStorage
 import com.nuvio.app.features.updater.AndroidAppUpdaterPlatform
 import com.nuvio.app.core.ui.PosterCardStyleStorage
 import com.nuvio.app.features.watched.WatchedStorage
@@ -119,6 +120,7 @@ class MainActivity : AppCompatActivity() {
         EpisodeReleaseNotificationPlatform.initialize(applicationContext)
         EpisodeReleaseNotificationPlatform.bindActivity(this)
         IptvStorage.initialize(applicationContext)
+        MultiWindowStorage.initialize(applicationContext)
         handleIncomingAppIntent(intent)
 
         setContent {

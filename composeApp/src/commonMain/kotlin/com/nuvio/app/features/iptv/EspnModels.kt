@@ -105,6 +105,43 @@ data class EspnNote(
     val type: String = "",
 )
 
+// ── Standings API models ──
+@Serializable
+data class EspnStandingsResponse(
+    val standings: List<EspnStandingContainer> = emptyList(),
+)
+
+@Serializable
+data class EspnStandingContainer(
+    val name: String = "",
+    val entries: List<EspnStandingEntry> = emptyList(),
+    val groups: List<EspnStandingContainer>? = null,
+)
+
+@Serializable
+data class EspnStandingEntry(
+    val team: EspnStandingTeam? = null,
+    val stats: List<EspnStandingStat>? = null,
+)
+
+@Serializable
+data class EspnStandingTeam(
+    val id: String = "",
+    val displayName: String = "",
+    val abbreviation: String = "",
+    val logo: String? = null,
+    val location: String = "",
+    val name: String = "",
+    val color: String? = null,
+)
+
+@Serializable
+data class EspnStandingStat(
+    val name: String = "",
+    val displayValue: String = "",
+    val value: Double = 0.0,
+)
+
 @Serializable
 data class WikipediaPageSummary(
     val title: String? = null,
@@ -139,4 +176,5 @@ data class EspnProcessedEvent(
     val isLive: Boolean,
     val isPpv: Boolean,
     val wikipediaPage: String? = null,
+    val subEventCount: Int? = null,  // for fighting events: number of fights on card
 )

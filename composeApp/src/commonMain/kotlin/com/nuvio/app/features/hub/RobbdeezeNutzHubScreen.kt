@@ -177,9 +177,6 @@ fun RobbdeezeNutzHubScreen(
                 }
                 HubSubScreen.Multi -> {
                     Column(Modifier.fillMaxSize()) {
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("MultiNutz Hub", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.padding(start = 12.dp))
-                        }
                         var selectedCell by remember { mutableStateOf<WindowStream?>(null) }
                         var showBookmarks by remember { mutableStateOf(false) }
                         Box(Modifier.fillMaxSize()) {

@@ -10,6 +10,9 @@ data class TeamStanding(
     val record: String,
     val league: String,
     val sport: String,
+    val rank: Int = 0,
+    val netRating: String = "",
+    val location: String = "",
 )
 
 data class HighlightVideo(
@@ -58,6 +61,7 @@ data class SportsUiState(
     val news: List<EspnNewsArticle> = emptyList(),
     val selectedSport: String? = null,
     val selectedDate: String = "",
+    val selectedSeason: Int = 0, // 0 = current season
     val isLoading: Boolean = false,
     val error: String? = null,
     val highlightVideos: List<HighlightVideo> = emptyList(),
