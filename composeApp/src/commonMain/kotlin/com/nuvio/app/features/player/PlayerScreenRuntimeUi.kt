@@ -25,10 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
-import com.nuvio.app.features.hub.HubReturnStore
-import com.nuvio.app.features.hub.MultiWindowStore
-import com.nuvio.app.features.iptv.IptvChannel
-import com.nuvio.app.features.iptv.SourceType
+
 import com.nuvio.app.features.p2p.P2pStreamingState
 import com.nuvio.app.features.p2p.formatP2pMegabytes
 import com.nuvio.app.features.p2p.formatP2pSpeed
@@ -271,54 +268,6 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                 showAudioModal = true
             },
             onHistoryClick = if (args.parentMetaId == "iptv") { { historyOverlayTrigger++ } } else null,
-            multiWindowChannel = if (args.parentMetaId == "iptv") {
-                val idx = args.iptvCurrentChannelIndex
-                IptvChannel(
-                    id = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
-                    name = args.iptvChannelNames?.getOrNull(idx) ?: args.title,
-                    logo = args.iptvChannelLogos?.getOrNull(idx),
-                    url = args.iptvChannelUrls?.getOrNull(idx) ?: args.sourceUrl,
-                    sourceType = SourceType.M3U,
-                    sourceId = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
-                )
-            } else null,
-            onAddToMultiSlot = if (args.parentMetaId == "iptv") { { slotIndex ->
-                val idx = args.iptvCurrentChannelIndex
-                val channel = IptvChannel(
-                    id = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
-                    name = args.iptvChannelNames?.getOrNull(idx) ?: args.title,
-                    logo = args.iptvChannelLogos?.getOrNull(idx),
-                    url = args.iptvChannelUrls?.getOrNull(idx) ?: args.sourceUrl,
-                    sourceType = SourceType.M3U,
-                    sourceId = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
-                )
-                if (MultiWindowStore.isSlotAvailable(slotIndex)) {
-                    MultiWindowStore.addToSlot(channel, slotIndex)
-                    multiToastMessage = "Added to MultiNutz (slot ${slotIndex + 1})"
-                } else {
-                    multiToastMessage = "Slot ${slotIndex + 1} is already occupied"
-                }
-            } } else null,
-            onAddToMultiSlotAndOpenHub = if (args.parentMetaId == "iptv") { { slotIndex ->
-                val idx = args.iptvCurrentChannelIndex
-                val channel = IptvChannel(
-                    id = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
-                    name = args.iptvChannelNames?.getOrNull(idx) ?: args.title,
-                    logo = args.iptvChannelLogos?.getOrNull(idx),
-                    url = args.iptvChannelUrls?.getOrNull(idx) ?: args.sourceUrl,
-                    sourceType = SourceType.M3U,
-                    sourceId = args.iptvChannelIds?.getOrNull(idx) ?: args.sourceUrl,
-                )
-                if (MultiWindowStore.isSlotAvailable(slotIndex)) {
-                    MultiWindowStore.addToSlot(channel, slotIndex)
-                    multiToastMessage = "Added to MultiNutz (slot ${slotIndex + 1})"
-                    HubReturnStore.subScreen = "Multi"
-                    flushWatchProgress()
-                    args.onBack()
-                } else {
-                    multiToastMessage = "Slot ${slotIndex + 1} is already occupied"
-                }
-            } } else null,
             onVideoSettingsClick = if (isIos) {
                 {
                     showVideoSettingsModal = true

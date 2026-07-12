@@ -65,8 +65,6 @@ import com.nuvio.app.core.ui.AppIconResource
 import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.appIconPainter
 import com.nuvio.app.core.ui.nuvioTypeScale
-import com.nuvio.app.features.hub.MultiWindowPositionPicker
-import com.nuvio.app.features.iptv.IptvChannel
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 
@@ -98,9 +96,6 @@ internal fun PlayerControlsShell(
     onVideoSettingsClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
     onChannelsClick: (() -> Unit)? = null,
-    multiWindowChannel: IptvChannel? = null,
-    onAddToMultiSlot: ((Int) -> Unit)? = null,
-    onAddToMultiSlotAndOpenHub: ((Int) -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
     onLiveGamesClick: (() -> Unit)? = null,
     onOpenInExternalPlayer: (() -> Unit)? = null,
@@ -203,9 +198,6 @@ internal fun PlayerControlsShell(
                     onSubtitleClick = onSubtitleClick,
                     onAudioClick = onAudioClick,
                     onHistoryClick = onHistoryClick,
-                    multiWindowChannel = multiWindowChannel,
-                    onAddToMultiSlot = onAddToMultiSlot,
-                    onAddToMultiSlotAndOpenHub = onAddToMultiSlotAndOpenHub,
                     onLiveGamesClick = onLiveGamesClick,
                     onSourcesClick = onSourcesClick,
                     onChannelsClick = onChannelsClick,
@@ -515,9 +507,6 @@ private fun ProgressControls(
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
     onHistoryClick: (() -> Unit)? = null,
-    multiWindowChannel: IptvChannel? = null,
-    onAddToMultiSlot: ((Int) -> Unit)? = null,
-    onAddToMultiSlotAndOpenHub: ((Int) -> Unit)? = null,
     onVideoSettingsClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
     onChannelsClick: (() -> Unit)? = null,
@@ -529,8 +518,6 @@ private fun ProgressControls(
     val aspectRatioPainter = appIconPainter(AppIconResource.PlayerAspectRatio)
     val subtitlesPainter = appIconPainter(AppIconResource.PlayerSubtitles)
     val audioPainter = appIconPainter(AppIconResource.PlayerAudioFilled)
-    var showPositionPicker by mutableStateOf(false)
-
     Box(modifier = modifier) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Slider(
@@ -577,13 +564,6 @@ private fun ProgressControls(
                         painter = aspectRatioPainter,
                         onClick = onResizeModeClick,
                     )
-                    if (multiWindowChannel != null && (onAddToMultiSlot != null || onAddToMultiSlotAndOpenHub != null)) {
-                        PlayerActionPillButton(
-                            label = "Multi",
-                            icon = Icons.Rounded.SwapHoriz,
-                            onClick = { showPositionPicker = true },
-                        )
-                    }
                     if (onChannelsClick != null) {
                         PlayerActionPillButton(
                             label = "CH",
@@ -636,21 +616,6 @@ private fun ProgressControls(
         }
         }
 
-        // Multi-window position picker
-        if (showPositionPicker && multiWindowChannel != null) {
-            MultiWindowPositionPicker(
-                channel = multiWindowChannel,
-                onDismiss = { showPositionPicker = false },
-                onSlotSelected = { slotIndex ->
-                    showPositionPicker = false
-                    onAddToMultiSlot?.invoke(slotIndex)
-                },
-                onSlotSelectedAndOpenHub = if (onAddToMultiSlotAndOpenHub != null) { { slotIndex ->
-                    showPositionPicker = false
-                    onAddToMultiSlotAndOpenHub?.invoke(slotIndex)
-                } } else null,
-            )
-        }
     }
 }
 
