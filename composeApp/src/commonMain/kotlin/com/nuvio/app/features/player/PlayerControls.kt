@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContent
@@ -33,7 +35,6 @@ import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.List
 import androidx.compose.material.icons.rounded.Replay10
-import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.CircularProgressIndicator
@@ -45,6 +46,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,8 +60,10 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.ui.AppIconResource
 import com.nuvio.app.core.ui.NuvioBackButton
 import com.nuvio.app.core.ui.appIconPainter
@@ -92,7 +99,8 @@ internal fun PlayerControlsShell(
     onVideoSettingsClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
     onChannelsClick: (() -> Unit)? = null,
-    onMultiWindowClick: (() -> Unit)? = null,
+    onMultiWindowAdd: (() -> Unit)? = null,
+    onMultiWindowOpenHub: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
     onLiveGamesClick: (() -> Unit)? = null,
     onOpenInExternalPlayer: (() -> Unit)? = null,
@@ -192,11 +200,11 @@ internal fun PlayerControlsShell(
                     onScrubChange = onScrubChange,
                     onScrubFinished = onScrubFinished,
                     onResizeModeClick = onResizeModeClick,
-                    onSpeedClick = onSpeedClick,
                     onSubtitleClick = onSubtitleClick,
                     onAudioClick = onAudioClick,
                     onHistoryClick = onHistoryClick,
-                    onMultiWindowClick = onMultiWindowClick,
+                    onMultiWindowAdd = onMultiWindowAdd,
+                    onMultiWindowOpenHub = onMultiWindowOpenHub,
                     onLiveGamesClick = onLiveGamesClick,
                     onSourcesClick = onSourcesClick,
                     onChannelsClick = onChannelsClick,
@@ -503,11 +511,11 @@ private fun ProgressControls(
     onScrubChange: (Long) -> Unit,
     onScrubFinished: (Long) -> Unit,
     onResizeModeClick: () -> Unit,
-    onSpeedClick: () -> Unit,
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
     onHistoryClick: (() -> Unit)? = null,
-    onMultiWindowClick: (() -> Unit)? = null,
+    onMultiWindowAdd: (() -> Unit)? = null,
+    onMultiWindowOpenHub: (() -> Unit)? = null,
     onVideoSettingsClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
     onChannelsClick: (() -> Unit)? = null,
@@ -519,9 +527,11 @@ private fun ProgressControls(
     val aspectRatioPainter = appIconPainter(AppIconResource.PlayerAspectRatio)
     val subtitlesPainter = appIconPainter(AppIconResource.PlayerSubtitles)
     val audioPainter = appIconPainter(AppIconResource.PlayerAudioFilled)
+    var showMultiPopup by mutableStateOf(false)
 
-    Column(modifier = modifier) {
-        Slider(
+    Box(modifier = modifier) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Slider(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(metrics.sliderTouchHeight)
@@ -565,11 +575,13 @@ private fun ProgressControls(
                         painter = aspectRatioPainter,
                         onClick = onResizeModeClick,
                     )
-                    PlayerActionPillButton(
-                        label = formatPlaybackSpeedLabel(playbackSnapshot.playbackSpeed),
-                        icon = Icons.Rounded.Speed,
-                        onClick = onSpeedClick,
-                    )
+                    if (onMultiWindowAdd != null || onMultiWindowOpenHub != null) {
+                        PlayerActionPillButton(
+                            label = "Multi",
+                            icon = Icons.Rounded.SwapHoriz,
+                            onClick = { showMultiPopup = true },
+                        )
+                    }
                     if (onChannelsClick != null) {
                         PlayerActionPillButton(
                             label = "CH",
@@ -617,11 +629,82 @@ private fun ProgressControls(
                             onClick = onEpisodesClick,
                         )
                     }
-                    if (onMultiWindowClick != null) {
-                        PlayerActionPillButton(
-                            label = "Multi",
-                            icon = Icons.Rounded.SwapHoriz,
-                            onClick = onMultiWindowClick,
+                }
+            }
+        }
+        }
+
+        // Multi-window options popup
+        if (showMultiPopup) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .offset(y = (-200).dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showMultiPopup = false },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF1A1A1A),
+                    shadowElevation = 8.dp,
+                    modifier = Modifier.width(240.dp),
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(16.dp),
+                    ) {
+                        Text("MultiNutz Options", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Spacer(Modifier.height(12.dp))
+
+                        if (onMultiWindowAdd != null) {
+                            Text(
+                                text = "Add to MultiNutz",
+                                color = Color.White,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFF2A2A2A))
+                                    .clickable { showMultiPopup = false; onMultiWindowAdd() }
+                                    .padding(vertical = 10.dp),
+                                textAlign = TextAlign.Center,
+                                fontSize = 13.sp,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                        }
+
+                        if (onMultiWindowOpenHub != null) {
+                            Text(
+                                text = "Add & Open Hub",
+                                color = Color.White,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFF2A2A2A))
+                                    .clickable { showMultiPopup = false; onMultiWindowOpenHub() }
+                                    .padding(vertical = 10.dp),
+                                textAlign = TextAlign.Center,
+                                fontSize = 13.sp,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                        }
+
+                        Text(
+                            text = "Cancel",
+                            color = Color(0xFF888888),
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { showMultiPopup = false }
+                                .padding(vertical = 8.dp),
+                            textAlign = TextAlign.Center,
+                            fontSize = 13.sp,
                         )
                     }
                 }

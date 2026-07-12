@@ -240,14 +240,24 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                 showAudioModal = true
             },
             onHistoryClick = if (args.parentMetaId == "iptv") { { historyOverlayTrigger++ } } else null,
-            onMultiWindowClick = if (args.parentMetaId == "iptv") { {
+            onMultiWindowAdd = if (args.parentMetaId == "iptv") { {
                 val channel = com.nuvio.app.features.hub.MultiWindowPushStore.pendingChannel
                 if (channel != null) {
-                    val emptySlot = (0 until 9).firstOrNull { MultiWindowStore.isSlotAvailable(it) }
+                    val emptySlot = (0 until 9).firstOrNull { com.nuvio.app.features.hub.MultiWindowStore.isSlotAvailable(it) }
                     if (emptySlot != null) {
-                        MultiWindowStore.addToSlot(channel, emptySlot)
+                        com.nuvio.app.features.hub.MultiWindowStore.addToSlot(channel, emptySlot)
                         com.nuvio.app.features.hub.MultiWindowPushStore.pendingChannel = null
-                        HubReturnStore.subScreen = "Multi"
+                    }
+                }
+            } } else null,
+            onMultiWindowOpenHub = if (args.parentMetaId == "iptv") { {
+                val channel = com.nuvio.app.features.hub.MultiWindowPushStore.pendingChannel
+                if (channel != null) {
+                    val emptySlot = (0 until 9).firstOrNull { com.nuvio.app.features.hub.MultiWindowStore.isSlotAvailable(it) }
+                    if (emptySlot != null) {
+                        com.nuvio.app.features.hub.MultiWindowStore.addToSlot(channel, emptySlot)
+                        com.nuvio.app.features.hub.MultiWindowPushStore.pendingChannel = null
+                        com.nuvio.app.features.hub.HubReturnStore.subScreen = "Multi"
                         flushWatchProgress()
                         args.onBack()
                     }
