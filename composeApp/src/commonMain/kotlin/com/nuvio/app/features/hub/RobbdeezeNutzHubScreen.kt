@@ -178,12 +178,14 @@ fun RobbdeezeNutzHubScreen(
                                 },
                                 onBookmarksClick = { showBookmarks = true },
                                 onMuteAll = {
+                                    val allMuted = MultiWindowStore.allStreams.all { MultiWindowStore.getVolume(it.id) == 0f }
+                                    val targetVol = if (allMuted) 1f else 0f
                                     MultiWindowStore.allStreams.forEach { s ->
-                                        MultiWindowStore.setVolume(s.id, 0f)
+                                        MultiWindowStore.setVolume(s.id, targetVol)
                                         val hid = MultiWindowStore.getPlayerHandleId(s.id)
                                         if (hid != null) {
                                             com.nuvio.app.features.hub.MultiWindowPlayerManager.setVolume(
-                                                com.nuvio.app.features.hub.PlayerHandle(hid), 0f,
+                                                com.nuvio.app.features.hub.PlayerHandle(hid), targetVol,
                                             )
                                         }
                                     }
@@ -194,12 +196,21 @@ fun RobbdeezeNutzHubScreen(
                                     }
                                 },
                                 onPauseAll = {
+                                    val allPaused = MultiWindowStore.allStreams.all { MultiWindowStore.isPaused(it.id) }
                                     MultiWindowStore.allStreams.toList().forEach { s ->
                                         val hid = MultiWindowStore.getPlayerHandleId(s.id)
                                         if (hid != null) {
-                                            com.nuvio.app.features.hub.MultiWindowPlayerManager.releasePlayer(
-                                                com.nuvio.app.features.hub.PlayerHandle(hid),
-                                            )
+                                            if (allPaused) {
+                                                com.nuvio.app.features.hub.MultiWindowPlayerManager.resumePlayer(
+                                                    com.nuvio.app.features.hub.PlayerHandle(hid),
+                                                )
+                                                MultiWindowStore.setPaused(s.id, false)
+                                            } else {
+                                                com.nuvio.app.features.hub.MultiWindowPlayerManager.pausePlayer(
+                                                    com.nuvio.app.features.hub.PlayerHandle(hid),
+                                                )
+                                                MultiWindowStore.setPaused(s.id, true)
+                                            }
                                         }
                                     }
                                 },

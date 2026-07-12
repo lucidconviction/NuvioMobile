@@ -15,6 +15,8 @@ expect object MultiWindowPlayerManager {
     fun createPlayer(sourceUrl: String, headers: Map<String, String>): PlayerHandle
     fun setVolume(handle: PlayerHandle, volume: Float)
     fun setAudioFocus(handleId: Int)
+    fun pausePlayer(handle: PlayerHandle)
+    fun resumePlayer(handle: PlayerHandle)
     fun releasePlayer(handle: PlayerHandle)
     fun releaseAll()
 }

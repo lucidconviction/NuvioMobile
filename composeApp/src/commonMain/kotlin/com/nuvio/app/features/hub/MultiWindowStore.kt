@@ -17,6 +17,7 @@ object MultiWindowStore {
     private val streams = mutableStateListOf<WindowStream>()
     private var idCounter = 0L
     private val volumes = mutableStateMapOf<String, Float>()
+    private val paused = mutableStateMapOf<String, Boolean>()
     private var _audioFocusId: String? = null
     private val playerHandleIds = mutableMapOf<String, Int>()
     private val resizeModes = mutableStateMapOf<String, Int>()
@@ -35,7 +36,7 @@ object MultiWindowStore {
     fun removeSlot(slotIndex: Int) { streams.removeAll { it.slotIndex == slotIndex } }
 
     fun remove(id: String) {
-        streams.removeAll { it.id == id }; volumes.remove(id); playerHandleIds.remove(id)
+        streams.removeAll { it.id == id }; volumes.remove(id); paused.remove(id); playerHandleIds.remove(id)
         if (_audioFocusId == id) _audioFocusId = null
     }
 
@@ -44,6 +45,8 @@ object MultiWindowStore {
     fun isSlotAvailable(slotIndex: Int): Boolean = streams.none { it.slotIndex == slotIndex }
     fun setVolume(streamId: String, volume: Float) { volumes[streamId] = volume.coerceIn(0f, 1f) }
     fun getVolume(streamId: String): Float = volumes[streamId] ?: 0f
+    fun setPaused(streamId: String, isPaused: Boolean) { paused[streamId] = isPaused }
+    fun isPaused(streamId: String): Boolean = paused[streamId] ?: false
     fun setAudioFocus(streamId: String) { _audioFocusId = streamId }
     fun isAudioFocused(streamId: String): Boolean = _audioFocusId == streamId
     fun storePlayerHandle(streamId: String, handleId: Int) { playerHandleIds[streamId] = handleId }
@@ -68,7 +71,7 @@ object MultiWindowStore {
     }
 
     fun clear() {
-        streams.clear(); volumes.clear(); playerHandleIds.clear(); resizeModes.clear()
+        streams.clear(); volumes.clear(); paused.clear(); playerHandleIds.clear(); resizeModes.clear()
         _audioFocusId = null; _currentLayout.value = null; _layoutLocked.value = false
     }
 }

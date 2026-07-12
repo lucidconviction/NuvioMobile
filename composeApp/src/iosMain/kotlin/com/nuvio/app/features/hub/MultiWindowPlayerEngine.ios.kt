@@ -15,6 +15,8 @@ actual object MultiWindowPlayerManager {
     actual fun createPlayer(sourceUrl: String, headers: Map<String, String>): PlayerHandle = PlayerHandle(0)
     actual fun setVolume(handle: PlayerHandle, volume: Float) {}
     actual fun setAudioFocus(handleId: Int) {}
+    actual fun pausePlayer(handle: PlayerHandle) {}
+    actual fun resumePlayer(handle: PlayerHandle) {}
     actual fun releasePlayer(handle: PlayerHandle) {}
     actual fun releaseAll() {}
 }

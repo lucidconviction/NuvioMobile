@@ -49,6 +49,14 @@ actual object MultiWindowPlayerManager {
         }
     }
 
+    actual fun pausePlayer(handle: PlayerHandle) {
+        players[handle.id]?.pause()
+    }
+
+    actual fun resumePlayer(handle: PlayerHandle) {
+        players[handle.id]?.play()
+    }
+
     actual fun releasePlayer(handle: PlayerHandle) {
         players.remove(handle.id)?.run { stop(); release() }
     }

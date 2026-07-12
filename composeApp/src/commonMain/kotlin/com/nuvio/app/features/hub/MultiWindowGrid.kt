@@ -111,13 +111,17 @@ fun MultiWindowGrid(
                     }
                 }
                 if (onMuteAll != null && streams.isNotEmpty()) {
-                    Box(Modifier.clip(RoundedCornerShape(16.dp)).background(SurfaceCard).clickable(onClick = onMuteAll).padding(horizontal = 12.dp, vertical = 5.dp)) {
-                        Text("Mute All", color = OnSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    val allMuted = streams.all { MultiWindowStore.getVolume(it.id) == 0f }
+                    val muteLabel = if (allMuted) "Sound All" else "Mute All"
+                    Box(Modifier.clip(RoundedCornerShape(16.dp)).background(if (allMuted) SurfaceCard else Accent).clickable(onClick = onMuteAll).padding(horizontal = 12.dp, vertical = 5.dp)) {
+                        Text(muteLabel, color = if (allMuted) OnSurfaceVariant else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 if (onPauseAll != null && streams.isNotEmpty()) {
-                    Box(Modifier.clip(RoundedCornerShape(16.dp)).background(SurfaceCard).clickable(onClick = onPauseAll).padding(horizontal = 12.dp, vertical = 5.dp)) {
-                        Text("Pause All", color = OnSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    val allPaused = streams.all { MultiWindowStore.isPaused(it.id) }
+                    val pauseLabel = if (allPaused) "Play All" else "Pause All"
+                    Box(Modifier.clip(RoundedCornerShape(16.dp)).background(if (allPaused) SurfaceCard else Accent).clickable(onClick = onPauseAll).padding(horizontal = 12.dp, vertical = 5.dp)) {
+                        Text(pauseLabel, color = if (allPaused) OnSurfaceVariant else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 if (onCloseAll != null && streams.isNotEmpty()) {
