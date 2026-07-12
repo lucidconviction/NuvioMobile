@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.List
 import androidx.compose.material.icons.rounded.Replay10
+import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.CircularProgressIndicator
@@ -195,6 +196,7 @@ internal fun PlayerControlsShell(
                     onScrubChange = onScrubChange,
                     onScrubFinished = onScrubFinished,
                     onResizeModeClick = onResizeModeClick,
+                    onSpeedClick = onSpeedClick,
                     onSubtitleClick = onSubtitleClick,
                     onAudioClick = onAudioClick,
                     onHistoryClick = onHistoryClick,
@@ -504,6 +506,7 @@ private fun ProgressControls(
     onScrubChange: (Long) -> Unit,
     onScrubFinished: (Long) -> Unit,
     onResizeModeClick: () -> Unit,
+    onSpeedClick: () -> Unit,
     onSubtitleClick: () -> Unit,
     onAudioClick: () -> Unit,
     onHistoryClick: (() -> Unit)? = null,
@@ -563,6 +566,11 @@ private fun ProgressControls(
                         label = stringResource(resizeMode.labelRes),
                         painter = aspectRatioPainter,
                         onClick = onResizeModeClick,
+                    )
+                    PlayerActionPillButton(
+                        label = formatPlaybackSpeedLabel(playbackSnapshot.playbackSpeed),
+                        icon = Icons.Rounded.Speed,
+                        onClick = onSpeedClick,
                     )
                     if (onChannelsClick != null) {
                         PlayerActionPillButton(

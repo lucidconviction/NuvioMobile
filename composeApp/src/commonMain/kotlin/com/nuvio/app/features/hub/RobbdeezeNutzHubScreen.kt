@@ -206,6 +206,16 @@ fun RobbdeezeNutzHubScreen(
                                         }
                                     }
                                 },
+                                onRefreshAll = {
+                                    val snapshots = MultiWindowStore.allStreams.toList().map { it.channel to it.slotIndex }
+                                    snapshots.forEach { (_, slot) ->
+                                        val existing = MultiWindowStore.allStreams.find { it.slotIndex == slot }
+                                        if (existing != null) MultiWindowStore.remove(existing.id)
+                                    }
+                                    snapshots.forEach { (channel, slot) ->
+                                        MultiWindowStore.addToSlot(channel, slot)
+                                    }
+                                },
                                 onCloseAll = {
                                     MultiWindowStore.allStreams.toList().forEach { s ->
                                         MultiWindowStore.remove(s.id)

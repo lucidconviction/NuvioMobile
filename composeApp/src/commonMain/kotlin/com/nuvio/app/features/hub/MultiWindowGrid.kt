@@ -66,6 +66,7 @@ fun MultiWindowGrid(
     onMuteAll: (() -> Unit)? = null,
     onCloseAll: (() -> Unit)? = null,
     onPauseAll: (() -> Unit)? = null,
+    onRefreshAll: (() -> Unit)? = null,
 ) {
     if (streams.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -122,6 +123,11 @@ fun MultiWindowGrid(
                     val pauseLabel = if (allPaused) "Play All" else "Pause All"
                     Box(Modifier.clip(RoundedCornerShape(16.dp)).background(if (allPaused) SurfaceCard else Accent).clickable(onClick = onPauseAll).padding(horizontal = 12.dp, vertical = 5.dp)) {
                         Text(pauseLabel, color = if (allPaused) OnSurfaceVariant else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                if (onRefreshAll != null && streams.isNotEmpty()) {
+                    Box(Modifier.clip(RoundedCornerShape(16.dp)).background(SurfaceCard).clickable(onClick = onRefreshAll).padding(horizontal = 12.dp, vertical = 5.dp)) {
+                        Text("Refresh All", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 if (onCloseAll != null && streams.isNotEmpty()) {
