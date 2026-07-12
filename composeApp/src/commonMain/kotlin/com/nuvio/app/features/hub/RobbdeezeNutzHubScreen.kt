@@ -46,7 +46,9 @@ import com.nuvio.app.features.iptv.IptvScreen
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.sports.SportsScreen
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
+import androidx.compose.runtime.snapshotFlow
 
 private val ObsidianBg = Color(0xFF000000)
 private val SurfaceCard = Color(0xFF1A1A1A)
@@ -65,18 +67,32 @@ fun RobbdeezeNutzHubScreen(
     resetTrigger: Int = 0,
 ) {
     var subScreen by remember(resetTrigger) {
-        val saved = HubReturnStore.subScreen
-        if (resetTrigger > 0) {
-            mutableStateOf(HubSubScreen.Hub)
-        } else {
-            val restored = when (saved) {
+        mutableStateOf(
+            if (resetTrigger > 0) HubSubScreen.Hub
+            else when (val saved = HubReturnStore.subScreen) {
                 "Iptv" -> HubSubScreen.Iptv; "Sports" -> HubSubScreen.Sports
                 "VidNutz" -> HubSubScreen.VidNutz; "Music" -> HubSubScreen.Music
                 "Multi" -> HubSubScreen.Multi; else -> HubSubScreen.Hub
+            },
+        )
+    }
+
+    // Watch HubReturnStore reactively for changes (e.g. from "Add & Open Hub" in player)
+    LaunchedEffect(Unit) {
+        snapshotFlow { HubReturnStore.subScreen }
+            .drop(1) // skip the initial value already read in remember above
+            .collect { saved ->
+                if (saved != "Hub") {
+                    val restored = when (saved) {
+                        "Iptv" -> HubSubScreen.Iptv; "Sports" -> HubSubScreen.Sports
+                        "VidNutz" -> HubSubScreen.VidNutz; "Music" -> HubSubScreen.Music
+                        "Multi" -> HubSubScreen.Multi; else -> null
+                    }
+                    if (restored != null && restored != subScreen) {
+                        subScreen = restored
+                    }
+                }
             }
-            if (restored != HubSubScreen.Hub) HubReturnStore.subScreen = "Hub"
-            mutableStateOf(restored)
-        }
     }
 
     val onPlayChannelSave: ((PlayerLaunch) -> Unit)? = onPlayChannel?.let { original ->

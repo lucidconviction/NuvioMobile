@@ -4,19 +4,24 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -28,6 +33,7 @@ import com.nuvio.app.features.p2p.P2pStreamingState
 import com.nuvio.app.features.p2p.formatP2pMegabytes
 import com.nuvio.app.features.p2p.formatP2pSpeed
 import com.nuvio.app.isIos
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 
@@ -197,6 +203,30 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             p2pRebufferProgress = p2pRebufferProgress,
         )
         RenderPlayerModals(displayedPositionMs = displayedPositionMs)
+
+        // Toast overlay for user feedback
+        val toastMessage = multiToastMessage
+        if (toastMessage != null) {
+            LaunchedEffect(toastMessage) {
+                kotlinx.coroutines.delay(2000)
+                multiToastMessage = null
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 80.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.Black.copy(alpha = 0.8f))
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+            ) {
+                Text(
+                    text = toastMessage,
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
     }
 }
 
@@ -254,6 +284,9 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                 val emptySlot = (0 until 9).firstOrNull { MultiWindowStore.isSlotAvailable(it) }
                 if (emptySlot != null) {
                     MultiWindowStore.addToSlot(channel, emptySlot)
+                    multiToastMessage = "Added to MultiNutz (slot ${emptySlot + 1})"
+                } else {
+                    multiToastMessage = "All 9 slots are full"
                 }
             } } else null,
             onMultiWindowOpenHub = if (args.parentMetaId == "iptv") { {
@@ -269,9 +302,12 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                 val emptySlot = (0 until 9).firstOrNull { MultiWindowStore.isSlotAvailable(it) }
                 if (emptySlot != null) {
                     MultiWindowStore.addToSlot(channel, emptySlot)
+                    multiToastMessage = "Added to MultiNutz (slot ${emptySlot + 1})"
                     HubReturnStore.subScreen = "Multi"
                     flushWatchProgress()
                     args.onBack()
+                } else {
+                    multiToastMessage = "All 9 slots are full"
                 }
             } } else null,
             onVideoSettingsClick = if (isIos) {
