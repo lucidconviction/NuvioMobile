@@ -915,7 +915,7 @@ private fun SportEventDetailPanel(
     val scope = rememberCoroutineScope()
     val isLive = event.isLive
     val tabs = buildList {
-        if (isLive) add(EventTab.LIVE)
+        add(EventTab.LIVE)         // always show — channels matter for upcoming events too
         add(EventTab.HIGHLIGHTS)
         if (!isLive) add(EventTab.PRE_MATCH)
     }
@@ -936,7 +936,7 @@ private fun SportEventDetailPanel(
             Spacer(Modifier.width(8.dp))
             Column {
                 Text("${event.awayTeam} vs ${event.homeTeam}", color = OnSurface, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 16.sp)
-                Text(event.detail, color = OnSurfaceVariant, fontSize = 12.sp)
+                Text(formatEventDetail(event), color = OnSurfaceVariant, fontSize = 12.sp)
             }
         }
 

@@ -243,7 +243,7 @@ object EspnClient {
                 strHomeTeam = homeName,
                 strAwayTeam = awayName,
                 strDate = e.date,
-                strTime = e.detail,
+                strTime = e.detail.ifBlank { e.timeStr ?: "" },
                 strThumb = e.homeLogo ?: e.awayLogo,
                 strChannel = e.channel,
                 intHomeScore = e.homeScore,
@@ -307,6 +307,8 @@ object EspnClient {
         val parts = timePart.split(":")
         val hour = parts.getOrNull(0)?.toIntOrNull() ?: return null
         val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        // ESPN often returns midnight (00:00) as a placeholder for fighting events — skip it
+        if (hour == 0 && minute == 0) return null
         val amPm = if (hour < 12) "AM" else "PM"
         val hour12 = when {
             hour == 0 -> 12
