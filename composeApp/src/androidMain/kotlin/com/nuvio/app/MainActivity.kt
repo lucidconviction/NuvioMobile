@@ -51,6 +51,7 @@ import com.nuvio.app.features.tmdb.TmdbSettingsStorage
 import com.nuvio.app.features.hub.MultiWindowPlayerManager
 import com.nuvio.app.features.hub.MultiWindowStorage
 import com.nuvio.app.features.updater.AndroidAppUpdaterPlatform
+import com.nuvio.app.core.ui.CardDepthStyleStorage
 import com.nuvio.app.core.ui.PosterCardStyleStorage
 import com.nuvio.app.features.watched.WatchedStorage
 import com.nuvio.app.features.streams.StreamLinkCacheStorage
@@ -93,6 +94,7 @@ class MainActivity : AppCompatActivity() {
         SearchHistoryStorage.initialize(applicationContext)
         SeasonViewModeStorage.initialize(applicationContext)
         PosterCardStyleStorage.initialize(applicationContext)
+        CardDepthStyleStorage.initialize(applicationContext)
         DebridSettingsStorage.initialize(applicationContext)
         TmdbSettingsStorage.initialize(applicationContext)
         MdbListSettingsStorage.initialize(applicationContext)

@@ -1,0 +1,409 @@
+<!DOCTYPE html><html lang="en" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Geist:wght@600&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">try{
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-fixed": "#e3e2e2",
+                        "secondary-container": "#484949",
+                        "on-error": "#690005",
+                        "surface-variant": "#353535",
+                        "surface-dim": "#131313",
+                        "surface-container-highest": "#353535",
+                        "secondary": "#c6c6c6",
+                        "error-container": "#93000a",
+                        "on-primary-fixed": "#1a1c1c",
+                        "error": "#ffb4ab",
+                        "inverse-on-surface": "#303030",
+                        "on-primary": "#2f3131",
+                        "secondary-fixed-dim": "#c6c6c6",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-background": "#e2e2e2",
+                        "on-tertiary-container": "#636262",
+                        "background": "#131313",
+                        "on-surface-variant": "#c4c7c8",
+                        "on-primary-container": "#626363",
+                        "surface-container-low": "#1b1b1b",
+                        "inverse-surface": "#e2e2e2",
+                        "on-tertiary": "#313030",
+                        "on-surface": "#e2e2e2",
+                        "on-secondary-fixed-variant": "#464747",
+                        "tertiary-fixed": "#e5e2e1",
+                        "surface": "#131313",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "surface-container": "#1f1f1f",
+                        "on-secondary": "#2f3131",
+                        "primary-fixed": "#e2e2e2",
+                        "inverse-primary": "#5d5f5f",
+                        "tertiary": "#fffcfb",
+                        "on-secondary-container": "#b8b8b8",
+                        "surface-bright": "#393939",
+                        "on-error-container": "#ffdad6",
+                        "outline-variant": "#444748",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "outline": "#8e9192",
+                        "surface-tint": "#c6c6c6",
+                        "surface-container-high": "#2a2a2a",
+                        "on-tertiary-fixed": "#1c1b1b",
+                        "on-secondary-fixed": "#1a1c1c",
+                        "on-primary-fixed-variant": "#454747",
+                        "primary": "#fdfdfc",
+                        "primary-fixed-dim": "#c6c6c6",
+                        "tertiary-container": "#e2dfdf",
+                        "primary-container": "#e0e0e0"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sidebar_width": "280px",
+                        "stack_gap": "24px",
+                        "margin_desktop": "32px",
+                        "margin_mobile": "16px",
+                        "gutter": "16px",
+                        "bottom_nav_height": "64px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"],
+                        "title-md": ["Hanken Grotesk"],
+                        "label-caps": ["Geist"],
+                        "headline-lg-mobile": ["Hanken Grotesk"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "body-sm": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "title-md": ["20px", {"lineHeight": "28px", "fontWeight": "500"}],
+                        "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    }catch(_e){}</script><meta charset="utf-8"></head><body class="bg-background text-on-background obsidian-gradient flex h-screen overflow-hidden">
+<!-- Sidebar: Fixed Global Nav (from Shared Components) -->
+
+<!-- Content Area: Two-Panel Row Layout -->
+<main class="flex flex-1 h-screen overflow-hidden">
+<!-- Left Panel: Contextual IPTV Sidebar (360dp) -->
+<section class="w-[360px] bg-surface-container-low border-r border-outline-variant flex flex-col flex-shrink-0 h-full">
+<div class="p-6 flex flex-col gap-6">
+<!-- Branding -->
+<div class="flex items-center justify-between">
+<h2 class="font-headline-lg text-headline-lg text-primary">IPTVNutz</h2>
+<button onclick="toggleModal('add-source-modal')" class="p-2 hover:bg-surface-variant rounded-full transition-colors">
+<span class="material-symbols-outlined">add_circle</span>
+</button>
+</div>
+<!-- Search-->
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">search</span>
+<input type="text" placeholder="Search channels..." class="w-full bg-surface-container border border-outline-variant rounded-xl py-3 pl-12 pr-4 text-on-surface placeholder:text-outline focus:outline-none focus:border-primary transition-all">
+</div>
+<!-- Source Chips Section -->
+<div class="flex flex-col gap-3">
+<span class="font-label-caps text-label-caps text-outline tracking-widest">SOURCES</span>
+<div class="flex flex-wrap gap-2">
+<button class="px-4 py-1.5 rounded-full bg-primary text-background font-body-sm text-body-sm">All</button>
+<button class="px-4 py-1.5 rounded-full border border-outline-variant text-on-surface-variant hover:border-primary transition-colors font-body-sm text-body-sm">GlobalTV</button>
+<button class="px-4 py-1.5 rounded-full border border-outline-variant text-on-surface-variant hover:border-primary transition-colors font-body-sm text-body-sm">SportX</button>
+</div>
+</div>
+<!-- Category Chips Section -->
+<div class="flex flex-col gap-3">
+<span class="font-label-caps text-label-caps text-outline tracking-widest">CATEGORIES</span>
+<div class="flex flex-col gap-1 max-h-[240px] overflow-y-auto pr-2">
+<button class="flex items-center gap-3 w-full px-3 py-2 rounded-lg bg-surface-variant/40 text-primary transition-all group">
+<span class="material-symbols-outlined text-[20px]">list_alt</span>
+<span class="font-body-sm text-body-sm">Everything</span>
+</button>
+<button class="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-surface-variant/40 text-on-surface-variant hover:text-primary transition-all group">
+<span class="material-symbols-outlined text-[20px]">sports_soccer</span>
+<span class="font-body-sm text-body-sm">Live Sports</span>
+</button>
+<button class="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-surface-variant/40 text-on-surface-variant hover:text-primary transition-all group">
+<span class="material-symbols-outlined text-[20px]">news</span>
+<span class="font-body-sm text-body-sm">News Network</span>
+</button>
+<button class="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-surface-variant/40 text-on-surface-variant hover:text-primary transition-all group">
+<span class="material-symbols-outlined text-[20px]">movie</span>
+<span class="font-body-sm text-body-sm">Premium Cinema</span>
+</button>
+</div>
+</div>
+<!-- PlaylistsSection (Collapsed state) -->
+<div class="flex flex-col gap-3">
+<div class="flex items-center justify-between group cursor-pointer">
+<span class="font-label-caps text-label-caps text-outline tracking-widest">PLAYLISTS</span>
+<span class="material-symbols-outlined text-outline group-hover:text-primary">expand_more</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Right Panel: Flexible Scrolling Content -->
+<section class="flex-1 bg-background overflow-y-auto scroll-smooth">
+<div class="p-margin_desktop space-y-12">
+<!-- QuickAccessSection (Favorites) Row -->
+<section class="space-y-6">
+<div class="flex items-center justify-between">
+<h3 class="font-title-md text-title-md text-primary">Quick Access</h3>
+<a href="#" class="text-on-surface-variant hover:text-primary transition-colors text-body-sm">View All</a>
+</div>
+<div class="flex gap-gutter overflow-x-auto pb-4 -mx-gutter px-gutter no-scrollbar">
+<!-- Fav Card 1 -->
+<div class="flex-shrink-0 w-64 group cursor-pointer">
+<div class="aspect-video rounded-xl overflow-hidden border border-outline-variant group-hover:border-primary transition-all relative">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="A cinematic, high-contrast shot of a sleek modern broadcasting control room with glowing screens displaying world news maps and data visualizations. The lighting is deep blue and moody, emphasizing a technological minimalism aesthetic in an obsidian-themed environment. Digital artifacts and subtle overlays enhance the professional broadcast feel." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDV3N8_YPVeav_0lsMXmuSU1LMqYjSb9bm0BGn1I6umHcyVTeezpINqXLp8p7eTE7ZZtThJi_Jv4iKelfMCab-wWRBuJn1vxYTnfNPjKW4jMiJO8awfJhtsgy0bZCrD2rsiYMsTcet7Lr4YOCyhVWanwOc7KiOsw8fiRKo2uYGDObDNl9dxOd2wubtIrdkiiTdZXzRqhNMU8aJGldBqNvFy_RbehNKGxU_G1x05hzz0iIGKa_9bAN2w07X--i6k72EBFVRRbx7SdSU')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+<div class="absolute bottom-3 left-3 flex items-center gap-2">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center border border-outline-variant">
+<span class="material-symbols-outlined text-[18px] text-primary">public</span>
+</div>
+<span class="font-body-sm text-body-sm text-white font-medium">World News HD</span>
+</div>
+<div class="absolute top-3 right-3">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+</div>
+</div>
+<!-- Fav Card 2-->
+<div class="flex-shrink-0 w-64 group cursor-pointer">
+<div class="aspect-video rounded-xl overflow-hidden border border-outline-variant group-hover:border-primary transition-all relative">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Dynamic shot of an empty, futuristic neon-lit sports stadium at night. High-precision laser lines trace the field architecture. The atmosphere is elite and professional, using a restricted palette of deep blacks, charcoal greys, and stark white highlights. Professional sports broadcasting aesthetics." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA7yRCih51aKHQmZLU7BWwggSEBmi8cedaYWD_NjeWNHp01es88PArSNMIvmvVN6spVv-hTGJ61CPqj2EIb5PwJ8snVR5wpfNIkQmWhqVdAtTs4aIoNth7gc5B9cJYkxyyPNHRIBrHL5S4o58uxT4AR6IVvFoPH3X6_q5uFCv_0mnPnYMSOsDOLoKmV-Y115yhfivmfTQH3lwJkaqUwKvOy2Vtl-1Sn-a6NR0EvKEzmDEP5z5GmNX2BbpSqFTp3OWc06C2Fnrd-1yo')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+<div class="absolute bottom-3 left-3 flex items-center gap-2">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center border border-outline-variant">
+<span class="material-symbols-outlined text-[18px] text-primary">sports_basketball</span>
+</div>
+<span class="font-body-sm text-body-sm text-white font-medium">Arena Sports 1</span>
+</div>
+<div class="absolute top-3 right-3">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- HistorySection Row -->
+<section class="space-y-6">
+<div class="flex items-center justify-between">
+<h3 class="font-title-md text-title-md text-primary">Recently Watched</h3>
+<button class="text-on-surface-variant hover:text-error transition-colors text-body-sm">Clear History</button>
+</div>
+<div class="flex gap-gutter overflow-x-auto pb-4 no-scrollbar">
+<!-- History Item 1 -->
+<div class="flex items-center gap-4 min-w-[280px] p-3 rounded-xl bg-surface-container-low border border-outline-variant hover:bg-surface-container transition-all cursor-pointer">
+<div class="w-20 aspect-video rounded-lg overflow-hidden bg-surface-container-highest">
+<img class="w-full h-full object-cover" data-alt="A minimalist tech-focused thumbnail showing a high-end camera lens reflecting a studio environment. The style is clean, sharp, and disciplined, emphasizing hardware precision and obsidian textures. Cinematic lighting creates subtle depth." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCpsGc9PPPC3dTUAukPByemJoJKjhX8FXLz6FpIs_ml0K4LgFTektjtm1ObLFndBdqbrCF9rWIAOOcxNlYEj9HQiChEpyPtmP-TSlJzCX1-k5esiTdqNVkpP3mBAdhH60WHv0MXwlQjKExVpcr7rOpo4XdtR2UFdxh1m_QZ7Xa-l6rgq1v8h4w-jXdn4v2xDwJ9ddaeogghQCLGuPUtVfzVtYKG847BWqu4n61NgBUhFmtUw2sBHHWSVSGR0LWQTHzpebzCi4alGdc">
+</div>
+<div class="flex flex-col">
+<span class="font-body-sm text-body-sm text-primary font-medium">Tech Discovery</span>
+<span class="text-[12px] text-on-surface-variant">2 hours ago</span>
+</div>
+</div>
+<!-- History Item 2 -->
+<div class="flex items-center gap-4 min-w-[280px] p-3 rounded-xl bg-surface-container-low border border-outline-variant hover:bg-surface-container transition-all cursor-pointer">
+<div class="w-20 aspect-video rounded-lg overflow-hidden bg-surface-container-highest">
+<img class="w-full h-full object-cover" data-alt="A serene nature landscape with misty mountains and a high-key, minimalist sky. The visual language is calm and professional, utilizing tonal layering of greys and blacks to communicate depth without vibrant color noise." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAAA8C-otiOVvNiOHRgJHctuBe78IwqHTmcegOWH8BCmXQQi4VguIxyJnAjImSiqzkZtOvcFFpfSsfvRoXmc4rhrasdJ7dRTnW0vOEui1Pz4iGp5U5sD5FgYkgdQfXSEr1aMyxGTMwU5ru6E6MSZ85H4dwARZrtY9rViZTMycYbjNJzWvcb9c6BaAeDY6QOYqkhn-xf4-2-aozbAq3AtAAbcjAsqQ_g6sD7lUZgQR6v3yqz_moWSW6IWVNuNgZuOvy89iauu2e2LW8">
+</div>
+<div class="flex flex-col">
+<span class="font-body-sm text-body-sm text-primary font-medium">Wild Earth 4K</span>
+<span class="text-[12px] text-on-surface-variant">Yesterday</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Main Channel Grid (3-column) -->
+<section class="space-y-8 pb-20">
+<div class="flex items-center justify-between">
+<h3 class="font-title-md text-title-md text-primary">Live Channels</h3>
+<div class="flex gap-2">
+<button class="p-2 bg-surface-container rounded-lg border border-outline-variant text-primary"><span class="material-symbols-outlined">grid_view</span></button>
+<button class="p-2 hover:bg-surface-container rounded-lg border border-transparent text-on-surface-variant"><span class="material-symbols-outlined">view_list</span></button>
+</div>
+</div>
+<!-- Grid: Chunked into rows of 3 -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Channel Card 1 -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden group hover:border-primary transition-all duration-300">
+<div class="aspect-video relative overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A sophisticated digital interface displaying stock market data and global economic charts. High-end financial news aesthetic with deep obsidian backgrounds and crisp, minimalist data visualization. Lighting is professional and focused." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAjsvDH6CLGL_qnLCaxCOqxZkR_8rcmn01TgokVXx72NsIV9geUENJcdy24WQMb6G1pZBRbIWqTLQZIePGDEkdKWddEET7Byj6Acx03Fe2VyFOKM7uoNj933HaVBe_2WcRYsb_rtI_qmzyiBxTkL91pPy4ErdyJj9TcHD_Z2RmZrKk8WVSmYTSDjSu3C5gU1PB_WWKvB2XYZUL8t59WWHm79H3lDaJ5AJCBaRVViWIiIgVqDww-prcAZEgMCscQC9ushifhNvfqfHs">
+<div class="absolute top-3 left-3 bg-error px-2 py-0.5 rounded text-[10px] font-bold text-on-error uppercase tracking-widest">LIVE</div>
+<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+<span class="material-symbols-outlined text-white text-5xl">play_circle</span>
+</div>
+</div>
+<div class="p-4 flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<span class="font-body-lg text-body-lg text-primary font-semibold">Financial Pulse</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer text-xl">star</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1">Global Economic Summit Live Coverage</p>
+</div>
+</div>
+<!-- Channel Card 2 -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden group hover:border-primary transition-all duration-300">
+<div class="aspect-video relative overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Action shot of high-speed racing cars on a futuristic track at dusk. Trailing light streaks and metallic finishes create a sense of elite speed. Palette is dominated by blacks, silvers, and precise white highlights in a professional cinematic style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAJSBhbABzd4KQNDrDaFXNTrpzMXoE-n0v5p85I5GxpZTt1bg6Hp2E-OihCDXu6eWQP-9JW_C34AkVYc2LO94lMNCdHSABPCM2AHHCtBL6-z58yRNO8TSvkw-yMhLgXBmkqUyMXN8rPJf_JZNm4gQENauLe8VBG4W4_ma04a91iv7N1NKBLmqyDHlHBFNrA5uSJ6iBx84dbesC65AGewpOfvTBqjVLQZ-bSKWUGQ-CBlKiZoL1jvxHaWf-0pX7vCXuhr4tdk9npaqc">
+<div class="absolute top-3 left-3 bg-error px-2 py-0.5 rounded text-[10px] font-bold text-on-error uppercase tracking-widest">LIVE</div>
+<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+<span class="material-symbols-outlined text-white text-5xl">play_circle</span>
+</div>
+</div>
+<div class="p-4 flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<span class="font-body-lg text-body-lg text-primary font-semibold">Speed Network</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer text-xl">star</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1">Grand Prix: Qualifying Rounds</p>
+</div>
+</div>
+<!-- Channel Card 3 -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden group hover:border-primary transition-all duration-300">
+<div class="aspect-video relative overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A grand cinematic view of a minimalist opera house stage with dramatic architectural lighting. High-contrast tonal shifts between shadow and spotlight. A disciplined and professional cultural broadcasting aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0OdfDn-GygVl9DDzhCPvJKXxjXKtoaO8IX0v7G2sVK4IptxZ8MIENfvenQyolPfF6U0NsUxO4byPrjtffPIuPLT9dF9_wMHpx3_r-Nf6Zop2fvy06tCtLjx1WOHy9rYnq78UfdF21tFTXkdKrHoRYZvhTO1u_cm3Zyu5Uij-_FmY-msiu30ISvPaU7KaQPaPkcinl-YEhcLJ-nJnH9SpXjldzbUnyZbHjn_R-uPW8_LzbGVmkomHXtmR_Sf6hIxlPEx0Ppwy91co">
+<div class="absolute top-3 left-3 bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-bold text-on-surface uppercase tracking-widest">STARTS IN 5M</div>
+<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+<span class="material-symbols-outlined text-white text-5xl">schedule</span>
+</div>
+</div>
+<div class="p-4 flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<span class="font-body-lg text-body-lg text-primary font-semibold">Art House</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer text-xl">star</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1">Modern Symphony Orchestra: Series II</p>
+</div>
+</div>
+<!-- Channel Card 4 -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden group hover:border-primary transition-all duration-300">
+<div class="aspect-video relative overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Detailed macro shot of biological cells under a high-tech fluorescent microscope. Vibrant cyan and purple highlights against a deep obsidian background. Science and technology documentary visual style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBeKiw7oPVd79sFxH_N5ULJTEDLLi1mXvcNAh-T5B0yG3T73objn1QAlF3FhWyJzQTpqiWd0FVeESNWDlcbf7Xf0cnf3jr4In-itc8gpGADfAeE2m0x4x-iaUVYiQ4dACNvxvQqyMgnbTaz2GAju1RIxYqd1ZBf3OX4z9Yc0ESpLH4Dgs9_q5iOMwpm57KwrMFWPBiyEtmCfslmBno5oOQ5-kdIWl96vLtxc4tzh5rek0pBli-YswBsPflX1tXdTYUjJplmDLRcG1U">
+<div class="absolute top-3 left-3 bg-error px-2 py-0.5 rounded text-[10px] font-bold text-on-error uppercase tracking-widest">LIVE</div>
+<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+<span class="material-symbols-outlined text-white text-5xl">play_circle</span>
+</div>
+</div>
+<div class="p-4 flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<span class="font-body-lg text-body-lg text-primary font-semibold">Discovery One</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer text-xl">star</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1">Micro-Worlds: The Invisible Battle</p>
+</div>
+</div>
+<!-- Channel Card 5 -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden group hover:border-primary transition-all duration-300">
+<div class="aspect-video relative overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="High-key kitchen interior with professional stainless steel equipment and minimalist design. Bright, focused task lighting over clean surfaces. Elite culinary broadcasting environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuARYsSRvYUVS1tz4lQBjWwO1qTbc4tED8LFiesMVZjj8mWt9KjPhW7LA2V9eztD7Bz4dhx2SgD7kHqvy57U4AzK7wb3L0Xnt47stRBbjmWizyItULyQXhVkQmk5QkRP099GpOiA-t3fDIqrPqkixDjk6WjcwFFoYX2XEAl2Ya2d14a2uF_bCK5bbzCFWkcCMSfS6pxM5zTcM11Tr96rJR1HIpcCosGU4rWPZlJOZ49bSHUJjMdFxheKgAjoUEeeqVkUX7iumtvsPGU">
+<div class="absolute top-3 left-3 bg-error px-2 py-0.5 rounded text-[10px] font-bold text-on-error uppercase tracking-widest">LIVE</div>
+<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+<span class="material-symbols-outlined text-white text-5xl">play_circle</span>
+</div>
+</div>
+<div class="p-4 flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<span class="font-body-lg text-body-lg text-primary font-semibold">Gourmet Elite</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer text-xl">star</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1">Master Class: Modern Fusion Techniques</p>
+</div>
+</div>
+<!-- Channel Card 6 -->
+<div class="bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden group hover:border-primary transition-all duration-300">
+<div class="aspect-video relative overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A vast, minimalist data center with rows of sleek server racks glowing with soft white LED status lights. The floor is polished obsidian, reflecting the technological precision. High-end information technology aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAoU2UF1hn8QmvJDyFxTNx3_yqfU2xxRESiZDDJkIWLTviBHyV4CoLeJ2cLxCWE1c48fRGH46evJ2yuqGbla5bOa_V8ePhHF2PamAHXPErw59q0ETkUcR43z0qnYZxI9Nc7JIjLwxeF-QmUmw6H8RHIyCbM6p1kIa1Rv7lBd8bAjgefjJFINiDOnsmyF5MciaROcDy2vSeDVx3XuajmYbIviky0igzpCWffhI2ioMcJ381cHOvDDolja3ta3GA0PGVsNVf-MCId9oo">
+<div class="absolute top-3 left-3 bg-error px-2 py-0.5 rounded text-[10px] font-bold text-on-error uppercase tracking-widest">LIVE</div>
+<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+<span class="material-symbols-outlined text-white text-5xl">play_circle</span>
+</div>
+</div>
+<div class="p-4 flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<span class="font-body-lg text-body-lg text-primary font-semibold">Network Insights</span>
+<span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer text-xl">star</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-1">Cyber Security Weekly Roundup</p>
+</div>
+</div>
+</div>
+</section>
+</div>
+</section>
+</main>
+<!-- Modal: Add Source -->
+<div class="fixed inset-0 z-[100] hidden" id="add-source-modal">
+<div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="toggleModal('add-source-modal')"></div>
+<div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-surface-container border border-outline-variant rounded-2xl p-8 shadow-2xl">
+<div class="flex items-center justify-between mb-8">
+<h2 class="font-headline-lg text-headline-lg text-primary">Add Source</h2>
+<button class="text-on-surface-variant hover:text-primary transition-colors" onclick="toggleModal('add-source-modal')">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="space-y-6">
+<div class="space-y-2">
+<label class="font-label-caps text-label-caps text-outline">SOURCE NAME</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-4 py-3 text-on-surface focus:outline-none focus:border-primary transition-all" placeholder="e.g. My Premium Playlist" type="text">
+</div>
+<div class="space-y-2">
+<label class="font-label-caps text-label-caps text-outline">M3U URL</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-4 py-3 text-on-surface focus:outline-none focus:border-primary transition-all" placeholder="https://provider.com/playlist.m3u" type="url">
+</div>
+<div class="space-y-2">
+<label class="font-label-caps text-label-caps text-outline">EPG URL (OPTIONAL)</label>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-4 py-3 text-on-surface focus:outline-none focus:border-primary transition-all" placeholder="https://provider.com/epg.xml" type="url">
+</div>
+<button class="w-full bg-primary text-background font-bold py-4 rounded-xl hover:opacity-90 active:scale-[0.98] transition-all mt-4">
+                    Import Content
+                </button>
+</div>
+</div>
+</div>
+<script>
+        function toggleModal(id) {
+            const modal = document.getElementById(id);
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        // Interaction for Source Filtering
+        document.querySelectorAll('.flex-wrap button').forEach(button => {
+            button.addEventListener('click', function() {
+                document.querySelectorAll('.flex-wrap button').forEach(b => {
+                    b.classList.remove('bg-primary', 'text-background');
+                    b.classList.add('border', 'border-outline-variant', 'text-on-surface-variant');
+                });
+                this.classList.add('bg-primary', 'text-background');
+                this.classList.remove('border', 'border-outline-variant', 'text-on-surface-variant');
+            });
+        });
+
+        // Micro-interaction for sidebar tabs
+        document.querySelectorAll('aside nav a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                document.querySelectorAll('aside nav a').forEach(l => {
+                    l.classList.remove('bg-surface-container-highest', 'text-primary', 'border-l-2', 'border-primary', 'ml-2');
+                    l.classList.add('text-on-surface-variant');
+                    l.querySelector('span').style.fontVariationSettings = "'FILL' 0";
+                });
+                this.classList.add('bg-surface-container-highest', 'text-primary', 'border-l-2', 'border-primary', 'ml-2');
+                this.classList.remove('text-on-surface-variant');
+                this.querySelector('span').style.fontVariationSettings = "'FILL' 1";
+            });
+        });
+    </script>
+
+</body></html>

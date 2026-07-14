@@ -129,7 +129,7 @@ object PlayerSubtitleCueParser {
     }
 
     private fun parseTtml(text: String): List<SubtitleSyncCue> =
-        Regex("""(?s)<p\b([^>]*)>(.*?)</p>""", RegexOption.IGNORE_CASE)
+        Regex("""<p\b([^>]*)>([\s\S]*?)</p>""", RegexOption.IGNORE_CASE)
             .findAll(text)
             .mapNotNull { match ->
                 val attrs = match.groupValues[1]

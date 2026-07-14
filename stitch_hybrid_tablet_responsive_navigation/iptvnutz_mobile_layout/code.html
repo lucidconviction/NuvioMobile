@@ -1,0 +1,417 @@
+<!DOCTYPE html><html lang="en" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&amp;family=Geist:wght@600&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">try{
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-fixed": "#e3e2e2",
+                        "secondary-container": "#484949",
+                        "on-error": "#690005",
+                        "surface-variant": "#353535",
+                        "surface-dim": "#131313",
+                        "surface-container-highest": "#353535",
+                        "secondary": "#c6c6c6",
+                        "error-container": "#93000a",
+                        "on-primary-fixed": "#1a1c1c",
+                        "error": "#ffb4ab",
+                        "inverse-on-surface": "#303030",
+                        "on-primary": "#2f3131",
+                        "secondary-fixed-dim": "#c6c6c6",
+                        "surface-container-lowest": "#0e0e0e",
+                        "on-background": "#e2e2e2",
+                        "on-tertiary-container": "#636262",
+                        "background": "#131313",
+                        "on-surface-variant": "#c4c7c8",
+                        "on-primary-container": "#626363",
+                        "surface-container-low": "#1b1b1b",
+                        "inverse-surface": "#e2e2e2",
+                        "on-tertiary": "#313030",
+                        "on-surface": "#e2e2e2",
+                        "on-secondary-fixed-variant": "#464747",
+                        "tertiary-fixed": "#e5e2e1",
+                        "surface": "#131313",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "surface-container": "#1f1f1f",
+                        "on-secondary": "#2f3131",
+                        "primary-fixed": "#e2e2e2",
+                        "inverse-primary": "#5d5f5f",
+                        "tertiary": "#fffcfb",
+                        "on-secondary-container": "#b8b8b8",
+                        "surface-bright": "#393939",
+                        "on-error-container": "#ffdad6",
+                        "outline-variant": "#444748",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "outline": "#8e9192",
+                        "surface-tint": "#c6c6c6",
+                        "surface-container-high": "#2a2a2a",
+                        "on-tertiary-fixed": "#1c1b1b",
+                        "on-secondary-fixed": "#1a1c1c",
+                        "on-primary-fixed-variant": "#454747",
+                        "primary": "#fdfdfc",
+                        "primary-fixed-dim": "#c6c6c6",
+                        "tertiary-container": "#e2dfdf",
+                        "primary-container": "#e0e0e0"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sidebar_width": "280px",
+                        "stack_gap": "24px",
+                        "margin_desktop": "32px",
+                        "margin_mobile": "16px",
+                        "gutter": "16px",
+                        "bottom_nav_height": "64px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Hanken Grotesk"],
+                        "body-lg": ["Hanken Grotesk"],
+                        "title-md": ["Hanken Grotesk"],
+                        "label-caps": ["Geist"],
+                        "headline-lg-mobile": ["Hanken Grotesk"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "body-sm": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "title-md": ["20px", {"lineHeight": "28px", "fontWeight": "500"}],
+                        "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    }catch(_e){}</script><meta charset="utf-8"></head><body class="obsidian-base text-on-surface font-body-sm text-body-sm selection:bg-primary-container selection:text-on-primary-container">
+<!-- Top Navigation Anchor (Mobile Focused) -->
+
+<!-- Desktop SideNav (The Anchor) -->
+<aside class="hidden md:flex fixed left-0 top-0 h-screen w-sidebar_width bg-surface-container border-r border-outline-variant flex-col py-margin_desktop gap-stack_gap">
+<div class="px-6 mb-4">
+<h1 class="font-headline-lg text-headline-lg text-primary">Hub</h1>
+<p class="text-on-surface-variant opacity-60">Media Categories</p>
+</div>
+<nav class="flex-1 px-4 space-y-2">
+<!-- Active Tab: IPTV -->
+<a class="flex items-center gap-3 p-3 bg-surface-container-highest text-primary border-l-2 border-primary rounded-lg ml-2 transition-all" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">tv</span>
+<span class="font-body-sm text-body-sm">IPTV</span>
+</a>
+<a class="flex items-center gap-3 p-3 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all" href="#">
+<span class="material-symbols-outlined">sports_esports</span>
+<span class="font-body-sm text-body-sm">Sports</span>
+</a>
+<a class="flex items-center gap-3 p-3 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all" href="#">
+<span class="material-symbols-outlined">movie</span>
+<span class="font-body-sm text-body-sm">Video</span>
+</a>
+<a class="flex items-center gap-3 p-3 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all" href="#">
+<span class="material-symbols-outlined">music_note</span>
+<span class="font-body-sm text-body-sm">Music</span>
+</a>
+<a class="flex items-center gap-3 p-3 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all" href="#">
+<span class="material-symbols-outlined">grid_view</span>
+<span class="font-body-sm text-body-sm">Multi-Window</span>
+</a>
+</nav>
+<div class="px-4 border-t border-outline-variant pt-4">
+<a class="flex items-center gap-3 p-3 text-on-surface-variant hover:bg-surface-variant rounded-lg transition-all" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-sm text-body-sm">Settings</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="md:pt-8 md:pl-[sidebar_width] min-h-screen pt-4">
+<div class="max-w-4xl mx-auto px-margin_mobile md:px-margin_desktop space-y-8">
+<!-- Search Section -->
+<section class="mt-4" id="search-section">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors">search</span>
+<input class="w-full h-12 bg-surface-container-low border border-outline-variant rounded-xl pl-12 pr-4 focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all placeholder:text-on-surface-variant/50 text-body-sm font-body-sm" placeholder="Search channels, movies, or providers..." type="text">
+</div>
+</section>
+<!-- Favorites & History (Quick Access) -->
+<section class="space-y-6" id="quick-access">
+<div class="space-y-3">
+<h2 class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">Favorites</h2>
+<div class="flex overflow-x-auto gap-4 hide-scrollbar -mx-margin_mobile px-margin_mobile pb-2">
+<!-- Fav Item -->
+<div class="flex-shrink-0 w-28 space-y-2">
+<div class="aspect-video rounded-lg surface-card flex items-center justify-center relative group overflow-hidden">
+<img class="w-12 h-12 object-contain" data-alt="Minimalist television network logo for a premium sports channel, centered on a deep charcoal background with a high-end matte finish and subtle edge lighting, matching the Obsidian UI aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3N3zdOPKfrzyhDdSC28cly0MKU9Vpj-MP2RaazyqYG41LLZRARz7H_iJje4gsJtvuVt36RP_5-TPhiPCMVSmptWxJdz6uZuXwZsMesmDgzH0RHYhx4su9RT6NNHqeFZweICotON-6gnJ3ufQNkerpKTTvnoKgslJmLS_f2NCiOO0whfAgnZRJ6fKk8ubAaaSWfYMIUbm5vpPFInIy6JUFd1JL-h7i-TTr-qhgz3npuVCoq-Iw4NLWFFQ2ybY-5rwdvR9ESo9NbvU">
+<div class="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</div>
+</div>
+<p class="text-[11px] font-medium text-center truncate px-1">Sky Sports Main</p>
+</div>
+<!-- Add Fav Placeholder -->
+<div class="flex-shrink-0 w-28">
+<button class="aspect-video w-full rounded-lg border-2 border-dashed border-outline-variant flex items-center justify-center text-on-surface-variant hover:text-primary hover:border-primary transition-all">
+<span class="material-symbols-outlined">add</span>
+</button>
+<p class="text-[11px] font-medium text-center mt-2 opacity-40">Add New</p>
+</div>
+<!-- More Fav Items for Scroll -->
+<div class="flex-shrink-0 w-28 space-y-2 opacity-80">
+<div class="aspect-video rounded-lg surface-card flex items-center justify-center">
+<img class="w-12 h-12 object-contain" data-alt="BBC News logo on a minimalist dark background, high-contrast white typography on black, elite professional media style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAk3u0o-a9qEoiqCT9I9TbkVX_ZGoADRgOVT0sMT9qQx7h7aIyOTJCXGyN4n6ay9QGpcEp9-NW23niEar9V_dEu-YbYdPi_iZZcJ3ZQ7S6nwFZOip7Q39vIsTrn3dOUyIWwxzuEQEdPSPBYtoEGLiOm-U64O8tiFaZOth2Of56jx2DBI8A06wvemPTli3kmcmln54MoWkLqIoCzDppgrDko0HoOY_hbeNK6xGw6cqF6o3L8Y6v9ecsyUnQR53yDLHF4Sk-JuUfI-9E">
+</div>
+<p class="text-[11px] font-medium text-center truncate px-1">BBC News HD</p>
+</div>
+<div class="flex-shrink-0 w-28 space-y-2 opacity-80">
+<div class="aspect-video rounded-lg surface-card flex items-center justify-center">
+<img class="w-12 h-12 object-contain" data-alt="HBO Max premium logo, cinematic purple and dark theme, minimalist clean design, 16:9 ratio centered." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmq-pFni6rXbzYhh-gcS2RmqrZ5Ed6xQhyTg7j8eYLeXoFAnjh2_1JKTxQoDRr8VzEZ60eR09EIKrmBOXlld837ZoT2fMUUPAJMXbneI7w_LN6KTSNUk02mzQLwTAlPGgwyOwAbu4zGrva_44JBMTksj1QEBFxg86UpHAzHvotI0oG8YgyEU-QmSh5mDIpFpgiOKES4sLB94ttAcplTW80jEBF_id0pvIsbJ3e4xmWESKt62pPS6F1O0zsAO5k8Fp6-XyqMyZHpwk">
+</div>
+<p class="text-[11px] font-medium text-center truncate px-1">HBO Max</p>
+</div>
+</div>
+</div>
+<div class="space-y-3">
+<h2 class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-widest">Recent Activity</h2>
+<div class="flex overflow-x-auto gap-4 hide-scrollbar -mx-margin_mobile px-margin_mobile pb-2">
+<!-- History Item -->
+<div class="flex-shrink-0 flex items-center gap-3 p-3 surface-card rounded-xl min-w-[200px]">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">history</span>
+</div>
+<div class="flex-1 overflow-hidden">
+<p class="truncate font-medium">Formula 1: Baku GP</p>
+<p class="text-[10px] text-on-surface-variant">2h ago • Sports</p>
+</div>
+</div>
+<div class="flex-shrink-0 flex items-center gap-3 p-3 surface-card rounded-xl min-w-[200px]">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">history</span>
+</div>
+<div class="flex-1 overflow-hidden">
+<p class="truncate font-medium">The Last of Us E05</p>
+<p class="text-[10px] text-on-surface-variant">Yesterday • Video</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Your Playlists Section -->
+<section class="space-y-4" id="playlists">
+<div class="flex justify-between items-end">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-primary">Your Playlists</h2>
+<button class="text-primary text-body-sm font-medium flex items-center gap-1" onclick="toggleBottomSheet()">
+<span class="material-symbols-outlined text-[18px]">add_circle</span> Add Source
+                    </button>
+</div>
+<div class="grid grid-cols-1 gap-3">
+<!-- M3U Card -->
+<div class="surface-card p-4 rounded-xl flex items-center justify-between group active:scale-[0.98] transition-transform">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+<span class="text-primary font-bold text-[12px] font-label-caps">M3U</span>
+</div>
+<div>
+<h3 class="font-medium text-on-surface">Global Stream Pro</h3>
+<p class="text-[12px] text-on-surface-variant">12,402 Channels • Updated 1h ago</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">chevron_right</span>
+</div>
+<!-- XTREAM Card -->
+<div class="surface-card p-4 rounded-xl flex items-center justify-between group active:scale-[0.98] transition-transform">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-lg bg-secondary-container/50 flex items-center justify-center border border-outline-variant">
+<span class="text-secondary font-bold text-[12px] font-label-caps">XT</span>
+</div>
+<div>
+<h3 class="font-medium text-on-surface">Cinema Premium</h3>
+<p class="text-[12px] text-on-surface-variant">850 Movies • 240 Series</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">chevron_right</span>
+</div>
+</div>
+</section>
+<!-- Category Filters -->
+<section class="sticky top-16 z-30 bg-black/90 py-4 -mx-margin_mobile px-margin_mobile" id="filters">
+<div class="flex overflow-x-auto gap-2 hide-scrollbar">
+<button class="flex-shrink-0 px-6 py-2 rounded-full bg-primary text-on-primary font-bold text-body-sm transition-all">All</button>
+<button class="flex-shrink-0 px-6 py-2 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant hover:border-primary transition-all">Sports</button>
+<button class="flex-shrink-0 px-6 py-2 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant hover:border-primary transition-all">News</button>
+<button class="flex-shrink-0 px-6 py-2 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant hover:border-primary transition-all">Documentary</button>
+<button class="flex-shrink-0 px-6 py-2 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant hover:border-primary transition-all">Cinema</button>
+</div>
+</section>
+<!-- Channel List (2-column Grid) -->
+<section class="space-y-6" id="channel-grid">
+<div class="space-y-4">
+<div class="flex justify-between items-center">
+<h2 class="text-[14px] font-label-caps text-on-surface-variant/70 uppercase">Featured Channels</h2>
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">sort</span>
+</div>
+<div class="grid grid-cols-2 gap-x-3 gap-y-4">
+<!-- Channel Card 1 -->
+<div class="space-y-2 group cursor-pointer">
+<div class="aspect-video rounded-xl surface-card relative overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="High-resolution frame of a professional sporting event, vibrant green grass, stadium lighting, shallow depth of field, cinematic broadcast quality, fitting for an elite sports IPTV UI." src="https://lh3.googleusercontent.com/aida-public/AB6AXuATpYYo6MrTZWrZW6FUbDahEEcpZwvqzMCcGwtaW5roD04wWv_kV63Xer7vrgoZvwTDKL32gZ_EERrAtBx9PFBVjxw9i50PNnjb36jzZaYNgW1f7x4ypmroeI-ltgEL5ekaGms1BqxcPe5xwde3vBpx_BMBb9MUmonbsGbTPNU7jQ3U8Xhm38LGhsaSZqEO2f6kNHGEd50YMTvtbbilKBdCsDoLEgJw3pIPK24q3ocAM8kMAPO4wOsksj-UQfX2EZVdFwlntoRw6YI">
+<div class="absolute top-2 right-2 flex gap-1">
+<button class="w-8 h-8 rounded-full glass-nav flex items-center justify-center text-primary active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-[16px]">favorite</span>
+</button>
+</div>
+<div class="absolute bottom-2 left-2 px-2 py-0.5 bg-error text-[10px] font-bold rounded uppercase tracking-tighter">Live</div>
+</div>
+<div class="flex justify-between items-start px-1">
+<div class="overflow-hidden">
+<h4 class="font-medium text-body-sm truncate">ESPN Ultra HD</h4>
+<p class="text-[11px] text-on-surface-variant truncate">UEFA Champions League</p>
+</div>
+<button class="p-1 hover:bg-surface-variant rounded transition-colors">
+<span class="material-symbols-outlined text-[18px]">add_to_photos</span>
+</button>
+</div>
+</div>
+<!-- Channel Card 2 -->
+<div class="space-y-2 group cursor-pointer">
+<div class="aspect-video rounded-xl surface-card relative overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Cinematic still from an action movie, moody lighting with orange and teal color grade, high detail, anamorphic lens flares, premium media experience vibe." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBEejvKC2F_9uXy4PTbiiihe3J1XUFMcUGhOKQv1ELd0WwI9_YsM5If-keI4xjWbGciIWhw-EtITPFyN9_DaYcCwZiidxryNi26106Kx4RYTc-0Xx3mrYHITSRkSV_e48TMN1KB8dgSyh1Tig9lIL5tj8zSF_NobZgcCjZdezRpknylPtcLab1u1l92bY8ahhtrTJS3CPUjm5gs2q5hetesgh5o9z65pNtNmyqm4Atk9LPqtesx_fOe5alCJfG0gxF0Q_eSNUhP8OM">
+<div class="absolute top-2 right-2 flex gap-1">
+<button class="w-8 h-8 rounded-full glass-nav flex items-center justify-center text-on-surface-variant active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-[16px]">favorite</span>
+</button>
+</div>
+</div>
+<div class="flex justify-between items-start px-1">
+<div class="overflow-hidden">
+<h4 class="font-medium text-body-sm truncate">Cinema One</h4>
+<p class="text-[11px] text-on-surface-variant truncate">John Wick: Chapter 4</p>
+</div>
+<button class="p-1 hover:bg-surface-variant rounded transition-colors">
+<span class="material-symbols-outlined text-[18px]">add_to_photos</span>
+</button>
+</div>
+</div>
+<!-- Channel Card 3 -->
+<div class="space-y-2 group cursor-pointer">
+<div class="aspect-video rounded-xl surface-card relative overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Stunning wildlife cinematography, a majestic leopard in a jungle, soft sunlight filtering through leaves, National Geographic style, high contrast dark environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDua3WS5GN47x3Cdn9QrfuPfhAH8t8Ary8vazHHtA4-_S2nfj8nYWGORc51Ijez0-cfqqAN8nwSTKJvF_XBZNqgE4ULIatQafbYsmM6qvjSGl09tIedjpdyHMuE8yq3--XCHa7pTVnOixSNcukiNq2go7H8DLY028DBkCMOuWBUgVlQtTyxCptGL54hx5sZISWcCZh591xNRTCnxt_U3eghyN7zmXTeFovHzQqbQ2Ly9orjQYq8Q2CNwpeNfoE3KbowKoQbKaNdb0w">
+<div class="absolute top-2 right-2">
+<button class="w-8 h-8 rounded-full glass-nav flex items-center justify-center text-on-surface-variant active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-[16px]">favorite</span>
+</button>
+</div>
+</div>
+<div class="flex justify-between items-start px-1">
+<div class="overflow-hidden">
+<h4 class="font-medium text-body-sm truncate">Nature Discovery</h4>
+<p class="text-[11px] text-on-surface-variant truncate">Hidden Predators</p>
+</div>
+<button class="p-1 hover:bg-surface-variant rounded transition-colors">
+<span class="material-symbols-outlined text-[18px]">add_to_photos</span>
+</button>
+</div>
+</div>
+<!-- Channel Card-->
+<div class="space-y-2 group cursor-pointer">
+<div class="aspect-video rounded-xl surface-card relative overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A futuristic news studio with holographic displays and professional anchors, cool blue and black color palette, clean modern lines." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDD3WJtzNyvjGD0iS9Mb6dMN4xvpdrBHfyxkmo4mzkpSzZ1tZBQkfGRrAxuX2SHCjmbMzFcaY2hOIi_EN7sOzCDx7zciEa3OU_9DamrHR90Woq7IB9sH2XdH0TpZwG5sy48l9X6ONKTfKEhovRZ9Th2Ie7SUv-kiaS554nYs9GkyXJIJeEsj9p9wqU3f7t_m5d7tAdDvRm7NdF0Q5-6Wsw_tQkGvyOIlw9tKxUS60nFWChDjz--3kv2Ufk41LAzk032m6soU5d8U3M">
+<div class="absolute bottom-2 left-2 px-2 py-0.5 bg-error text-[10px] font-bold rounded uppercase tracking-tighter">Live</div>
+<div class="absolute top-2 right-2">
+<button class="w-8 h-8 rounded-full glass-nav flex items-center justify-center text-on-surface-variant active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-[16px]">favorite</span>
+</button>
+</div>
+</div>
+<div class="flex justify-between items-start px-1">
+<div class="overflow-hidden">
+<h4 class="font-medium text-body-sm truncate">Global 24 News</h4>
+<p class="text-[11px] text-on-surface-variant truncate">Market Updates</p>
+</div>
+<button class="p-1 hover:bg-surface-variant rounded transition-colors">
+<span class="material-symbols-outlined text-[18px]">add_to_photos</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Bottom Navigation Shell (Mobile Only) -->
+
+<!-- Bottom Sheet: Add Source -->
+<div class="fixed inset-0 z-[60] hidden" id="bottom-sheet">
+<!-- Backdrop -->
+<div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="toggleBottomSheet()"></div>
+<!-- Sheet Content -->
+<div class="absolute bottom-0 left-0 w-full bg-surface-container rounded-t-3xl p-6 transform transition-transform translate-y-full duration-300 ease-out ghost-border border-b-0" id="sheet-panel">
+<div class="w-12 h-1.5 bg-outline-variant rounded-full mx-auto mb-8"></div>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-primary mb-2">Add Content Source</h2>
+<p class="text-on-surface-variant text-body-sm mb-6">Connect your IPTV provider via M3U link or Xtream Codes.</p>
+<div class="space-y-4">
+<button class="w-full flex items-center justify-between p-4 surface-card rounded-xl hover:bg-surface-variant transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">link</span>
+</div>
+<span class="font-medium">M3U Playlist URL</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary">arrow_forward</span>
+</button>
+<button class="w-full flex items-center justify-between p-4 surface-card rounded-xl hover:bg-surface-variant transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-secondary-container/50 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined">login</span>
+</div>
+<span class="font-medium">Xtream Codes API</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary">arrow_forward</span>
+</button>
+<button class="w-full flex items-center justify-between p-4 surface-card rounded-xl hover:bg-surface-variant transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-lg bg-surface-container-highest flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined">file_upload</span>
+</div>
+<span class="font-medium">Upload .m3u File</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary">arrow_forward</span>
+</button>
+</div>
+<button class="w-full mt-8 py-4 text-center font-bold text-on-surface-variant hover:text-primary" onclick="toggleBottomSheet()">Cancel</button>
+</div>
+</div>
+<!-- Floating Multi-Window Action (Contextual FAB) -->
+<button class="fixed bottom-[80px] right-gutter z-40 w-14 h-14 bg-primary text-on-primary rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all md:bottom-12 md:right-12">
+<span class="material-symbols-outlined" style="font-variation-settings: 'wght' 700;">grid_view</span>
+</button>
+<script>
+        function toggleBottomSheet() {
+            const sheet = document.getElementById('bottom-sheet');
+            const panel = document.getElementById('sheet-panel');
+            if (sheet.classList.contains('hidden')) {
+                sheet.classList.remove('hidden');
+                setTimeout(() => {
+                    panel.classList.remove('translate-y-full');
+                }, 10);
+            } else {
+                panel.classList.add('translate-y-full');
+                setTimeout(() => {
+                    sheet.classList.add('hidden');
+                }, 300);
+            }
+        }
+
+        // Horizontal scroll interaction for chips
+        const scrollContainers = document.querySelectorAll('.hide-scrollbar');
+        scrollContainers.forEach(container => {
+            container.addEventListener('wheel', (evt) => {
+                evt.preventDefault();
+                container.scrollLeft += evt.deltaY;
+            });
+        });
+    </script>
+
+</body></html>
