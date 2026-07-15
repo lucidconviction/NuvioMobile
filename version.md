@@ -20,6 +20,7 @@ APK: `androidApp/build/outputs/apk/full/debug/androidApp-full-debug.apk`
 - **Spacing** — added 20dp between header and grid in hub screen, 32dp between header and pills in SportNutz
 - **File picker** — "Pick File" button in Backup → Import NuvioSync opens Android file picker for `.json` files
 - **Restart reminder** — restore success message now says "Restart app to see changes"
+- **Upstream cherry-picks** — `60cde302` (disable predictive back), `fe1bc880` (triage automation), `a6e19eab` (version bump). Skipped `cc593875` (conflicts with custom AppUpdater/Settings), `0f155c75` (Italian strings conflict), `409a2e9b` (already removed in our codebase)
 
 ## Build Commands
 ```bash
