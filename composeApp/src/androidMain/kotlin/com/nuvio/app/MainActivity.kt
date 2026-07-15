@@ -18,6 +18,7 @@ import com.nuvio.app.features.addons.AddonStorage
 import com.nuvio.app.features.collection.CollectionMobileSettingsStorage
 import com.nuvio.app.features.collection.CollectionStorage
 import com.nuvio.app.features.debrid.DebridSettingsStorage
+import com.nuvio.app.features.discord.DiscordPromptStorage
 import com.nuvio.app.features.downloads.DownloadsLiveStatusPlatform
 import com.nuvio.app.features.downloads.DownloadsPlatformDownloader
 import com.nuvio.app.features.downloads.DownloadsStorage
@@ -111,6 +112,7 @@ class MainActivity : AppCompatActivity() {
         StreamLinkCacheStorage.initialize(applicationContext)
         StreamBadgeSettingsStorage.initialize(applicationContext)
         BingeGroupCacheStorage.initialize(applicationContext)
+        DiscordPromptStorage.initialize(applicationContext)
         PluginStorage.initialize(applicationContext)
         CollectionMobileSettingsStorage.initialize(applicationContext)
         CollectionStorage.initialize(applicationContext)

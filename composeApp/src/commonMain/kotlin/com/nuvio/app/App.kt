@@ -166,6 +166,8 @@ import com.nuvio.app.features.library.toMetaPreview
 import com.nuvio.app.features.notifications.EpisodeReleaseNotificationsRepository
 import com.nuvio.app.features.p2p.P2pConsentDialog
 import com.nuvio.app.features.p2p.P2pSettingsRepository
+import com.nuvio.app.features.discord.DiscordPromptDialog
+import com.nuvio.app.features.discord.DiscordPromptStorage
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.player.PlayerLaunchStore
 import com.nuvio.app.features.player.PlayerScreen
@@ -892,6 +894,9 @@ private fun MainAppContent(
     val isTraktLibrarySource = libraryUiState.sourceMode == LibrarySourceMode.TRAKT
     var initialHomeReady by rememberSaveable(ownsAppRuntime) {
         mutableStateOf(!ownsAppRuntime)
+    }
+    var showDiscordPrompt by remember(ownsAppRuntime) {
+        mutableStateOf(ownsAppRuntime && !DiscordPromptStorage.isDismissed())
     }
     var offlineLaunchRouteHandled by rememberSaveable { mutableStateOf(false) }
     var networkToastBaselineReady by rememberSaveable { mutableStateOf(false) }
@@ -3551,6 +3556,16 @@ private fun MainAppContent(
                     .align(Alignment.Center)
                     .zIndex(25f),
             )
+
+            if (initialHomeReady && showDiscordPrompt) {
+                DiscordPromptDialog(
+                    onDismiss = { showDiscordPrompt = false },
+                    onDontShowAgain = {
+                        DiscordPromptStorage.setDismissed()
+                        showDiscordPrompt = false
+                    },
+                )
+            }
         }
 }
 
