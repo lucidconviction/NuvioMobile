@@ -91,6 +91,7 @@ private data class GitHubReleaseDto(
     val prerelease: Boolean = false,
     @SerialName("html_url") val htmlUrl: String? = null,
     @SerialName("target_commitish") val targetCommitish: String? = null,
+    @SerialName("created_at") val createdAt: String? = null,
     val assets: List<GitHubAssetDto> = emptyList(),
 )
 
@@ -148,7 +149,7 @@ private object VersionUtils {
     }
 }
 
-private object AppUpdaterRepository {
+    private object AppUpdaterRepository {
     suspend fun getLatestChannelUpdate(): Result<AppUpdate> = runCatching {
         val response = httpRequestRaw(
             method = "GET",
@@ -164,7 +165,9 @@ private object AppUpdaterRepository {
         }
 
         val releases = appUpdaterJson.decodeFromString<List<GitHubReleaseDto>>(response.body)
-        val release = releases.firstOrNull { it.matchesRequestedChannel() && !it.draft && !it.prerelease }
+        val release = releases
+            .filter { it.matchesRequestedChannel() && !it.draft && !it.prerelease }
+            .maxByOrNull { it.createdAt ?: "" }
             ?: throw NoChannelReleaseException()
 
         val tag = release.tagName?.takeIf { it.isNotBlank() }
