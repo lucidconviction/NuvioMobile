@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nuvio.app.core.build.AppVersionConfig
 import com.nuvio.app.features.iptv.IptvScreen
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.sports.SportsScreen
@@ -225,7 +226,7 @@ private fun HubGrid(onNavigate: (HubSubScreen) -> Unit) {
             contentPadding = PaddingValues(vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.weight(1f),
         ) {
             items(hubItems, key = { it.target.name }) { item ->
                 HubGridCard(
@@ -235,6 +236,14 @@ private fun HubGrid(onNavigate: (HubSubScreen) -> Unit) {
                 )
             }
         }
+
+        Text(
+            text = "Version ${AppVersionConfig.VERSION_NAME} (${AppVersionConfig.VERSION_CODE})",
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            color = OnSurfaceVariant,
+            fontSize = 11.sp,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
