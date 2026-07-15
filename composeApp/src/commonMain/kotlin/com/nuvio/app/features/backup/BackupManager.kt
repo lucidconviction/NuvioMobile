@@ -6,12 +6,14 @@ import com.nuvio.app.core.ui.CardDepthStyleStorage
 import com.nuvio.app.core.ui.PosterCardStyleStorage
 import com.nuvio.app.core.sync.SyncClientIdentityStorage
 import com.nuvio.app.features.collection.CollectionMobileSettingsStorage
+import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.collection.CollectionStorage
 import com.nuvio.app.features.debrid.DebridSettingsStorage
 import com.nuvio.app.features.details.MetaScreenSettingsStorage
 import com.nuvio.app.features.downloads.DownloadsStorage
 import com.nuvio.app.features.home.HomeCatalogSettingsStorage
 
+import com.nuvio.app.features.addons.AddonRepository
 import com.nuvio.app.features.addons.AddonStorage
 import com.nuvio.app.features.iptv.IptvStorage
 import com.nuvio.app.features.library.LibraryStorage
@@ -97,6 +99,16 @@ object BackupManager {
             putIfPresent(sections, watchProgressKey) { WatchProgressStorage.loadPayload(pid) }
             val libraryKey = "library_$pid"
             putIfPresent(sections, libraryKey) { LibraryStorage.loadPayload(pid) }
+            val addonUrlsKey = "addon_urls_$pid"
+            putIfPresent(sections, addonUrlsKey) {
+                val urls = AddonStorage.loadInstalledAddonUrls(pid)
+                if (urls.isNotEmpty()) json.encodeToString(urls) else null
+            }
+            val addonEnabledKey = "addon_enabled_$pid"
+            putIfPresent(sections, addonEnabledKey) {
+                val states = AddonStorage.loadAddonEnabledStates(pid)
+                if (states.isNotEmpty()) json.encodeToString(states) else null
+            }
         }
 
         val data = BackupData(
@@ -184,7 +196,21 @@ object BackupManager {
             restoreIfPresent(data.sections, wpKey) { WatchProgressStorage.savePayload(pid, it) }
             val libKey = "library_$pid"
             restoreIfPresent(data.sections, libKey) { LibraryStorage.savePayload(pid, it) }
+            val addonUrlsKey = "addon_urls_$pid"
+            restoreIfPresent(data.sections, addonUrlsKey) {
+                val urls = json.decodeFromString<List<String>>(it)
+                AddonStorage.saveInstalledAddonUrls(pid, urls)
+            }
+            val addonEnabledKey = "addon_enabled_$pid"
+            restoreIfPresent(data.sections, addonEnabledKey) {
+                val states = json.decodeFromString<Map<String, Boolean>>(it)
+                AddonStorage.saveAddonEnabledStates(pid, states)
+            }
         }
+
+        // ── Refresh in-memory repositories so changes take effect without restart ──
+        CollectionRepository.clearLocalState()
+        AddonRepository.clearLocalState()
 
         return ImportResult(success = true, error = if (errors.isNotEmpty()) errors.joinToString("; ") else null)
     }
