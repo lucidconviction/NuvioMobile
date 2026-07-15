@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.CollectionsBookmark
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Favorite
@@ -97,6 +98,7 @@ internal fun settingsSearchEntries(
     val advancedPage = stringResource(Res.string.compose_settings_page_advanced)
     val contentDiscoveryPage = stringResource(Res.string.compose_settings_page_content_discovery)
     val downloadsPage = stringResource(Res.string.compose_settings_root_downloads_title)
+    val backupRestorePage = stringResource(Res.string.compose_settings_page_backup_restore)
     val playbackPage = stringResource(Res.string.compose_settings_page_playback)
     val streamsPage = stringResource(Res.string.compose_settings_page_streams)
     val integrationsPage = stringResource(Res.string.compose_settings_page_integrations)
@@ -235,6 +237,14 @@ internal fun settingsSearchEntries(
         category = generalCategory,
         icon = Icons.Rounded.CloudDownload,
         target = SettingsSearchTarget.Downloads,
+    )
+    addPage(
+        page = SettingsPage.BackupRestore,
+        key = "backup-restore",
+        title = backupRestorePage,
+        description = stringResource(Res.string.compose_settings_root_backup_restore_description),
+        category = generalCategory,
+        icon = Icons.Rounded.CloudUpload,
     )
     addPage(
         page = SettingsPage.Playback,

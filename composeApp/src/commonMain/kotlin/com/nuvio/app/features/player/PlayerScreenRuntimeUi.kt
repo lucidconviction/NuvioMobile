@@ -26,6 +26,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 
+import com.nuvio.app.features.hub.MultiWindowPositionPicker
+import com.nuvio.app.features.hub.MultiWindowStore
 import com.nuvio.app.features.p2p.P2pStreamingState
 import com.nuvio.app.features.p2p.formatP2pMegabytes
 import com.nuvio.app.features.p2p.formatP2pSpeed
@@ -280,6 +282,7 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             onSourcesClick = if (activeVideoId != null) { { openSourcesPanel() } } else null,
             onChannelsClick = if (args.parentMetaId == "iptv") { { channelOverlayTrigger++ } } else null,
             onEpisodesClick = if (isSeries) { { openEpisodesPanel() } } else null,
+            onMultiViewClick = { showMultiViewPicker = true },
             onOpenInExternalPlayer = args.onOpenInExternalPlayer?.let { openExternal ->
                 {
                     val loadedSubtitles = addonSubtitles
@@ -626,4 +629,25 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
             showSubmitIntroModal = false
         },
     )
+
+    // ─── Multi-View Picker ──────────────────────────────────────────
+    if (showMultiViewPicker) {
+        MultiWindowPositionPicker(
+            streamTitle = activeStreamTitle.ifBlank { title },
+            streamUrl = activeSourceUrl,
+            streamPoster = poster ?: logo,
+            onDismiss = { showMultiViewPicker = false },
+            onSlotSelected = { slotIndex ->
+                if (activeSourceUrl.isNotBlank()) {
+                    MultiWindowStore.addStream(
+                        url = activeSourceUrl,
+                        title = activeStreamTitle.ifBlank { title },
+                        poster = poster ?: logo,
+                        slotIndex = slotIndex,
+                    )
+                }
+                showMultiViewPicker = false
+            },
+        )
+    }
 }

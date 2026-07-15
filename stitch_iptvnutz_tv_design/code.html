@@ -1,0 +1,419 @@
+<!DOCTYPE html><html lang="en" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=JetBrains+Mono:wght@100..800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">try{
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-container-low": "#1b1b1b",
+                      "surface-container": "#1f1f1f",
+                      "surface-container-high": "#2a2a2a",
+                      "surface-container-highest": "#353535",
+                      "surface-variant": "#353535",
+                      "on-surface": "#e2e2e2",
+                      "on-surface-variant": "#c4c7c8",
+                      "outline": "#8e9192",
+                      "outline-variant": "#444748",
+                      "primary": "#ffffff",
+                      "on-primary": "#2f3131",
+                      "background": "#000000",
+                      "error": "#ffb4ab"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "2xl": "1rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "gutter": "24px",
+                      "margin-tablet": "32px",
+                      "margin-mobile": "16px",
+                      "stack-md": "16px",
+                      "stack-sm": "8px",
+                      "margin-desktop": "48px",
+                      "stack-lg": "32px",
+                      "stack-xs": "4px"
+              },
+              "fontFamily": {
+                      "body-md": ["Geist"],
+                      "headline-md": ["Geist"],
+                      "display-lg": ["Geist"],
+                      "meta-xs": ["JetBrains Mono"],
+                      "meta-sm": ["JetBrains Mono"]
+              },
+              "fontSize": {
+                      "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                      "meta-xs": ["12px", {"lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                      "meta-sm": ["14px", {"lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                      "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+              }
+            },
+          },
+        }
+    }catch(_e){}</script><meta charset="utf-8"></head><body class="bg-background h-screen overflow-hidden selection:bg-primary selection:text-on-primary">
+
+<main class="flex-1 flex flex-col h-full relative overflow-hidden">
+  <!-- TopNavBar -->
+  <header class="w-full z-30 bg-background/80 backdrop-blur-md border-b border-white/5">
+    <div class="flex items-center w-full px-margin-desktop h-20 gap-6">
+      <h1 class="text-headline-md font-headline-md font-bold text-primary shrink-0">IPTVNutz Hub</h1>
+      <div class="w-full max-w-xl relative flex items-center">
+        <span class="material-symbols-outlined absolute left-4 text-on-surface-variant pointer-events-none">search</span>
+        <input class="w-full h-12 bg-surface-container-low border-none rounded-full pl-12 pr-6 text-body-md focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all placeholder:text-on-surface-variant/50" placeholder="Search channels, groups, or sources..." type="text">
+      </div>
+      <div class="flex items-center gap-6 ml-auto">
+        <button class="material-symbols-outlined text-primary text-[28px] hover:opacity-80 transition-opacity">notifications</button>
+        <button class="material-symbols-outlined text-primary text-[32px] hover:opacity-80 transition-opacity">account_circle</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Scrollable Content -->
+  <div class="flex-1 overflow-y-auto custom-scrollbar px-margin-desktop pb-margin-desktop">
+
+    <!-- Source Chips -->
+    <section class="mt-stack-lg mb-stack-sm">
+      <div class="flex items-center gap-stack-sm overflow-x-auto no-scrollbar pb-2">
+        <button class="h-8 px-4 rounded-full bg-primary text-on-primary text-meta-sm font-meta-sm transition-transform active:scale-95 whitespace-nowrap font-bold">All <span class="opacity-60 ml-1">124</span></button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">My M3U <span class="opacity-60 ml-1">45</span></button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">Sports Pack <span class="opacity-60 ml-1">32</span></button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">News Bundle <span class="opacity-60 ml-1">28</span></button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">Entertainment <span class="opacity-60 ml-1">19</span></button>
+      </div>
+    </section>
+
+    <!-- Category Chips -->
+    <section class="mb-stack-md">
+      <div class="flex items-center gap-stack-sm overflow-x-auto no-scrollbar pb-2">
+        <button class="h-8 px-4 rounded-full bg-primary text-on-primary text-meta-sm font-meta-sm transition-transform active:scale-95 whitespace-nowrap font-bold">All</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">Entertainment</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">Sports</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">News</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">Music</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">Documentary</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">Kids</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">Movies</button>
+      </div>
+    </section>
+
+    <!-- Section: Favorites -->
+    <section class="mb-stack-lg">
+      <h2 class="text-[20px] font-semibold text-primary mb-stack-sm">Favorites</h2>
+      <div class="flex gap-stack-md overflow-x-auto no-scrollbar pb-2">
+        <!-- Fav Channel Card -->
+        <div class="group relative cursor-pointer w-[140px] shrink-0 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-4 focus:ring-offset-background rounded-xl transition-all duration-300 hover:scale-[0.97]">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[11px] font-meta-sm font-bold uppercase tracking-wider text-center px-2">CNN</span>
+            </div>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-primary"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[12px] font-semibold text-primary truncate">CNN</p>
+              <p class="text-[10px] font-meta-xs text-outline truncate">News</p>
+            </div>
+            <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <span class="material-symbols-outlined text-primary text-[40px]" style="font-variation-settings: 'FILL' 1;">play_circle</span>
+            </div>
+          </div>
+        </div>
+        <div class="group relative cursor-pointer w-[140px] shrink-0 rounded-xl hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[11px] font-meta-sm font-bold uppercase tracking-wider text-center px-2">ESPN</span>
+            </div>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-primary"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[12px] font-semibold text-primary truncate">ESPN</p>
+              <p class="text-[10px] font-meta-xs text-outline truncate">Sports</p>
+            </div>
+          </div>
+        </div>
+        <div class="group relative cursor-pointer w-[140px] shrink-0 rounded-xl hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[11px] font-meta-sm font-bold uppercase tracking-wider text-center px-2">HBO</span>
+            </div>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-primary"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[12px] font-semibold text-primary truncate">HBO</p>
+              <p class="text-[10px] font-meta-xs text-outline truncate">Entertainment</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: History -->
+    <section class="mb-stack-lg">
+      <h2 class="text-[20px] font-semibold text-primary mb-stack-sm">History</h2>
+      <div class="flex gap-stack-md overflow-x-auto no-scrollbar pb-2">
+        <div class="group relative cursor-pointer w-[140px] shrink-0 rounded-xl hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[11px] font-meta-sm font-bold uppercase tracking-wider text-center px-2">NBC</span>
+            </div>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-primary"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[12px] font-semibold text-primary truncate">NBC News</p>
+              <p class="text-[10px] font-meta-xs text-outline truncate">News</p>
+            </div>
+          </div>
+        </div>
+        <div class="group relative cursor-pointer w-[140px] shrink-0 rounded-xl hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[11px] font-meta-sm font-bold uppercase tracking-wider text-center px-2">FX</span>
+            </div>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[12px] font-semibold text-primary truncate">FX</p>
+              <p class="text-[10px] font-meta-xs text-outline truncate">Entertainment</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Channels Grid -->
+    <section class="mb-stack-lg">
+      <div class="flex items-center justify-between mb-stack-md">
+        <h2 class="text-[20px] font-semibold text-primary">All Channels</h2>
+        <span class="text-meta-sm text-on-surface-variant/60">124 channels</span>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-gutter" id="channels-grid">
+
+        <!-- Channel Card template -->
+        <div class="group relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-4 focus:ring-offset-background rounded-xl transition-all duration-300 hover:scale-[0.97]">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <!-- Channel logo area -->
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[13px] font-meta-sm font-bold uppercase tracking-wider text-center px-3">BBC One</span>
+            </div>
+            <!-- Gradient overlay bottom -->
+            <div class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/85 to-transparent"></div>
+            <!-- Status dot -->
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-primary"></div>
+            <!-- Favorite icon -->
+            <button class="absolute top-2 right-8 opacity-0 group-hover:opacity-100 transition-opacity">
+              <span class="material-symbols-outlined text-[18px] text-on-surface-variant/60 hover:text-primary">favorite</span>
+            </button>
+            <!-- Multi-window add -->
+            <button class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <span class="text-[14px] text-on-surface-variant/60 hover:text-primary font-bold">⊕</span>
+            </button>
+            <!-- Channel name + group -->
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[14px] font-semibold text-primary truncate">BBC One</p>
+              <p class="text-[11px] font-meta-xs text-outline truncate">Entertainment</p>
+            </div>
+            <!-- Hover overlay -->
+            <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <span class="material-symbols-outlined text-primary text-[48px]" style="font-variation-settings: 'FILL' 1;">play_circle</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="group relative cursor-pointer hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <div class="w-16 h-16 rounded-full bg-surface-container-higher flex items-center justify-center">
+                <span class="text-primary text-[22px] font-bold">CNN</span>
+              </div>
+            </div>
+            <div class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/85 to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-primary"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[14px] font-semibold text-primary truncate">CNN</p>
+              <p class="text-[11px] font-meta-xs text-outline truncate">News</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="group relative cursor-pointer hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center bg-gradient-to-b from-surface-container-high to-surface-container">
+              <span class="text-on-surface/80 text-[13px] font-meta-sm font-bold uppercase tracking-wider text-center px-3">ESPN 2</span>
+            </div>
+            <div class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/85 to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-primary"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[14px] font-semibold text-primary truncate">ESPN 2</p>
+              <p class="text-[11px] font-meta-xs text-outline truncate">Sports</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 4 -->
+        <div class="group relative cursor-pointer hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[13px] font-meta-sm font-bold uppercase tracking-wider text-center px-3">National Geographic</span>
+            </div>
+            <div class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/85 to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-outline-variant"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[14px] font-semibold text-primary truncate">National Geographic</p>
+              <p class="text-[11px] font-meta-xs text-outline truncate">Documentary</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 5 -->
+        <div class="group relative cursor-pointer hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[13px] font-meta-sm font-bold uppercase tracking-wider text-center px-3">MTV</span>
+            </div>
+            <div class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/85 to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-primary"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[14px] font-semibold text-primary truncate">MTV</p>
+              <p class="text-[11px] font-meta-xs text-outline truncate">Music</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 6 -->
+        <div class="group relative cursor-pointer hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[13px] font-meta-sm font-bold uppercase tracking-wider text-center px-3">Discovery</span>
+            </div>
+            <div class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/85 to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-primary"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[14px] font-semibold text-primary truncate">Discovery Channel</p>
+              <p class="text-[11px] font-meta-xs text-outline truncate">Documentary</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 7 -->
+        <div class="group relative cursor-pointer hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[13px] font-meta-sm font-bold uppercase tracking-wider text-center px-3">Cartoon Network</span>
+            </div>
+            <div class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/85 to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-outline-variant"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[14px] font-semibold text-primary truncate">Cartoon Network</p>
+              <p class="text-[11px] font-meta-xs text-outline truncate">Kids</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 8 -->
+        <div class="group relative cursor-pointer hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[13px] font-meta-sm font-bold uppercase tracking-wider text-center px-3">HBO</span>
+            </div>
+            <div class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/85 to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-primary"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[14px] font-semibold text-primary truncate">HBO</p>
+              <p class="text-[11px] font-meta-xs text-outline truncate">Entertainment</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Section: Playlists -->
+    <section class="mb-stack-lg">
+      <div class="flex items-center justify-between mb-stack-md">
+        <h2 class="text-[20px] font-semibold text-primary">Your Playlists</h2>
+        <button class="px-4 py-2 rounded-xl bg-primary text-on-primary text-[11px] font-bold hover:opacity-90 transition-opacity">+ ADD</button>
+      </div>
+      <div class="space-y-stack-md">
+        <!-- Playlist Card -->
+        <div class="w-full rounded-2xl bg-surface-container p-4 flex items-center">
+          <div class="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center shrink-0">
+            <span class="text-on-surface-variant font-bold text-[14px]">M3U</span>
+          </div>
+          <div class="ml-4 flex-1 min-w-0">
+            <p class="text-[16px] font-bold text-primary truncate">My Playlist Name</p>
+            <p class="text-[13px] text-on-surface-variant/70">45 Channels</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors">refresh</button>
+            <button class="material-symbols-outlined text-on-surface-variant hover:text-red-400 transition-colors">delete</button>
+            <span class="material-symbols-outlined text-on-surface text-[20px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+          </div>
+        </div>
+        <!-- Playlist Card 2 -->
+        <div class="w-full rounded-2xl bg-surface-container p-4 flex items-center">
+          <div class="w-12 h-12 rounded-xl bg-surface-container-high flex items-center justify-center shrink-0">
+            <span class="text-on-surface-variant font-bold text-[14px]">XT</span>
+          </div>
+          <div class="ml-4 flex-1 min-w-0">
+            <p class="text-[16px] font-bold text-primary truncate">Sports Pack</p>
+            <p class="text-[13px] text-on-surface-variant/70">32 Channels</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors">refresh</button>
+            <button class="material-symbols-outlined text-on-surface-variant hover:text-red-400 transition-colors">delete</button>
+            <span class="material-symbols-outlined text-on-surface text-[20px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Empty State (hidden by default) -->
+    <section class="hidden flex flex-col items-center justify-center py-stack-lg min-h-[400px] text-center" id="empty-state">
+      <div class="w-24 h-24 rounded-full bg-surface-container-low flex items-center justify-center mb-stack-md border border-outline-variant">
+        <span class="material-symbols-outlined text-outline text-[48px]">search_off</span>
+      </div>
+      <h3 class="text-headline-md font-headline-md text-primary">No channels found</h3>
+      <p class="text-body-md font-body-md text-on-surface-variant max-w-sm mx-auto mt-2">Try adjusting your source or category filters to find what you're looking for.</p>
+      <button class="mt-stack-lg px-8 py-3 rounded-full bg-primary text-on-primary font-bold hover:opacity-90 transition-opacity">Clear Filters</button>
+    </section>
+
+  </div>
+
+</main>
+
+<script>
+  // Micro-interactions for demonstration
+  document.querySelectorAll('.group').forEach(card => {
+    card.addEventListener('mouseenter', () => {});
+  });
+
+  // Source chip switching logic
+  const sourceChips = document.querySelectorAll('.flex.items-center.gap-stack-sm button');
+  sourceChips.forEach(btn => {
+    btn.addEventListener('click', () => {
+      sourceChips.forEach(b => {
+        b.className = 'h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap';
+      });
+      btn.className = 'h-8 px-4 rounded-full bg-primary text-on-primary text-meta-sm font-meta-sm transition-transform active:scale-95 whitespace-nowrap font-bold';
+      // preserve count badge
+      const countSpan = btn.querySelector('span');
+      if (countSpan) btn.className += ' opacity-60 ml-1';
+    });
+  });
+
+  // Category chip switching
+  const categoryChips = document.querySelectorAll('section:nth-child(2) .flex.items-center button');
+  categoryChips.forEach(btn => {
+    btn.addEventListener('click', () => {
+      categoryChips.forEach(b => {
+        b.className = 'h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap';
+      });
+      btn.className = 'h-8 px-4 rounded-full bg-primary text-on-primary text-meta-sm font-meta-sm transition-transform active:scale-95 whitespace-nowrap font-bold';
+    });
+  });
+</script>
+
+</body></html>

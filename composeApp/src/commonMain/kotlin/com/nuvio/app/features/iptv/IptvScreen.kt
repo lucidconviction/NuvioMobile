@@ -1,12 +1,21 @@
 package com.nuvio.app.features.iptv
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -21,13 +30,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
@@ -37,6 +52,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -50,6 +66,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -60,15 +77,19 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -80,20 +101,29 @@ import com.nuvio.app.features.hub.MultiWindowStore
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.player.PlayerLaunchStore
 import com.nuvio.app.features.trakt.TraktPlatformClock
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
-private val ObsidianBg = Color(0xFF000000)
-private val GlassBg = Color(0xFF1A1A1A).copy(alpha = 0.7f)
-private val SurfaceLow = Color(0xFF111111)
-private val SurfaceVariant = Color(0xFF252525)
-private val SurfaceCard = Color(0xFF1A1A1A)
-private val OnSurface = Color(0xFFE0E0E0)
-private val OnSurfaceVariant = Color(0xFFB0B0B0)
-private val OutlineVariant = Color(0xFF3A3A3A)
-private val InputBg = Color(0xFF0F0F0F)
-private val AccentGray = Color(0xFFCCCCCC)
+// ─── Obsidian Media Hub Design Tokens ────────────────────────────────────
+private val ObsidianBg = Color(0xFF131313)
+private val surfaceContainerLowest = Color(0xFF0E0E0E)
+private val surfaceContainerLow = Color(0xFF1B1B1B)
+private val surfaceContainer = Color(0xFF1F1F1F)
+private val surfaceContainerHigh = Color(0xFF2A2A2A)
+private val surfaceContainerHighest = Color(0xFF353535)
+private val surfaceVariant = Color(0xFF353535)
+private val onSurface = Color(0xFFE2E2E2)
+private val onsurfaceContainerHigh = Color(0xFFC4C7C8)
+private val outline = Color(0xFF8E9192)
+private val outlineVariant = Color(0xFF444748)
+private val primary = Color(0xFFFDFDFC)
+private val onPrimary = Color(0xFF2F3131)
+private val errorColor = Color(0xFFFFB4AB)
+private val onError = Color(0xFF690005)
+private val errorContainer = Color(0xFF93000A)
 private val FavoriteRed = Color(0xFFE91E63)
+private val tvMargin = 48.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -102,11 +132,12 @@ fun IptvScreen(
     onPlayChannel: ((PlayerLaunch) -> Unit)? = null,
     scrollToTopRequests: Flow<Unit> = emptyFlow(),
     onMultiWindowAdded: (() -> Unit)? = null,
+    isTabletLayout: Boolean = false,
 ) {
     val uiState by IptvRepository.uiState.collectAsStateWithLifecycle()
     var showAddSourceSheet by remember { mutableStateOf(false) }
     var loadError by remember { mutableStateOf<String?>(null) }
-    var pickerChannel by remember { mutableStateOf<com.nuvio.app.features.iptv.IptvChannel?>(null) }
+    var pickerChannel by remember { mutableStateOf<IptvChannel?>(null) }
 
     LaunchedEffect(Unit) {
         try {
@@ -120,13 +151,13 @@ fun IptvScreen(
     if (loadError != null) {
         Box(Modifier.fillMaxSize().background(ObsidianBg), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Failed to load IPTV", color = OnSurfaceVariant, fontSize = 16.sp)
+                Text("Failed to load IPTV", color = onsurfaceContainerHigh, fontSize = 16.sp)
                 Spacer(Modifier.height(12.dp))
-                Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(SurfaceCard).clickable {
+                Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(surfaceContainer).clickable {
                     loadError = null
                     try { IptvRepository.ensureLoaded() } catch (e: Exception) { loadError = e.message }
                 }.padding(horizontal = 24.dp, vertical = 10.dp)) {
-                    Text("Retry", color = AccentGray, fontWeight = FontWeight.Bold)
+                    Text("Retry", color = primary, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -138,19 +169,713 @@ fun IptvScreen(
             channel = ch,
             onDismiss = { pickerChannel = null },
             onSlotSelected = { slot ->
-                com.nuvio.app.features.hub.MultiWindowStore.addToSlot(ch, slot)
+                try {
+                    com.nuvio.app.features.hub.MultiWindowStore.addToSlot(ch, slot)
+                } catch (e: Exception) {
+                    co.touchlab.kermit.Logger.e(e) { "Failed to add to multiwindow slot" }
+                }
                 pickerChannel = null
             },
         )
     }
 
+    BoxWithConstraints(modifier = modifier.fillMaxSize().background(ObsidianBg)) {
+        val isTvMode = maxWidth >= 1024.dp
+
+        if (isTvMode) {
+            IptvTvMode(
+                uiState = uiState,
+                onPlayChannel = onPlayChannel,
+                scrollToTopRequests = scrollToTopRequests,
+                onAddSource = { showAddSourceSheet = true },
+                onPickerChannel = { pickerChannel = it },
+            )
+        } else {
+            IptvMobileMode(
+                uiState = uiState,
+                onPlayChannel = onPlayChannel,
+                scrollToTopRequests = scrollToTopRequests,
+                onAddSource = { showAddSourceSheet = true },
+                onPickerChannel = { pickerChannel = it },
+            )
+        }
+    }
+
+    if (showAddSourceSheet) {
+        AddSourceBottomSheet(
+            onDismiss = { showAddSourceSheet = false },
+            onSuccess = { showAddSourceSheet = false }
+        )
+    }
+}
+
+// ── TV Mode ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun IptvTvMode(
+    uiState: IptvUiState,
+    onPlayChannel: ((PlayerLaunch) -> Unit)?,
+    scrollToTopRequests: Flow<Unit>,
+    onAddSource: () -> Unit,
+    onPickerChannel: (IptvChannel) -> Unit,
+) {
+    val now = TraktPlatformClock.nowEpochMs()
+    val scrollState = rememberScrollState()
+    val allChannels = uiState.m3uPlaylists.flatMap { it.channels } +
+            uiState.xtreamAccounts.flatMap { it.channels } +
+            uiState.stalkerAccounts.flatMap { it.channels }
+    val favorites = IptvRepository.getFavoriteChannels()
+    val history = IptvRepository.getHistoryChannels()
+    val playlists = uiState.m3uPlaylists + uiState.xtreamAccounts.map { acc ->
+        M3uPlaylist(id = acc.id, name = acc.name, url = acc.server, channels = acc.channels)
+    } + uiState.stalkerAccounts.map { acc ->
+        M3uPlaylist(id = acc.id, name = acc.name, url = acc.server, channels = acc.channels)
+    }
+
+    var showSearch by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize().background(ObsidianBg)) {
+        // ── Scrollable Content (header + body scroll together) ──
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(scrollState)
+                .padding(horizontal = tvMargin),
+        ) {
+            // ── TopAppBar ──
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = { /* parent handles back */ }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = onSurface)
+                }
+                Text("IPTVNutz Hub", color = primary, fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                Spacer(Modifier.width(24.dp))
+                if (showSearch) {
+                    OutlinedTextField(
+                        value = uiState.searchQuery,
+                        onValueChange = { IptvRepository.setSearchQuery(it) },
+                        placeholder = { Text("Search channels, groups, or sources...", color = onsurfaceContainerHigh.copy(alpha = 0.5f), fontSize = 14.sp) },
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = onsurfaceContainerHigh, modifier = Modifier.size(20.dp)) },
+                        trailingIcon = {
+                            if (uiState.searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { IptvRepository.setSearchQuery("") }) {
+                                    Icon(Icons.Filled.Clear, "Clear", tint = onsurfaceContainerHigh)
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(50),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = onSurface, unfocusedTextColor = onSurface,
+                            focusedBorderColor = primary, unfocusedBorderColor = outlineVariant.copy(alpha = 0.5f),
+                            cursorColor = primary,
+                            focusedContainerColor = surfaceContainerLow,
+                            unfocusedContainerColor = surfaceContainerLow,
+                        ),
+                        modifier = Modifier.weight(1f).height(48.dp),
+                    )
+                } else {
+                    IconButton(onClick = { showSearch = true }) {
+                        Icon(Icons.Filled.Search, "Search", tint = onSurface, modifier = Modifier.size(28.dp))
+                    }
+                }
+                Spacer(Modifier.width(24.dp))
+                Icon(Icons.Filled.Notifications, "Notifications", tint = onSurface, modifier = Modifier.size(28.dp))
+                Spacer(Modifier.width(20.dp))
+                Icon(Icons.Filled.AccountCircle, "Account", tint = onSurface, modifier = Modifier.size(32.dp))
+            }
+            // Source Chips Row
+            SourceChipsTvRow(uiState = uiState)
+
+            Spacer(Modifier.height(16.dp))
+
+            // Category Chips Row
+            CategoryChipsTvRow(uiState = uiState)
+
+            Spacer(Modifier.height(24.dp))
+
+            // Bento Featured Grid
+            if (favorites.isNotEmpty()) {
+                FeaturedBentoSection(
+                    channels = favorites.take(3),
+                    now = now,
+                    onPlay = { playChannel(it, onPlayChannel) },
+                    isTablet = false,
+                )
+                Spacer(Modifier.height(32.dp))
+            }
+
+            // Recommended Channels Grid
+            val displayChannels = if (uiState.searchQuery.isNotBlank()) {
+                allChannels.filter { it.name.contains(uiState.searchQuery, ignoreCase = true) ||
+                        (it.group?.contains(uiState.searchQuery, ignoreCase = true) == true) }
+            } else allChannels
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Recommended Channels", color = primary, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+                Text("VIEW ALL", color = onsurfaceContainerHigh.copy(alpha = 0.7f), fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            }
+            Spacer(Modifier.height(12.dp))
+
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 200.dp),
+                modifier = Modifier.fillMaxWidth().height(360.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+                contentPadding = PaddingValues(bottom = 8.dp),
+                userScrollEnabled = false,
+            ) {
+                items(displayChannels.take(10), key = { "${it.id}_${it.sourceId}" }) { channel ->
+                    TvChannelCard(
+                        channel = channel,
+                        isFavorite = channel.id in uiState.favoriteChannelIds,
+                        now = now,
+                        onPlay = { playChannel(channel, onPlayChannel) },
+                        onToggleFavorite = { IptvRepository.toggleFavorite(channel.id) },
+                        onAddToMultiWindow = { onPickerChannel(channel) },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(32.dp))
+
+            // Playlists Section
+            PlaylistsTvSection(
+                m3uPlaylists = uiState.m3uPlaylists,
+                xtreamAccounts = uiState.xtreamAccounts,
+                stalkerAccounts = uiState.stalkerAccounts,
+                refreshingIds = uiState.refreshingSourceIds,
+                onAddClick = onAddSource,
+                onRefreshM3u = { IptvRepository.refreshM3uChannels(it) },
+                onDeleteM3u = { IptvRepository.removeM3uPlaylist(it) },
+                onRefreshXtream = { IptvRepository.refreshXtreamChannels(it) },
+                onDeleteXtream = { IptvRepository.removeXtreamAccount(it) },
+                onRefreshStalker = { IptvRepository.refreshStalkerChannels(it) },
+                onDeleteStalker = { IptvRepository.removeStalkerAccount(it) },
+            )
+
+            Spacer(Modifier.height(32.dp))
+
+            // Recently Watched (History)
+            if (history.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Recently Watched", color = primary, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+                }
+                Spacer(Modifier.height(12.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    itemsIndexed(history.take(12), key = { i, ch -> "tv_hist_${i}_${ch.id}_${ch.sourceId}" }) { _, channel ->
+                        HistoryTvCard(
+                            channel = channel,
+                            onPlay = { playChannel(channel, onPlayChannel) },
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(120.dp))
+        }
+    }
+
+    // ── Status Bar ──
+    Row(
+        modifier = Modifier.fillMaxWidth().background(surfaceContainerLow.copy(alpha = 0.9f))
+            .border(0.5.dp, outlineVariant.copy(alpha = 0.5f))
+            .padding(horizontal = tvMargin, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF4CAF50)))
+                Text("SERVER STATUS: OPTIMAL", color = onsurfaceContainerHigh, fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace)
+            }
+            Box(Modifier.width(1.dp).height(16.dp).background(outlineVariant.copy(alpha = 0.5f)))
+            Text("LATENCY: 42ms", color = onsurfaceContainerHigh, fontSize = 11.sp,
+                fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            val upNext = if (history.isNotEmpty()) history.first().name else ""
+            Text("UPNEXT: ${upNext.uppercase()}", color = primary, fontSize = 11.sp,
+                fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace)
+            TvClock()
+        }
+    }
+}
+
+@Composable
+private fun TvClock() {
+    var ms by remember { mutableLongStateOf(TraktPlatformClock.nowEpochMs()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            ms = TraktPlatformClock.nowEpochMs()
+        }
+    }
+    val totalSeconds = ms / 1000L
+    val h = ((totalSeconds / 3600) % 24).toInt()
+    val m = ((totalSeconds / 60) % 60).toInt()
+    val s = (totalSeconds % 60).toInt()
+    Text(
+        "${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}",
+        color = onsurfaceContainerHigh, fontSize = 11.sp,
+        fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace,
+    )
+}
+
+@Composable
+private fun SourceChipsTvRow(uiState: IptvUiState) {
+    val sourceNames = IptvRepository.getAllSourceNames()
+    val sourceIds = IptvRepository.getAllSourceIds()
+    val allChannels = uiState.m3uPlaylists.flatMap { it.channels } +
+            uiState.xtreamAccounts.flatMap { it.channels } +
+            uiState.stalkerAccounts.flatMap { it.channels }
+
+    Column {
+        Text("ACTIVE SOURCES", color = onsurfaceContainerHigh.copy(alpha = 0.6f), fontSize = 11.sp,
+            fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+        Spacer(Modifier.height(6.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            val allSelected = uiState.selectedSourceIds.isEmpty()
+            TvSourceChip(
+                selected = allSelected,
+                onClick = { if (!allSelected) IptvRepository.clearSourceSelection() },
+                label = "ALL SOURCES",
+                count = allChannels.size,
+                chipStyle = "filled",
+            )
+            sourceNames.forEachIndexed { index, name ->
+                val id = sourceIds.getOrNull(index) ?: return@forEachIndexed
+                val count = when {
+                    index < uiState.m3uPlaylists.size -> uiState.m3uPlaylists[index].channels.size
+                    index < uiState.m3uPlaylists.size + uiState.xtreamAccounts.size -> {
+                        val xi = index - uiState.m3uPlaylists.size
+                        uiState.xtreamAccounts.getOrNull(xi)?.channels?.size ?: 0
+                    }
+                    else -> 0
+                }
+                TvSourceChip(
+                    selected = id in uiState.selectedSourceIds,
+                    onClick = { IptvRepository.toggleSourceSelection(index) },
+                    label = name.uppercase(),
+                    count = count,
+                    chipStyle = "outlined",
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TvSourceChip(selected: Boolean, onClick: () -> Unit, label: String, count: Int, chipStyle: String) {
+    Box(
+        modifier = Modifier.clip(RoundedCornerShape(8.dp))
+            .background(if (selected) primary else surfaceContainerLow)
+            .border(if (chipStyle == "outlined" && !selected) 1.dp else 0.dp,
+                outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(label, color = if (selected) onPrimary else onsurfaceContainerHigh,
+                fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            Text("$count", color = if (selected) onPrimary.copy(alpha = 0.7f) else onsurfaceContainerHigh.copy(alpha = 0.5f),
+                fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+        }
+    }
+}
+
+@Composable
+private fun CategoryChipsTvRow(uiState: IptvUiState) {
+    val categories = IptvRepository.getAllCategories()
+    if (categories.isEmpty()) return
+
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        TvCategoryChip(
+            selected = uiState.selectedCategory == null,
+            onClick = { IptvRepository.selectCategory(null) },
+            label = "ALL",
+        )
+        categories.forEach { cat ->
+            TvCategoryChip(
+                selected = uiState.selectedCategory == cat,
+                onClick = { IptvRepository.selectCategory(cat) },
+                label = cat.uppercase(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TvCategoryChip(selected: Boolean, onClick: () -> Unit, label: String) {
+    Box(
+        modifier = Modifier.clip(RoundedCornerShape(50))
+            .background(if (selected) primary else surfaceContainerLow)
+            .border(if (!selected) 1.dp else 0.dp, outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(50))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 7.dp),
+    ) {
+        Text(label, color = if (selected) onPrimary else onsurfaceContainerHigh,
+            fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+    }
+}
+
+@Composable
+private fun FeaturedBentoSection(
+    channels: List<IptvChannel>,
+    now: Long,
+    onPlay: (IptvChannel) -> Unit,
+    isTablet: Boolean,
+) {
+    val hero = channels.getOrNull(0)
+    val side1 = channels.getOrNull(1)
+    val side2 = channels.getOrNull(2)
+
+    Row(
+        modifier = Modifier.fillMaxWidth().height(280.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        // Hero (8-col equivalent)
+        Box(
+            modifier = Modifier.weight(2f).fillMaxHeight()
+                .clip(RoundedCornerShape(12.dp))
+                .background(surfaceContainerHigh)
+                .border(0.5.dp, outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                .clickable { hero?.let(onPlay) },
+        ) {
+            if (hero != null) {
+                if (!hero.logo.isNullOrBlank()) {
+                    AsyncImage(model = hero.logo, contentDescription = hero.name,
+                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                }
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.9f)))))
+                Box(Modifier.align(Alignment.TopStart).padding(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.clip(RoundedCornerShape(4.dp)).background(errorColor).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                val pulseAlpha = animateToAlpha()
+                                Box(Modifier.size(6.dp).clip(CircleShape).background(primary.copy(alpha = pulseAlpha)))
+                                Text("LIVE", color = primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                        Box(Modifier.clip(RoundedCornerShape(4.dp)).background(ObsidianBg.copy(alpha = 0.6f)).padding(horizontal = 8.dp, vertical = 3.dp)) {
+                            Text("4K ULTRA HD", color = primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                }
+                Box(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
+                    Column {
+                        Text(hero.group?.uppercase() ?: "PREMIUM", color = onsurfaceContainerHigh, fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                        Text(hero.name, color = primary, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Box(Modifier.clip(RoundedCornerShape(8.dp)).background(primary).clickable { onPlay(hero) }
+                                .padding(horizontal = 20.dp, vertical = 10.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Icon(Icons.Filled.PlayArrow, null, tint = onPrimary, modifier = Modifier.size(18.dp))
+                                    Text("WATCH NOW", color = onPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
+                            Box(Modifier.clip(RoundedCornerShape(8.dp)).background(ObsidianBg.copy(alpha = 0.4f))
+                                .border(0.5.dp, outlineVariant, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 16.dp, vertical = 10.dp)) {
+                                Text("STATS & INFO", color = primary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            } else {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No featured channels", color = onsurfaceContainerHigh)
+                }
+            }
+        }
+
+        // Stacked side cards (4-col equivalent)
+        Column(
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            listOfNotNull(side1, side2).forEach { ch ->
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(surfaceContainerHigh)
+                        .border(0.5.dp, outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                        .clickable { onPlay(ch) },
+                ) {
+                    if (!ch.logo.isNullOrBlank()) {
+                        AsyncImage(model = ch.logo, contentDescription = ch.name,
+                            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    }
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.85f)))))
+                    Box(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
+                        Column {
+                            Text("${ch.group?.take(3)?.uppercase() ?: "LIVE"} · LIVE",
+                                color = errorColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                            Text(ch.name, color = primary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun animateToAlpha(): Float {
+    val infiniteTransition = rememberInfiniteTransition(label = "livePulse")
+    return infiniteTransition.animateFloat(
+        initialValue = 1f, targetValue = 0.3f,
+        animationSpec = infiniteRepeatable(animation = tween(800, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
+        label = "pulse",
+    ).value
+}
+
+@Composable
+private fun TvChannelCard(
+    channel: IptvChannel,
+    isFavorite: Boolean,
+    now: Long,
+    onPlay: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onAddToMultiWindow: () -> Unit,
+) {
+    Box(
+        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+            .clip(RoundedCornerShape(12.dp))
+            .background(surfaceContainerHigh)
+            .border(0.5.dp, outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onPlay),
+    ) {
+        if (!channel.logo.isNullOrBlank()) {
+            AsyncImage(model = channel.logo, contentDescription = channel.name,
+                modifier = Modifier.fillMaxSize().padding(24.dp), contentScale = ContentScale.Fit)
+        } else {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.LiveTv, null, tint = onsurfaceContainerHigh.copy(alpha = 0.3f), modifier = Modifier.size(48.dp))
+            }
+        }
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.85f)))))
+        Box(Modifier.align(Alignment.TopStart).padding(8.dp)) {
+            Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFE53935)))
+        }
+        Box(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 4.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                IconButton(onClick = onToggleFavorite, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        if (isFavorite) "Unfavorite" else "Favorite",
+                        tint = if (isFavorite) FavoriteRed else onsurfaceContainerHigh.copy(alpha = 0.6f),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                IconButton(onClick = onAddToMultiWindow, modifier = Modifier.size(28.dp)) {
+                    Text("\u2295", color = onsurfaceContainerHigh.copy(alpha = 0.6f), fontSize = 16.sp)
+                }
+            }
+        }
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)).align(Alignment.Center)) // hover overlay placeholder
+        Box(Modifier.align(Alignment.Center)) {
+            Icon(Icons.Filled.PlayArrow, "Play", tint = primary, modifier = Modifier.size(48.dp))
+        }
+        Box(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
+            Column {
+                Text(channel.name, color = primary, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(channel.group?.uppercase() ?: "LIVE", color = onsurfaceContainerHigh, fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryTvCard(channel: IptvChannel, onPlay: () -> Unit) {
+    Box(
+        modifier = Modifier.width(240.dp).aspectRatio(16f / 9f)
+            .clip(RoundedCornerShape(12.dp))
+            .background(surfaceContainerHigh)
+            .border(0.5.dp, outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onPlay),
+    ) {
+        if (!channel.logo.isNullOrBlank()) {
+            AsyncImage(model = channel.logo, contentDescription = channel.name,
+                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        } else {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.LiveTv, null, tint = onsurfaceContainerHigh.copy(alpha = 0.2f), modifier = Modifier.size(40.dp))
+            }
+        }
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.85f)))))
+        Box(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
+            Text(channel.name, color = primary, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Box(Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp).fillMaxWidth(0.85f)) {
+            Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(primary.copy(alpha = 0.2f))) {
+                val pct = 0.7f // placeholder progress
+                Box(Modifier.fillMaxWidth(pct).fillMaxHeight().clip(RoundedCornerShape(2.dp)).background(primary))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistsTvSection(
+    m3uPlaylists: List<M3uPlaylist>,
+    xtreamAccounts: List<XtreamAccount>,
+    stalkerAccounts: List<StalkerAccount>,
+    refreshingIds: Set<String>,
+    onAddClick: () -> Unit,
+    onRefreshM3u: (String) -> Unit,
+    onDeleteM3u: (String) -> Unit,
+    onRefreshXtream: (String) -> Unit,
+    onDeleteXtream: (String) -> Unit,
+    onRefreshStalker: (String) -> Unit,
+    onDeleteStalker: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Your Playlists", color = primary, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+        Box(Modifier.clip(RoundedCornerShape(8.dp)).background(primary).clickable(onClick = onAddClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Filled.Add, null, tint = onPrimary, modifier = Modifier.size(16.dp))
+                Text("ADD", color = onPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        m3uPlaylists.forEach { pl ->
+            TvPlaylistCard(
+                iconLabel = "M3U",
+                name = pl.name,
+                subtitle = "${pl.channels.size} Channels",
+                status = if (pl.channels.isNotEmpty()) "Connected" else "Pending",
+                statusColor = if (pl.channels.isNotEmpty()) Color(0xFF4CAF50) else outlineVariant,
+                isRefreshing = pl.id in refreshingIds,
+                onRefresh = { onRefreshM3u(pl.id) },
+                onDelete = { onDeleteM3u(pl.id) },
+            )
+        }
+        xtreamAccounts.forEach { acc ->
+            TvPlaylistCard(
+                iconLabel = "XT",
+                name = acc.name,
+                subtitle = "${acc.channels.size} Channels",
+                status = if (acc.channels.isNotEmpty()) "Connected" else "Pending",
+                statusColor = if (acc.channels.isNotEmpty()) Color(0xFF4CAF50) else outlineVariant,
+                isRefreshing = acc.id in refreshingIds,
+                onRefresh = { onRefreshXtream(acc.id) },
+                onDelete = { onDeleteXtream(acc.id) },
+            )
+        }
+        stalkerAccounts.forEach { acc ->
+            TvPlaylistCard(
+                iconLabel = "SK",
+                name = acc.name,
+                subtitle = "${acc.channels.size} Channels",
+                status = if (acc.channels.isNotEmpty()) "Connected" else "Pending",
+                statusColor = if (acc.channels.isNotEmpty()) Color(0xFF4CAF50) else outlineVariant,
+                isRefreshing = acc.id in refreshingIds,
+                onRefresh = { onRefreshStalker(acc.id) },
+                onDelete = { onDeleteStalker(acc.id) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun TvPlaylistCard(
+    iconLabel: String,
+    name: String,
+    subtitle: String,
+    status: String,
+    statusColor: Color,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+            .background(surfaceContainer)
+            .border(0.5.dp, outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(surfaceContainerHigh), contentAlignment = Alignment.Center) {
+            Text(iconLabel, color = onsurfaceContainerHigh, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(name, color = primary, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(statusColor))
+                Text(subtitle, color = onsurfaceContainerHigh, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text("·", color = onsurfaceContainerHigh.copy(alpha = 0.4f))
+                Text(status.uppercase(), color = onsurfaceContainerHigh, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (isRefreshing) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = primary, strokeWidth = 2.dp)
+            } else {
+                IconButton(onClick = onRefresh, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Filled.Refresh, "Refresh", tint = onsurfaceContainerHigh, modifier = Modifier.size(20.dp))
+                }
+            }
+            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Filled.Delete, "Delete", tint = errorColor.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+            }
+            Icon(Icons.Filled.CheckCircle, null, tint = statusColor, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+// ── Mobile Mode (existing layout) ──────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun IptvMobileMode(
+    uiState: IptvUiState,
+    onPlayChannel: ((PlayerLaunch) -> Unit)?,
+    scrollToTopRequests: Flow<Unit>,
+    onAddSource: () -> Unit,
+    onPickerChannel: (IptvChannel) -> Unit,
+) {
     val listState = rememberLazyListState()
     LaunchedEffect(scrollToTopRequests) {
         scrollToTopRequests.collect { listState.animateScrollToItem(0) }
     }
 
     Scaffold(
-        modifier = modifier.fillMaxSize().background(ObsidianBg),
+        modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
@@ -170,7 +895,7 @@ fun IptvScreen(
             if (uiState.isLoading && uiState.channels.isEmpty()) {
                 item {
                     Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = AccentGray)
+                        CircularProgressIndicator(color = primary)
                     }
                 }
                 return@LazyColumn
@@ -182,7 +907,7 @@ fun IptvScreen(
 
             item { HistorySection(uiState = uiState, onPlayChannel = onPlayChannel) }
 
-            item { PlaylistsSection(uiState = uiState, onAddClick = { showAddSourceSheet = true }) }
+            item { PlaylistsSection(uiState = uiState, onAddClick = onAddSource) }
 
             item { SourceChipsSection(uiState = uiState) }
 
@@ -192,28 +917,26 @@ fun IptvScreen(
             if (channels.isEmpty()) {
                 item {
                     Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                        Text("No channels found", color = OnSurfaceVariant)
+                        Text("No channels found", color = onsurfaceContainerHigh)
                     }
                 }
             } else {
                 item {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { IptvRepository.toggleChannelsExpanded() },
+                        modifier = Modifier.fillMaxWidth().clickable { IptvRepository.toggleChannelsExpanded() },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
                             text = "${channels.size} Channel${if (channels.size == 1) "" else "s"}",
-                            color = OnSurface,
+                            color = onSurface,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 18.sp,
                         )
                         Icon(
                             if (uiState.channelsExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
                             contentDescription = if (uiState.channelsExpanded) "Collapse" else "Expand",
-                            tint = OnSurfaceVariant,
+                            tint = onsurfaceContainerHigh,
                         )
                     }
                 }
@@ -227,7 +950,7 @@ fun IptvScreen(
                         item(key = "grp_$group") {
                             Text(
                                 text = group ?: "Other",
-                                color = OnSurface,
+                                color = onSurface,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
                                 letterSpacing = 0.5.sp,
@@ -248,7 +971,7 @@ fun IptvScreen(
                                             isFavorite = channel.id in uiState.favoriteChannelIds,
                                             onPlay = { playChannel(channel, onPlayChannel) },
                                             onToggleFavorite = { IptvRepository.toggleFavorite(channel.id) },
-                                            onAddToMultiWindow = { pickerChannel = channel },
+                                            onAddToMultiWindow = { onPickerChannel(channel) },
                                         )
                                     }
                                 }
@@ -260,95 +983,88 @@ fun IptvScreen(
                     }
                 }
 
-            val allFavorites = IptvRepository.getFavoriteChannels()
-            if (allFavorites.isNotEmpty()) {
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { IptvRepository.toggleFavoritesExpanded() },
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("All Favorites", color = OnSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
-                        Icon(
-                            if (uiState.favoritesExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                            contentDescription = if (uiState.favoritesExpanded) "Collapse" else "Expand",
-                            tint = OnSurfaceVariant,
-                        )
-                    }
-                }
-                if (uiState.favoritesExpanded) {
-                    val nowFav = TraktPlatformClock.nowEpochMs()
-                    val favChunked = allFavorites.chunked(2)
-                    itemsIndexed(favChunked, key = { index, row -> "allfav_${index}_" + row.joinToString("-") { "${it.id}_${it.sourceId}" } }) { index, rowChannels ->
+                val allFavorites = IptvRepository.getFavoriteChannels()
+                if (allFavorites.isNotEmpty()) {
+                    item {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            modifier = Modifier.fillMaxWidth().clickable { IptvRepository.toggleFavoritesExpanded() },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            rowChannels.forEach { channel ->
-                                Box(modifier = Modifier.weight(1f)) {
-                                    ChannelCard(
-                                        channel = channel,
-                                        now = nowFav,
-                                        isFavorite = channel.id in uiState.favoriteChannelIds,
-                                        onPlay = { playChannel(channel, onPlayChannel) },
-                                        onToggleFavorite = { IptvRepository.toggleFavorite(channel.id) },
-                                    )
+                            Text("All Favorites", color = onSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+                            Icon(
+                                if (uiState.favoritesExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                                contentDescription = if (uiState.favoritesExpanded) "Collapse" else "Expand",
+                                tint = onsurfaceContainerHigh,
+                            )
+                        }
+                    }
+                    if (uiState.favoritesExpanded) {
+                        val nowFav = TraktPlatformClock.nowEpochMs()
+                        val favChunked = allFavorites.chunked(2)
+                        itemsIndexed(favChunked, key = { index, row -> "allfav_${index}_" + row.joinToString("-") { "${it.id}_${it.sourceId}" } }) { index, rowChannels ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                rowChannels.forEach { channel ->
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        ChannelCard(
+                                            channel = channel,
+                                            now = nowFav,
+                                            isFavorite = channel.id in uiState.favoriteChannelIds,
+                                            onPlay = { playChannel(channel, onPlayChannel) },
+                                            onToggleFavorite = { IptvRepository.toggleFavorite(channel.id) },
+                                        )
+                                    }
                                 }
-                            }
-                            if (rowChannels.size < 2) {
-                                Spacer(modifier = Modifier.weight(1f))
+                                if (rowChannels.size < 2) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            if (uiState.debugText.isNotBlank()) {
-                item {
-                    Surface(shape = RoundedCornerShape(8.dp), color = GlassBg) {
-                        Text(uiState.debugText, color = OnSurfaceVariant.copy(alpha = 0.5f), fontSize = 9.sp, modifier = Modifier.padding(8.dp))
+                if (uiState.debugText.isNotBlank()) {
+                    item {
+                        Surface(shape = RoundedCornerShape(8.dp), color = surfaceContainer) {
+                            Text(uiState.debugText, color = onsurfaceContainerHigh.copy(alpha = 0.5f), fontSize = 9.sp, modifier = Modifier.padding(8.dp))
+                        }
                     }
                 }
+                item { Spacer(Modifier.height(32.dp)) }
             }
-            item { Spacer(Modifier.height(32.dp)) }
         }
     }
-
-    if (showAddSourceSheet) {
-        AddSourceBottomSheet(
-            onDismiss = { showAddSourceSheet = false },
-            onSuccess = { showAddSourceSheet = false }
-        )
-    }
-    }
 }
+
+// ── Shared Mobile Components (unchanged from original) ─────────────────────
 
 @Composable
 private fun SearchSection(searchQuery: String, onSearchQueryChange: (String) -> Unit) {
     OutlinedTextField(
         value = searchQuery,
         onValueChange = onSearchQueryChange,
-        placeholder = { Text("Search channels...", color = OnSurfaceVariant.copy(alpha = 0.4f), fontSize = 14.sp) },
+        placeholder = { Text("Search channels...", color = onsurfaceContainerHigh.copy(alpha = 0.4f), fontSize = 14.sp) },
         singleLine = true,
-        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = OnSurfaceVariant) },
+        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = onsurfaceContainerHigh) },
         trailingIcon = {
             if (searchQuery.isNotEmpty()) {
                 IconButton(onClick = { onSearchQueryChange("") }) {
-                    Icon(Icons.Filled.Clear, contentDescription = "Clear", tint = OnSurfaceVariant)
+                    Icon(Icons.Filled.Clear, contentDescription = "Clear", tint = onsurfaceContainerHigh)
                 }
             }
         },
         modifier = Modifier.fillMaxWidth(),
-        textStyle = androidx.compose.ui.text.TextStyle(color = OnSurface, fontSize = 14.sp),
+        textStyle = androidx.compose.ui.text.TextStyle(color = onSurface, fontSize = 14.sp),
         shape = RoundedCornerShape(12.dp),
-        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = AccentGray,
-            unfocusedBorderColor = OutlineVariant.copy(alpha = 0.3f),
-            cursorColor = AccentGray,
-            focusedContainerColor = InputBg,
-            unfocusedContainerColor = InputBg,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = primary,
+            unfocusedBorderColor = outlineVariant.copy(alpha = 0.3f),
+            cursorColor = primary,
+            focusedContainerColor = surfaceContainerLowest,
+            unfocusedContainerColor = surfaceContainerLowest,
         ),
     )
 }
@@ -366,7 +1082,7 @@ private fun QuickAccessSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Favorites", color = OnSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+            Text("Favorites", color = onSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
         }
         Spacer(Modifier.height(8.dp))
 
@@ -374,17 +1090,17 @@ private fun QuickAccessSection(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = GlassBg),
+                colors = CardDefaults.cardColors(containerColor = surfaceContainer),
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(Icons.Filled.FavoriteBorder, contentDescription = null, tint = OnSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(32.dp))
+                    Icon(Icons.Filled.FavoriteBorder, contentDescription = null, tint = onsurfaceContainerHigh.copy(alpha = 0.5f), modifier = Modifier.size(32.dp))
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "Tap the heart icon on any channel to add it here",
-                        color = OnSurfaceVariant,
+                        color = onsurfaceContainerHigh,
                         textAlign = TextAlign.Center,
                         fontSize = 13.sp,
                     )
@@ -415,7 +1131,7 @@ private fun HistorySection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("History", color = OnSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+            Text("History", color = onSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
         }
         Spacer(Modifier.height(8.dp))
 
@@ -432,7 +1148,7 @@ private fun QuickAccessCard(channel: IptvChannel, onPlay: () -> Unit) {
     Card(
         modifier = Modifier.width(140.dp).clickable(onClick = onPlay),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceLow),
+        colors = CardDefaults.cardColors(containerColor = surfaceContainerLow),
     ) {
         Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
             if (!channel.logo.isNullOrBlank()) {
@@ -446,17 +1162,17 @@ private fun QuickAccessCard(channel: IptvChannel, onPlay: () -> Unit) {
             Box(
                 modifier = Modifier.fillMaxSize().background(
                     if (channel.logo.isNullOrBlank())
-                        Brush.verticalGradient(listOf(SurfaceVariant.copy(alpha = 0.3f), SurfaceLow))
+                        Brush.verticalGradient(listOf(surfaceContainerHigh.copy(alpha = 0.3f), surfaceContainerLow))
                     else
                         Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.7f)))
                 ),
             )
             if (channel.logo.isNullOrBlank()) {
                 Box(
-                    modifier = Modifier.size(36.dp).align(Alignment.Center).clip(CircleShape).background(AccentGray.copy(alpha = 0.2f)),
+                    modifier = Modifier.size(36.dp).align(Alignment.Center).clip(CircleShape).background(primary.copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Filled.LiveTv, contentDescription = null, tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.LiveTv, contentDescription = null, tint = onsurfaceContainerHigh, modifier = Modifier.size(18.dp))
                 }
             }
             Box(
@@ -465,12 +1181,12 @@ private fun QuickAccessCard(channel: IptvChannel, onPlay: () -> Unit) {
                     .padding(8.dp),
             ) {
                 Column {
-                    Text(text = channel.name, color = OnSurface, fontWeight = FontWeight.Medium, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(text = channel.group ?: "Live", color = OnSurface, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(text = channel.name, color = onSurface, fontWeight = FontWeight.Medium, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(text = channel.group ?: "Live", color = onSurface, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             Box(
-                modifier = Modifier.align(Alignment.TopStart).padding(6.dp).size(6.dp).clip(CircleShape).background(OnSurface),
+                modifier = Modifier.align(Alignment.TopStart).padding(6.dp).size(6.dp).clip(CircleShape).background(onSurface),
             )
         }
     }
@@ -525,7 +1241,7 @@ private fun SourceChip(selected: Boolean, onClick: () -> Unit, label: String, co
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(8.dp),
-        color = if (selected) AccentGray.copy(alpha = 0.2f) else SurfaceLow,
+        color = if (selected) primary.copy(alpha = 0.2f) else surfaceContainerLow,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -533,7 +1249,7 @@ private fun SourceChip(selected: Boolean, onClick: () -> Unit, label: String, co
         ) {
             Text(
                 text = label,
-                color = if (selected) OnSurfaceVariant else OnSurfaceVariant,
+                color = if (selected) onsurfaceContainerHigh else onsurfaceContainerHigh,
                 fontWeight = FontWeight.Medium,
                 fontSize = 13.sp,
                 maxLines = 1,
@@ -543,7 +1259,7 @@ private fun SourceChip(selected: Boolean, onClick: () -> Unit, label: String, co
                 Spacer(Modifier.width(4.dp))
                 Text(
                     text = "$count",
-                    color = if (selected) OnSurface else OnSurfaceVariant.copy(alpha = 0.5f),
+                    color = if (selected) onSurface else onsurfaceContainerHigh.copy(alpha = 0.5f),
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp,
                 )
@@ -581,11 +1297,11 @@ private fun CategoryChip(selected: Boolean, onClick: () -> Unit, label: String) 
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(999.dp),
-        color = if (selected) OnSurface.copy(alpha = 0.2f) else SurfaceLow,
+        color = if (selected) onSurface.copy(alpha = 0.2f) else surfaceContainerLow,
     ) {
         Text(
             text = label,
-            color = if (selected) OnSurface else OnSurfaceVariant,
+            color = if (selected) onSurface else onsurfaceContainerHigh,
             fontWeight = FontWeight.SemiBold,
             fontSize = 12.sp,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
@@ -602,11 +1318,19 @@ private fun ChannelCard(
     onToggleFavorite: () -> Unit,
     onAddToMultiWindow: (() -> Unit)? = null,
 ) {
-
+    var isFocused by remember { mutableStateOf(false) }
+    val focusScale by animateFloatAsState(
+        targetValue = if (isFocused) 0.97f else 1f,
+        label = "scale",
+    )
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onPlay),
+        modifier = Modifier.fillMaxWidth().scale(focusScale)
+            .then(if (isFocused) Modifier.border(2.dp, primary, RoundedCornerShape(12.dp)) else Modifier)
+            .clickable(onClick = onPlay)
+            .focusable()
+            .onFocusChanged { isFocused = it.isFocused },
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceLow),
+        colors = CardDefaults.cardColors(containerColor = surfaceContainerLow),
     ) {
         Column {
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
@@ -623,17 +1347,17 @@ private fun ChannelCard(
                         .fillMaxSize()
                         .background(
                             if (channel.logo.isNullOrBlank())
-                                Brush.verticalGradient(listOf(SurfaceVariant.copy(alpha = 0.3f), SurfaceLow))
+                                Brush.verticalGradient(listOf(surfaceContainerHigh.copy(alpha = 0.3f), surfaceContainerLow))
                             else
                                 Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.7f)))
                         ),
                 )
                 if (channel.logo.isNullOrBlank()) {
                     Box(
-                        modifier = Modifier.size(36.dp).align(Alignment.Center).clip(CircleShape).background(AccentGray.copy(alpha = 0.2f)),
+                        modifier = Modifier.size(36.dp).align(Alignment.Center).clip(CircleShape).background(primary.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(Icons.Filled.LiveTv, contentDescription = null, tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.LiveTv, contentDescription = null, tint = onsurfaceContainerHigh, modifier = Modifier.size(18.dp))
                     }
                 }
                 Box(
@@ -642,8 +1366,8 @@ private fun ChannelCard(
                         .padding(8.dp),
                 ) {
                     Column {
-                        Text(text = channel.name, color = OnSurface, fontWeight = FontWeight.Medium, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(text = channel.group ?: "Live", color = OnSurface, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(text = channel.name, color = onSurface, fontWeight = FontWeight.Medium, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(text = channel.group ?: "Live", color = onSurface, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
 
@@ -653,20 +1377,20 @@ private fun ChannelCard(
                         .padding(6.dp)
                         .size(6.dp)
                         .clip(CircleShape)
-                        .background(OnSurface),
+                        .background(onSurface),
                 )
 
                 Row(Modifier.align(Alignment.TopEnd).padding(end = 4.dp)) {
                     if (onAddToMultiWindow != null) {
                         IconButton(onClick = onAddToMultiWindow, modifier = Modifier.size(28.dp)) {
-                            Text("⊕", color = OnSurfaceVariant.copy(alpha = 0.6f), fontSize = 14.sp)
+                            Text("\u2295", color = onsurfaceContainerHigh.copy(alpha = 0.6f), fontSize = 14.sp)
                         }
                     }
                     IconButton(onClick = onToggleFavorite, modifier = Modifier.size(28.dp)) {
                         Icon(
                             if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                             contentDescription = if (isFavorite) "Unfavorite" else "Favorite",
-                            tint = if (isFavorite) FavoriteRed else OnSurfaceVariant.copy(alpha = 0.6f),
+                            tint = if (isFavorite) FavoriteRed else onsurfaceContainerHigh.copy(alpha = 0.6f),
                             modifier = Modifier.size(16.dp),
                         )
                     }
@@ -684,17 +1408,17 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Your Playlists", color = OnSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+            Text("Your Playlists", color = onSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (!IptvRepository.hasPredefinedPlaylist()) {
                     TextButton(onClick = { IptvRepository.addPredefinedPlaylist() }) {
-                        Text("+ iptv-org", color = OnSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("+ iptv-org", color = onsurfaceContainerHigh, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
                 Surface(
                     onClick = onAddClick,
                     shape = RoundedCornerShape(12.dp),
-                    color = AccentGray,
+                    color = primary,
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -709,7 +1433,7 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
                     Icon(
                         if (uiState.playlistsExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
                         contentDescription = if (uiState.playlistsExpanded) "Collapse" else "Expand",
-                        tint = OnSurfaceVariant,
+                        tint = onsurfaceContainerHigh,
                     )
                 }
             }
@@ -721,10 +1445,10 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = GlassBg),
+                        colors = CardDefaults.cardColors(containerColor = surfaceContainer),
                     ) {
                         Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                            Text("No playlists added yet", color = OnSurfaceVariant)
+                            Text("No playlists added yet", color = onsurfaceContainerHigh)
                         }
                     }
                 } else {
@@ -734,7 +1458,7 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
                             name = playlist.name,
                             subtitle = "${playlist.channels.size} Channels",
                             status = if (playlist.channels.isNotEmpty()) "Connected" else "Pending",
-                            statusColor = if (playlist.channels.isNotEmpty()) OnSurface else OutlineVariant,
+                            statusColor = if (playlist.channels.isNotEmpty()) onSurface else outlineVariant,
                             iconLabel = "M3U",
                             isRefreshing = playlist.id in uiState.refreshingSourceIds,
                             onRefresh = { IptvRepository.refreshM3uChannels(playlist.id) },
@@ -748,7 +1472,7 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
                             name = account.name,
                             subtitle = "${account.channels.size} Channels",
                             status = if (account.channels.isNotEmpty()) "Connected" else "Pending",
-                            statusColor = if (account.channels.isNotEmpty()) OnSurface else OutlineVariant,
+                            statusColor = if (account.channels.isNotEmpty()) onSurface else outlineVariant,
                             iconLabel = "XT",
                             isRefreshing = account.id in uiState.refreshingSourceIds,
                             onRefresh = { IptvRepository.refreshXtreamChannels(account.id) },
@@ -762,7 +1486,7 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
                             name = account.name,
                             subtitle = "${account.channels.size} Channels",
                             status = if (account.channels.isNotEmpty()) "Connected" else "Pending",
-                            statusColor = if (account.channels.isNotEmpty()) OnSurface else OutlineVariant,
+                            statusColor = if (account.channels.isNotEmpty()) onSurface else outlineVariant,
                             iconLabel = "SK",
                             isRefreshing = account.id in uiState.refreshingSourceIds,
                             onRefresh = { IptvRepository.refreshStalkerChannels(account.id) },
@@ -770,7 +1494,6 @@ private fun PlaylistsSection(uiState: IptvUiState, onAddClick: () -> Unit) {
                         )
                         Spacer(Modifier.height(8.dp))
                     }
-
                 }
             }
         }
@@ -791,35 +1514,32 @@ private fun PlaylistCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = GlassBg),
+        colors = CardDefaults.cardColors(containerColor = surfaceContainer),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(SurfaceVariant),
+                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(surfaceContainerHigh),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(iconLabel, color = OnSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(iconLabel, color = onsurfaceContainerHigh, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
             Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(name, color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(subtitle, color = OnSurfaceVariant.copy(alpha = 0.7f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(name, color = onSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(subtitle, color = onsurfaceContainerHigh.copy(alpha = 0.7f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (isRefreshing) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
-                    color = AccentGray,
+                    color = primary,
                     strokeWidth = 2.dp,
                 )
             } else {
                 IconButton(onClick = onRefresh) {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = OnSurfaceVariant)
+                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = onsurfaceContainerHigh)
                 }
             }
             IconButton(onClick = onDelete) {
@@ -858,6 +1578,8 @@ private fun playChannel(channel: IptvChannel, onPlayChannel: ((PlayerLaunch) -> 
     PlayerLaunchStore.get(id)?.let { onPlayChannel?.invoke(it) }
 }
 
+// ── Add Source Bottom Sheet ──────────────────────────────────────────────
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddSourceBottomSheet(
@@ -870,9 +1592,9 @@ private fun AddSourceBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = GlassBg,
+        containerColor = surfaceContainer,
         shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-        dragHandle = { Box(Modifier.width(48.dp).height(6.dp).clip(RoundedCornerShape(3.dp)).background(OutlineVariant.copy(alpha = 0.4f))) },
+        dragHandle = { Box(Modifier.width(48.dp).height(6.dp).clip(RoundedCornerShape(3.dp)).background(outlineVariant.copy(alpha = 0.4f))) },
     ) {
         Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
             Row(
@@ -880,48 +1602,27 @@ private fun AddSourceBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Add Source", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                Text("Add Source", color = onSurface, fontWeight = FontWeight.Bold, fontSize = 24.sp)
                 IconButton(onClick = onDismiss) {
-                    Text("✕", color = OnSurfaceVariant)
+                    Text("\u2715", color = onsurfaceContainerHigh)
                 }
             }
             Spacer(Modifier.height(24.dp))
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(SurfaceLow)
-                    .padding(4.dp),
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(surfaceContainerLow).padding(4.dp),
             ) {
-                Surface(
-                    onClick = { mode = "xtreme" },
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (mode == "xtreme") AccentGray else Color.Transparent,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                        Text("XTREME", color = if (mode == "xtreme") Color.White else OnSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.6.sp)
-                    }
-                }
-                Surface(
-                    onClick = { mode = "m3u" },
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (mode == "m3u") AccentGray else Color.Transparent,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                        Text("M3U URL", color = if (mode == "m3u") Color.White else OnSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.6.sp)
-                    }
-                }
-                Surface(
-                    onClick = { mode = "stalker" },
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (mode == "stalker") AccentGray else Color.Transparent,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                        Text("STALKER", color = if (mode == "stalker") Color.White else OnSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.6.sp)
+                listOf("xtreme" to "XTREME", "m3u" to "M3U URL", "stalker" to "STALKER").forEach { (id, label) ->
+                    Surface(
+                        onClick = { mode = id },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (mode == id) primary else Color.Transparent,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+                            Text(label, color = if (mode == id) Color.White else onsurfaceContainerHigh,
+                                fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.6.sp)
+                        }
                     }
                 }
             }
@@ -952,7 +1653,7 @@ private fun XtreamForm(onSuccess: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             InputField(label = "USERNAME", value = username, onValueChange = { username = it }, placeholder = "User123", modifier = Modifier.weight(1f))
-            InputField(label = "PASSWORD", value = password, onValueChange = { password = it }, placeholder = "••••••••", isPassword = true, modifier = Modifier.weight(1f))
+            InputField(label = "PASSWORD", value = password, onValueChange = { password = it }, placeholder = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022", isPassword = true, modifier = Modifier.weight(1f))
         }
         Spacer(Modifier.height(24.dp))
         Button(
@@ -964,7 +1665,7 @@ private fun XtreamForm(onSuccess: () -> Unit) {
             },
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AccentGray),
+            colors = ButtonDefaults.buttonColors(containerColor = primary),
             enabled = name.isNotBlank() && server.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
         ) {
             Text("CONNECT SOURCE", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
@@ -991,7 +1692,7 @@ private fun M3uForm(onSuccess: () -> Unit) {
             },
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AccentGray),
+            colors = ButtonDefaults.buttonColors(containerColor = primary),
             enabled = url.isNotBlank(),
         ) {
             Text("CONNECT SOURCE", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
@@ -1021,7 +1722,7 @@ private fun StalkerForm(onSuccess: () -> Unit) {
             },
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AccentGray),
+            colors = ButtonDefaults.buttonColors(containerColor = primary),
             enabled = name.isNotBlank() && server.isNotBlank() && macAddress.isNotBlank(),
         ) {
             Text("CONNECT SOURCE", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
@@ -1039,23 +1740,23 @@ private fun InputField(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
-        Text(label, color = OnSurfaceVariant, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.6.sp)
+        Text(label, color = onsurfaceContainerHigh, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.6.sp)
         Spacer(Modifier.height(4.dp))
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = { Text(placeholder, color = OnSurfaceVariant.copy(alpha = 0.4f), fontSize = 14.sp) },
+            placeholder = { Text(placeholder, color = onsurfaceContainerHigh.copy(alpha = 0.4f), fontSize = 14.sp) },
             singleLine = true,
             visualTransformation = if (isPassword) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
             modifier = Modifier.fillMaxWidth(),
-            textStyle = androidx.compose.ui.text.TextStyle(color = OnSurface, fontSize = 14.sp),
+            textStyle = androidx.compose.ui.text.TextStyle(color = onSurface, fontSize = 14.sp),
             shape = RoundedCornerShape(12.dp),
-            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AccentGray,
-                unfocusedBorderColor = OutlineVariant.copy(alpha = 0.3f),
-                cursorColor = AccentGray,
-                focusedContainerColor = InputBg,
-                unfocusedContainerColor = InputBg,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = primary,
+                unfocusedBorderColor = outlineVariant.copy(alpha = 0.3f),
+                cursorColor = primary,
+                focusedContainerColor = surfaceContainerLowest,
+                unfocusedContainerColor = surfaceContainerLowest,
             ),
         )
     }

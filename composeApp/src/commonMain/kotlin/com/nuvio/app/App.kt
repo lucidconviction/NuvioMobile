@@ -150,6 +150,7 @@ import com.nuvio.app.features.tmdb.TmdbEntityKind
 import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.home.HomeScreen
 import com.nuvio.app.features.home.MetaPreview
+import com.nuvio.app.features.hub.HubReturnStore
 import com.nuvio.app.features.hub.RobbdeezeNutzHubScreen
 import com.nuvio.app.features.iptv.IptvRepository
 import com.nuvio.app.features.sports.SportsRepository
@@ -294,6 +295,8 @@ private data class PendingP2pStreamOpen(
 )
 
 // Routes removed — migrated to navigation3
+
+// TeamDetailRoute moved to navigation/Routes.kt
 private data class CatalogLaunch(
     val title: String,
     val subtitle: String,
@@ -920,7 +923,8 @@ private fun MainAppContent(
             AppScreenTab.RobbdeezeNutzHub -> {
                 iptvScrollToTopRequests.tryEmit(Unit)
                 sportsScrollToTopRequests.tryEmit(Unit)
-                hubResetCounter++  // Reset sub-screens to main hub view
+                HubReturnStore.subScreen = "Hub"
+                hubResetCounter++
             }
         }
     }
@@ -2903,17 +2907,11 @@ private fun MainAppContent(
                         initialPositionMs = launch.initialPositionMs,
                         initialProgressFraction = launch.initialProgressFraction,
                         contentLanguage = launch.contentLanguage,
-<<<<<<< HEAD
                         launchId = route.launchId,
-                        onBack = {
-                            ResumePromptRepository.markPlayerExitedNormally()
-                            PlayerLaunchStore.remove(route.launchId)
-                            navController.popBackStack()
-                        },
                         onSwitchIptvChannel = { newLaunchId: Long ->
                             ResumePromptRepository.markPlayerExitedNormally()
                             PlayerLaunchStore.remove(route.launchId)
-                            navController.popBackStack()
+                            onBack()
                             navController.navigate(PlayerRoute(launchId = newLaunchId))
                         },
                         iptvChannelIds = launch.channelIds,

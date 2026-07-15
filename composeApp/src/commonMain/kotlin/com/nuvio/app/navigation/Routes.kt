@@ -147,3 +147,10 @@ data class PlayerRoute(
     override val hidesNavigationBar: Boolean
         get() = true
 }
+
+@Serializable
+data class TeamDetailRoute(
+    val teamName: String,
+    val teamLogo: String? = null,
+    val sport: String = "",
+) : AppRoute

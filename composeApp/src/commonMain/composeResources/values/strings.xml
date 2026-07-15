@@ -436,6 +436,8 @@
     <string name="compose_settings_page_supporters_contributors">Supporters &amp; Contributors</string>
     <string name="compose_settings_page_tmdb_enrichment">TMDB Enrichment</string>
     <string name="compose_settings_page_trakt">Trakt</string>
+    <string name="compose_settings_page_backup_restore">Backup &amp; Restore</string>
+    <string name="compose_settings_root_backup_restore_description">Export or import your data</string>
     <string name="compose_settings_root_about_section">ABOUT</string>
     <string name="compose_settings_root_account_description">Account and sync status</string>
     <string name="compose_settings_root_account_section">ACCOUNT</string>

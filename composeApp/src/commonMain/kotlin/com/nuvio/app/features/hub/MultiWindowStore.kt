@@ -4,12 +4,19 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import com.nuvio.app.features.iptv.IptvChannel
+import com.nuvio.app.features.iptv.SourceType
 
 data class WindowStream(
     val id: String,
     val channel: IptvChannel,
     val slotIndex: Int,
     val isPlaying: Boolean = false,
+    /** Generic stream URL for non-IPTV content (movies, shows, sports, etc.) */
+    val playerUrl: String? = null,
+    /** Display title for generic streams */
+    val playerTitle: String? = null,
+    /** Poster/channel logo URL for generic streams */
+    val playerPoster: String? = null,
 )
 
 object MultiWindowStore {
@@ -27,10 +34,75 @@ object MultiWindowStore {
     val allStreams: List<WindowStream> get() = streams
 
     fun addToSlot(channel: IptvChannel, slotIndex: Int) {
-        removeSlot(slotIndex)
-        val existing = streams.indexOfFirst { it.channel.id == channel.id && it.channel.sourceId == channel.sourceId }
-        if (existing >= 0) streams.removeAt(existing)
-        streams.add(WindowStream(id = "mw_${++idCounter}", channel = channel, slotIndex = slotIndex))
+        // Replace in-place to avoid list size changes that trigger layout recalculation
+        val existingAtSlot = streams.indexOfFirst { it.slotIndex == slotIndex }
+        val existingChannel = streams.indexOfFirst { it.channel.id == channel.id && it.channel.sourceId == channel.sourceId }
+        // Remove duplicate channel entry if exists at a different slot
+        if (existingChannel >= 0 && existingChannel != existingAtSlot) {
+            streams.removeAt(existingChannel)
+            // Adjust index if removal shifted our target
+            val adjustedExistingAtSlot = streams.indexOfFirst { it.slotIndex == slotIndex }
+            if (adjustedExistingAtSlot >= 0) {
+                streams[adjustedExistingAtSlot] = WindowStream(
+                    id = streams[adjustedExistingAtSlot].id,
+                    channel = channel,
+                    slotIndex = slotIndex,
+                )
+            } else {
+                streams.add(WindowStream(id = "mw_${++idCounter}", channel = channel, slotIndex = slotIndex))
+            }
+        } else if (existingAtSlot >= 0) {
+            // Replace existing at slot in-place — preserves player key
+            streams[existingAtSlot] = WindowStream(
+                id = streams[existingAtSlot].id,
+                channel = channel,
+                slotIndex = slotIndex,
+            )
+        } else {
+            streams.add(WindowStream(id = "mw_${++idCounter}", channel = channel, slotIndex = slotIndex))
+        }
+        // Stay auto by default — don't lock layout when adding streams
+        if (_currentLayout.value == null) {
+            _layoutLocked.value = false
+        }
+    }
+
+    /** Add any video stream (movie, show, sports, etc.) to a slot. */
+    fun addStream(url: String, title: String, poster: String? = null, slotIndex: Int) {
+        val dummyChannel = IptvChannel(
+            id = "generic_${idCounter}",
+            name = title,
+            url = url,
+            logo = poster,
+            group = title.take(30),
+            sourceType = SourceType.M3U,
+            sourceId = "multiview",
+        )
+        // Replace in-place to avoid list size changes
+        val existingAtSlot = streams.indexOfFirst { it.slotIndex == slotIndex }
+        if (existingAtSlot >= 0) {
+            streams[existingAtSlot] = WindowStream(
+                id = streams[existingAtSlot].id,
+                channel = dummyChannel,
+                slotIndex = slotIndex,
+                playerUrl = url,
+                playerTitle = title,
+                playerPoster = poster,
+            )
+        } else {
+            streams.add(WindowStream(
+                id = "mw_${++idCounter}",
+                channel = dummyChannel,
+                slotIndex = slotIndex,
+                playerUrl = url,
+                playerTitle = title,
+                playerPoster = poster,
+            ))
+        }
+        // Stay auto by default — don't lock layout when adding streams
+        if (_currentLayout.value == null) {
+            _layoutLocked.value = false
+        }
     }
 
     fun removeSlot(slotIndex: Int) { streams.removeAll { it.slotIndex == slotIndex } }

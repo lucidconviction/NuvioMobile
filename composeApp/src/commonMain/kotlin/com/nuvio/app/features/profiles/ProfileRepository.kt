@@ -196,7 +196,8 @@ object ProfileRepository {
             pullProfiles()
         } catch (e: Throwable) {
             if (AuthRepository.signOutIfSessionInvalid(e, "Profile push")) return
-            log.e(e) { "Failed to push profiles" }
+            log.e(e) { "Failed to push profiles; falling back to local storage" }
+            applyPayloadsLocally(profiles)
         }
     }
 

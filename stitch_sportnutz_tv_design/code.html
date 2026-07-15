@@ -1,0 +1,452 @@
+<!DOCTYPE html><html lang="en" class="dark"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=JetBrains+Mono:wght@100..800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">try{
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-container-low": "#1b1b1b",
+                      "surface-container": "#1f1f1f",
+                      "surface-container-high": "#2a2a2a",
+                      "surface-container-highest": "#353535",
+                      "surface-variant": "#353535",
+                      "on-surface": "#e2e2e2",
+                      "on-surface-variant": "#c4c7c8",
+                      "outline": "#8e9192",
+                      "outline-variant": "#444748",
+                      "primary": "#ffffff",
+                      "on-primary": "#2f3131",
+                      "background": "#000000",
+                      "error": "#ffb4ab"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "2xl": "1rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "gutter": "24px",
+                      "margin-tablet": "32px",
+                      "margin-mobile": "16px",
+                      "stack-md": "16px",
+                      "stack-sm": "8px",
+                      "margin-desktop": "48px",
+                      "stack-lg": "32px",
+                      "stack-xs": "4px"
+              },
+              "fontFamily": {
+                      "body-md": ["Geist"],
+                      "headline-md": ["Geist"],
+                      "display-lg": ["Geist"],
+                      "meta-xs": ["JetBrains Mono"],
+                      "meta-sm": ["JetBrains Mono"]
+              },
+              "fontSize": {
+                      "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                      "meta-xs": ["12px", {"lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                      "meta-sm": ["14px", {"lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                      "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+              }
+            },
+          },
+        }
+    }catch(_e){}</script><meta charset="utf-8"></head><body class="bg-background h-screen overflow-hidden selection:bg-primary selection:text-on-primary">
+
+<main class="flex-1 flex flex-col h-full relative overflow-hidden">
+  <!-- TopNavBar -->
+  <header class="w-full z-30 bg-background/80 backdrop-blur-md border-b border-white/5">
+    <div class="flex items-center w-full px-margin-desktop h-20 gap-6">
+      <h1 class="text-headline-md font-headline-md font-bold text-primary shrink-0">SportNutz Hub</h1>
+      <div class="w-full max-w-xl relative flex items-center">
+        <span class="material-symbols-outlined absolute left-4 text-on-surface-variant pointer-events-none">search</span>
+        <input class="w-full h-12 bg-surface-container-low border-none rounded-full pl-12 pr-6 text-body-md focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background transition-all placeholder:text-on-surface-variant/50" placeholder="Search teams, leagues, or games…" type="text">
+      </div>
+      <div class="flex items-center gap-6 ml-auto">
+        <button class="material-symbols-outlined text-primary text-[28px] hover:opacity-80 transition-opacity">notifications</button>
+        <button class="material-symbols-outlined text-primary text-[32px] hover:opacity-80 transition-opacity">account_circle</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Scrollable Content -->
+  <div class="flex-1 overflow-y-auto custom-scrollbar px-margin-desktop pb-margin-desktop">
+
+    <!-- Tier 1: Sport Categories (pill chips that toggle leagues) -->
+    <section class="mt-stack-lg mb-stack-sm">
+      <h2 class="text-[13px] font-meta-sm text-on-surface-variant/50 uppercase tracking-widest mb-stack-xs">Sport</h2>
+      <div class="flex items-center gap-stack-sm overflow-x-auto no-scrollbar pb-2">
+        <button class="h-9 px-5 rounded-full bg-[#ffffff] text-[#000000] text-[13px] font-bold transition-transform active:scale-95 whitespace-nowrap">🏈 Football</button>
+        <button class="h-9 px-5 rounded-full bg-surface-container-low border border-outline-variant text-primary text-[13px] hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">🏀 Basketball</button>
+        <button class="h-9 px-5 rounded-full bg-surface-container-low border border-outline-variant text-primary text-[13px] hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">⚾ Baseball</button>
+        <button class="h-9 px-5 rounded-full bg-surface-container-low border border-outline-variant text-primary text-[13px] hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">⚽ Soccer</button>
+        <button class="h-9 px-5 rounded-full bg-surface-container-low border border-outline-variant text-primary text-[13px] hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">🏒 Hockey</button>
+        <button class="h-9 px-5 rounded-full bg-surface-container-low border border-outline-variant text-primary text-[13px] hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">🎾 Tennis</button>
+        <button class="h-9 px-5 rounded-full bg-surface-container-low border border-outline-variant text-primary text-[13px] hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">🥊 MMA/Boxing</button>
+        <button class="h-9 px-5 rounded-full bg-surface-container-low border border-outline-variant text-primary text-[13px] hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">🏎️ Motorsport</button>
+      </div>
+    </section>
+
+    <!-- Tier 2: League/Category Chips -->
+    <section class="mb-stack-md">
+      <div class="flex items-center gap-stack-sm overflow-x-auto no-scrollbar pb-2">
+        <button class="h-8 px-4 rounded-full bg-primary text-on-primary text-meta-sm font-meta-sm transition-transform active:scale-95 whitespace-nowrap font-bold">All</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">NFL</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">NCAAF</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">NBA</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">NCAAB</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">MLB</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">EPL</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">UCL</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">NHL</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">UFC</button>
+        <button class="h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap">F1</button>
+      </div>
+    </section>
+
+    <!-- Hero Section: Featured Live Game -->
+    <section class="mb-stack-lg">
+      <div class="w-full relative rounded-2xl overflow-hidden bg-surface-container-high min-h-[280px] flex items-end cursor-pointer group">
+        <div class="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/85"></div>
+        <div class="absolute top-4 left-4">
+          <span class="px-3 py-1 rounded-full bg-error text-white text-[11px] font-bold flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+            LIVE
+          </span>
+        </div>
+        <div class="absolute top-4 right-4 flex items-center gap-2">
+          <span class="px-3 py-1 rounded-full bg-black/60 text-white text-[11px]">NFL · Week 12</span>
+          <span class="px-3 py-1 rounded-full bg-black/60 text-white text-[11px]">Q3 · 4:23</span>
+        </div>
+        <div class="relative z-10 p-6 w-full flex items-end justify-between">
+          <div>
+            <p class="text-on-surface/50 text-meta-xs font-meta-xs uppercase tracking-widest">Featured Game</p>
+            <h3 class="text-[28px] font-bold text-primary mt-1">Kansas City Chiefs vs Baltimore Ravens</h3>
+            <p class="text-on-surface-variant text-[15px] mt-1">Arrowhead Stadium · 24-17</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3">
+              <span class="w-10 h-10 rounded-lg bg-surface-container-highest flex items-center justify-center text-[18px] font-bold">KC</span>
+              <span class="text-white text-[24px] font-bold">24</span>
+            </div>
+            <span class="text-on-surface-variant text-[20px] font-bold">:</span>
+            <div class="flex items-center gap-3">
+              <span class="text-white text-[24px] font-bold">17</span>
+              <span class="w-10 h-10 rounded-lg bg-surface-container-highest flex items-center justify-center text-[18px] font-bold">BAL</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Live Games Now -->
+    <section class="mb-stack-lg">
+      <h2 class="text-[20px] font-semibold text-primary mb-stack-sm">Live Now</h2>
+      <div class="flex gap-stack-md overflow-x-auto no-scrollbar pb-2">
+        <!-- Live Game Card -->
+        <div class="group relative cursor-pointer w-[240px] shrink-0 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-4 focus:ring-offset-background rounded-xl transition-all duration-300 hover:scale-[0.97]">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <!-- Game score area -->
+            <div class="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-surface-container-high to-surface-container">
+              <div class="flex items-center gap-4">
+                <div class="text-center">
+                  <div class="w-12 h-12 rounded-lg bg-surface-container-higher flex items-center justify-center text-[20px] font-bold text-primary">GS</div>
+                  <p class="text-[10px] text-on-surface-variant mt-1">GSW</p>
+                </div>
+                <span class="text-primary text-[20px] font-bold">105</span>
+              </div>
+              <span class="text-on-surface-variant text-[11px] font-bold">-</span>
+              <div class="flex items-center gap-4">
+                <span class="text-primary text-[20px] font-bold">98</span>
+                <div class="text-center">
+                  <div class="w-12 h-12 rounded-lg bg-surface-container-higher flex items-center justify-center text-[20px] font-bold text-primary">BOS</div>
+                  <p class="text-[10px] text-on-surface-variant mt-1">BOS</p>
+                </div>
+              </div>
+            </div>
+            <div class="absolute top-2 left-2 flex items-center gap-1.5 bg-error px-2 py-0.5 rounded-full">
+              <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+              <span class="text-white text-[9px] font-bold">LIVE</span>
+            </div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[12px] font-semibold text-primary truncate">Golden State vs Boston</p>
+              <p class="text-[10px] font-meta-xs text-outline truncate">Q4 · 2:34 left</p>
+            </div>
+            <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <span class="material-symbols-outlined text-primary text-[48px]" style="font-variation-settings: 'FILL' 1;">play_circle</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Card 2 -->
+        <div class="group relative cursor-pointer w-[240px] shrink-0 hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-surface-container-high to-surface-container">
+              <div class="flex items-center gap-4">
+                <div class="text-center">
+                  <div class="w-12 h-12 rounded-lg bg-surface-container-higher flex items-center justify-center text-[20px] font-bold text-primary">LAL</div>
+                  <p class="text-[10px] text-on-surface-variant mt-1">LAL</p>
+                </div>
+                <span class="text-primary text-[20px] font-bold">88</span>
+              </div>
+              <span class="text-on-surface-variant text-[11px] font-bold">-</span>
+              <div class="flex items-center gap-4">
+                <span class="text-primary text-[20px] font-bold">92</span>
+                <div class="text-center">
+                  <div class="w-12 h-12 rounded-lg bg-surface-container-higher flex items-center justify-center text-[20px] font-bold text-primary">MIA</div>
+                  <p class="text-[10px] text-on-surface-variant mt-1">MIA</p>
+                </div>
+              </div>
+            </div>
+            <div class="absolute top-2 left-2 flex items-center gap-1.5 bg-error px-2 py-0.5 rounded-full">
+              <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+              <span class="text-white text-[9px] font-bold">LIVE</span>
+            </div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[12px] font-semibold text-primary truncate">Lakers vs Heat</p>
+              <p class="text-[10px] font-meta-xs text-outline truncate">Q3 · 5:10 left</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Card 3 -->
+        <div class="group relative cursor-pointer w-[240px] shrink-0 hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-surface-container-high to-surface-container">
+              <div class="flex items-center gap-4">
+                <div class="text-center">
+                  <div class="w-12 h-12 rounded-lg bg-surface-container-higher flex items-center justify-center text-[20px] font-bold text-primary">ARS</div>
+                  <p class="text-[10px] text-on-surface-variant mt-1">ARS</p>
+                </div>
+                <span class="text-primary text-[20px] font-bold">2</span>
+              </div>
+              <span class="text-on-surface-variant text-[11px] font-bold">-</span>
+              <div class="flex items-center gap-4">
+                <span class="text-primary text-[20px] font-bold">1</span>
+                <div class="text-center">
+                  <div class="w-12 h-12 rounded-lg bg-surface-container-higher flex items-center justify-center text-[20px] font-bold text-primary">LIV</div>
+                  <p class="text-[10px] text-on-surface-variant mt-1">LIV</p>
+                </div>
+              </div>
+            </div>
+            <div class="absolute top-2 left-2 flex items-center gap-1.5 bg-error px-2 py-0.5 rounded-full">
+              <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+              <span class="text-white text-[9px] font-bold">LIVE</span>
+            </div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[12px] font-semibold text-primary truncate">Arsenal vs Liverpool</p>
+              <p class="text-[10px] font-meta-xs text-outline truncate">67' · EPL</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Upcoming Games -->
+    <section class="mb-stack-lg">
+      <h2 class="text-[20px] font-semibold text-primary mb-stack-sm">Upcoming</h2>
+      <div class="flex gap-stack-md overflow-x-auto no-scrollbar pb-2">
+        <div class="group relative cursor-pointer w-[240px] shrink-0 hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex flex-col items-center justify-center gap-2">
+              <span class="text-on-surface-variant/40 text-[32px] font-bold uppercase">LAL</span>
+              <span class="text-on-surface-variant/30 text-[11px]">vs</span>
+              <span class="text-on-surface-variant/40 text-[32px] font-bold uppercase">PHX</span>
+            </div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[12px] font-semibold text-primary truncate">Lakers vs Suns</p>
+              <p class="text-[10px] font-meta-xs text-outline truncate">Mar 15 · 7:30 PM ET</p>
+            </div>
+          </div>
+        </div>
+        <div class="group relative cursor-pointer w-[240px] shrink-0 hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex flex-col items-center justify-center gap-2">
+              <span class="text-on-surface-variant/40 text-[32px] font-bold uppercase">KC</span>
+              <span class="text-on-surface-variant/30 text-[11px]">vs</span>
+              <span class="text-on-surface-variant/40 text-[32px] font-bold uppercase">BUF</span>
+            </div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[12px] font-semibold text-primary truncate">Chiefs vs Bills</p>
+              <p class="text-[10px] font-meta-xs text-outline truncate">Mar 15 · 4:25 PM ET</p>
+            </div>
+          </div>
+        </div>
+        <div class="group relative cursor-pointer w-[240px] shrink-0 hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex flex-col items-center justify-center gap-2">
+              <span class="text-on-surface-variant/40 text-[32px] font-bold uppercase">MAD</span>
+              <span class="text-on-surface-variant/30 text-[11px]">vs</span>
+              <span class="text-on-surface-variant/40 text-[32px] font-bold uppercase">BAR</span>
+            </div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[12px] font-semibold text-primary truncate">Real Madrid vs Barcelona</p>
+              <p class="text-[10px] font-meta-xs text-outline truncate">Mar 16 · 3:00 PM ET</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Channels Grid -->
+    <section class="mb-stack-lg">
+      <div class="flex items-center justify-between mb-stack-md">
+        <h2 class="text-[20px] font-semibold text-primary">All Sports Channels</h2>
+        <span class="text-meta-sm text-on-surface-variant/60">87 channels</span>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-gutter">
+
+        <!-- Channel Card -->
+        <div class="group relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-4 focus:ring-offset-background rounded-xl transition-all duration-300 hover:scale-[0.97]">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[13px] font-meta-sm font-bold uppercase tracking-wider text-center px-3">ESPN</span>
+            </div>
+            <div class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/85 to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-primary"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[14px] font-semibold text-primary truncate">ESPN</p>
+              <p class="text-[11px] font-meta-xs text-outline truncate">Sports · League Pass</p>
+            </div>
+            <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <span class="material-symbols-outlined text-primary text-[48px]" style="font-variation-settings: 'FILL' 1;">play_circle</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="group relative cursor-pointer hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[13px] font-meta-sm font-bold uppercase tracking-wider text-center px-3">FOX Sports</span>
+            </div>
+            <div class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/85 to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-primary"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[14px] font-semibold text-primary truncate">FOX Sports 1</p>
+              <p class="text-[11px] font-meta-xs text-outline truncate">Sports · NFL</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="group relative cursor-pointer hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[13px] font-meta-sm font-bold uppercase tracking-wider text-center px-3">NFL Network</span>
+            </div>
+            <div class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/85 to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-primary"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[14px] font-semibold text-primary truncate">NFL Network</p>
+              <p class="text-[11px] font-meta-xs text-outline truncate">Sports · Football</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="group relative cursor-pointer hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <div class="w-12 h-12 rounded-full bg-surface-container-higher flex items-center justify-center">
+                <span class="text-primary text-[18px] font-bold">NBA</span>
+              </div>
+            </div>
+            <div class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/85 to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-outline-variant"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[14px] font-semibold text-primary truncate">NBA TV</p>
+              <p class="text-[11px] font-meta-xs text-outline truncate">Sports · Basketball</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="group relative cursor-pointer hover:scale-[0.97] transition-all">
+          <div class="aspect-video w-full relative overflow-hidden rounded-xl bg-surface-container-high">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="text-on-surface/80 text-[13px] font-meta-sm font-bold uppercase tracking-wider text-center px-3">F1 TV</span>
+            </div>
+            <div class="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/85 to-transparent"></div>
+            <div class="absolute top-2 left-2 w-2 h-2 rounded-full bg-primary"></div>
+            <div class="absolute bottom-2 left-2 right-2">
+              <p class="text-[14px] font-semibold text-primary truncate">F1 TV</p>
+              <p class="text-[11px] font-meta-xs text-outline truncate">Sports · Motorsport</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Section: My Teams -->
+    <section class="mb-stack-lg">
+      <div class="flex items-center justify-between mb-stack-md">
+        <h2 class="text-[20px] font-semibold text-primary">My Teams</h2>
+        <button class="px-4 py-2 rounded-xl bg-primary text-on-primary text-[11px] font-bold hover:opacity-90 transition-opacity">+ MANAGE</button>
+      </div>
+      <div class="flex gap-stack-md overflow-x-auto no-scrollbar pb-2">
+        <div class="flex items-center gap-3 p-4 rounded-2xl bg-surface-container border border-white/5 cursor-pointer hover:bg-surface-container-high transition-colors">
+          <div class="w-10 h-10 rounded-xl bg-surface-container-higher flex items-center justify-center text-[16px] font-bold text-primary">KC</div>
+          <div>
+            <p class="text-[14px] font-bold text-primary">Chiefs</p>
+            <p class="text-[11px] text-on-surface-variant">NFL · 12-2</p>
+          </div>
+          <span class="material-symbols-outlined text-primary text-[20px] ml-4" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+        </div>
+        <div class="flex items-center gap-3 p-4 rounded-2xl bg-surface-container border border-white/5 cursor-pointer hover:bg-surface-container-high transition-colors">
+          <div class="w-10 h-10 rounded-xl bg-surface-container-higher flex items-center justify-center text-[16px] font-bold text-primary">LAL</div>
+          <div>
+            <p class="text-[14px] font-bold text-primary">Lakers</p>
+            <p class="text-[11px] text-on-surface-variant">NBA · 18-8</p>
+          </div>
+          <span class="material-symbols-outlined text-primary text-[20px] ml-4" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+        </div>
+        <div class="flex items-center gap-3 p-4 rounded-2xl bg-surface-container border border-white/5 cursor-pointer hover:bg-surface-container-high transition-colors">
+          <div class="w-10 h-10 rounded-xl bg-surface-container-higher flex items-center justify-center text-[16px] font-bold text-primary">ARS</div>
+          <div>
+            <p class="text-[14px] font-bold text-primary">Arsenal</p>
+            <p class="text-[11px] text-on-surface-variant">EPL · 1st</p>
+          </div>
+          <span class="material-symbols-outlined text-primary text-[20px] ml-4" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Empty State (hidden by default) -->
+    <section class="hidden flex flex-col items-center justify-center py-stack-lg min-h-[400px] text-center" id="empty-state">
+      <div class="w-24 h-24 rounded-full bg-surface-container-low flex items-center justify-center mb-stack-md border border-outline-variant">
+        <span class="material-symbols-outlined text-outline text-[48px]">sports</span>
+      </div>
+      <h3 class="text-headline-md font-headline-md text-primary">No games found</h3>
+      <p class="text-body-md font-body-md text-on-surface-variant max-w-sm mx-auto mt-2">Try a different sport or league to find live games and channels.</p>
+      <button class="mt-stack-lg px-8 py-3 rounded-full bg-primary text-on-primary font-bold hover:opacity-90 transition-opacity">Clear Filters</button>
+    </section>
+
+  </div>
+</main>
+
+<script>
+  // Sport chip switching
+  const sportChips = document.querySelectorAll('section:nth-child(1) .flex.items-center button');
+  sportChips.forEach(btn => {
+    btn.addEventListener('click', () => {
+      sportChips.forEach(b => {
+        b.className = 'h-9 px-5 rounded-full bg-surface-container-low border border-outline-variant text-primary text-[13px] hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap';
+      });
+      btn.className = 'h-9 px-5 rounded-full bg-[#ffffff] text-[#000000] text-[13px] font-bold transition-transform active:scale-95 whitespace-nowrap';
+      // preserve emoji — it's in the text content
+    });
+  });
+
+  // League chip switching
+  const leagueChips = document.querySelectorAll('section:nth-child(2) .flex.items-center button');
+  leagueChips.forEach(btn => {
+    btn.addEventListener('click', () => {
+      leagueChips.forEach(b => {
+        b.className = 'h-8 px-4 rounded-full bg-surface-container-low border border-outline-variant text-primary text-meta-sm font-meta-sm hover:bg-surface-variant transition-colors active:scale-95 whitespace-nowrap';
+      });
+      btn.className = 'h-8 px-4 rounded-full bg-primary text-on-primary text-meta-sm font-meta-sm transition-transform active:scale-95 whitespace-nowrap font-bold';
+    });
+  });
+</script>
+
+</body></html>

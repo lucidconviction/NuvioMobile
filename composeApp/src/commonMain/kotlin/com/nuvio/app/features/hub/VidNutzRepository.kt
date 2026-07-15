@@ -129,24 +129,36 @@ object VidNutzRepository {
         return emptyList()
     }
 
+    private val categoryPageOffsets = mutableMapOf<VidNutzCategory, Int>()
+    private val categoryQueryVariants = mapOf(
+        VidNutzCategory.POLITICS to listOf("politics news today", "political analysis", "government news", "election coverage"),
+        VidNutzCategory.NEWS to listOf("breaking news today", "world news", "current events", "daily news briefing"),
+        VidNutzCategory.MUSIC to listOf("music videos", "new music", "music trending", "live performances"),
+        VidNutzCategory.SPORTS to listOf("sports highlights", "sports news", "game recap", "athlete interviews"),
+        VidNutzCategory.DOCUMENTARY to listOf("documentary", "full documentary", "documentary film", "nature documentary"),
+        VidNutzCategory.TECHNOLOGY to listOf("technology tech review", "gadget review", "tech news", "new technology"),
+        VidNutzCategory.ENTERTAINMENT to listOf("entertainment", "entertainment news", "celebrity gossip", "tv show clips"),
+        VidNutzCategory.COMEDY to listOf("comedy standup", "funny clips", "comedian", "sketch comedy"),
+        VidNutzCategory.SCIENCE to listOf("science", "science news", "space exploration", "physics explained"),
+        VidNutzCategory.TRUE_CRIME to listOf("true crime documentary", "crime story", "mystery", "cold case"),
+        VidNutzCategory.FOOD_DRINK to listOf("food drink cooking", "recipe", "cooking tutorial", "food review"),
+    )
+
     suspend fun fetchByCategory(category: VidNutzCategory, page: Int = 1): List<VidNutzVideo> {
         if (category == VidNutzCategory.TRENDING) {
             return fetchTrending(page)
         }
-        val query = when (category) {
-            VidNutzCategory.POLITICS -> "politics news today"
-            VidNutzCategory.NEWS -> "breaking news today"
-            VidNutzCategory.MUSIC -> "music videos"
-            VidNutzCategory.SPORTS -> "sports highlights"
-            VidNutzCategory.DOCUMENTARY -> "documentary"
-            VidNutzCategory.TECHNOLOGY -> "technology tech review"
-            VidNutzCategory.ENTERTAINMENT -> "entertainment"
-            VidNutzCategory.COMEDY -> "comedy standup"
-            VidNutzCategory.SCIENCE -> "science"
-            VidNutzCategory.TRUE_CRIME -> "true crime documentary"
-            VidNutzCategory.FOOD_DRINK -> "food drink cooking"
+
+        val offset = categoryPageOffsets.getOrPut(category) {
+            (1..5).random()
         }
-        return search(query, page)
+        val randomPage = page + offset
+
+        val variants = categoryQueryVariants[category] ?: listOf("trending")
+        val queryIndex = (page - 1) % variants.size
+        val query = variants[queryIndex]
+
+        return search(query, randomPage)
     }
 
     suspend fun resolveStream(videoId: String): StreamResult? {

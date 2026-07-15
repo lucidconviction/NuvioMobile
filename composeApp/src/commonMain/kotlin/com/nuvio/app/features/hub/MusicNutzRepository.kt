@@ -12,20 +12,22 @@ object MusicNutzRepository {
     private val json = Json { ignoreUnknownKeys = true }
 
     private val categoryQueries = mapOf(
-        MusicNutzCategory.ROCK to "rock",
-        MusicNutzCategory.HIP_HOP to "hip hop",
-        MusicNutzCategory.ELECTRONIC to "electronic",
-        MusicNutzCategory.POP to "pop",
-        MusicNutzCategory.R_AND_B to "r&b",
-        MusicNutzCategory.JAZZ to "jazz",
-        MusicNutzCategory.CLASSICAL to "classical",
-        MusicNutzCategory.COUNTRY to "country",
-        MusicNutzCategory.METAL to "metal",
-        MusicNutzCategory.INDIE to "indie",
+        MusicNutzCategory.ROCK to listOf("rock", "classic rock", "alternative rock", "rock hits", "indie rock"),
+        MusicNutzCategory.HIP_HOP to listOf("hip hop", "rap", "trap", "hip hop hits", "underground rap"),
+        MusicNutzCategory.ELECTRONIC to listOf("electronic", "EDM", "house music", "techno", "dubstep"),
+        MusicNutzCategory.POP to listOf("pop", "pop hits", "top 40", "pop music", "popsongs"),
+        MusicNutzCategory.R_AND_B to listOf("r&b", "rnb", "soul", "neo soul", "rhythm and blues"),
+        MusicNutzCategory.JAZZ to listOf("jazz", "smooth jazz", "bebop", "jazz fusion", "cool jazz"),
+        MusicNutzCategory.CLASSICAL to listOf("classical", "orchestra", "piano", "symphony", "classical music"),
+        MusicNutzCategory.COUNTRY to listOf("country", "country hits", "americana", "bluegrass", "country music"),
+        MusicNutzCategory.METAL to listOf("metal", "heavy metal", "death metal", "thrash metal", "metalcore"),
+        MusicNutzCategory.INDIE to listOf("indie", "indie rock", "indie pop", "lo-fi", "bedroom pop"),
     )
 
+    private val categoryPageOffsets = mutableMapOf<MusicNutzCategory, Int>()
+
     suspend fun fetchTrending(page: Int = 1): List<MusicTrack> {
-        val index = (page - 1) * 20
+        val index = ((page - 1) * 20) + ((1..50).random())
         return fetchTracks("$BASE/chart/0/tracks?limit=20&index=$index")
     }
 
@@ -37,13 +39,17 @@ object MusicNutzRepository {
     }
 
     suspend fun fetchByCategory(category: MusicNutzCategory, page: Int = 1): List<MusicTrack> {
+        val offset = categoryPageOffsets.getOrPut(category) { (1..10).random() }
+        val randomPage = page + offset
         return when (category) {
-            MusicNutzCategory.TRENDING -> fetchTrending(page)
-            MusicNutzCategory.NEW_RELEASES -> fetchNewReleases(page)
+            MusicNutzCategory.TRENDING -> fetchTrending(randomPage)
+            MusicNutzCategory.NEW_RELEASES -> fetchNewReleases(randomPage)
             else -> {
-                val query = categoryQueries[category] ?: return emptyList()
+                val variants = categoryQueries[category] ?: return emptyList()
+                val queryIndex = (page - 1) % variants.size
+                val query = variants[queryIndex]
                 val encoded = encodeUrl("$query music")
-                val index = (page - 1) * 20
+                val index = ((randomPage - 1) * 20) + ((1..5).random())
                 fetchTracks("$BASE/search/track?q=$encoded&limit=20&index=$index")
             }
         }
@@ -93,12 +99,16 @@ object MusicNutzRepository {
     }
 
     suspend fun fetchAlbumsByCategory(category: MusicNutzCategory, page: Int = 1): List<MusicAlbum> {
+        val offset = categoryPageOffsets.getOrPut(category) { (1..10).random() }
+        val randomPage = page + offset
         return when (category) {
-            MusicNutzCategory.TRENDING, MusicNutzCategory.NEW_RELEASES -> fetchTrendingAlbums(page)
+            MusicNutzCategory.TRENDING, MusicNutzCategory.NEW_RELEASES -> fetchTrendingAlbums(randomPage)
             else -> {
-                val query = categoryQueries[category] ?: return emptyList()
+                val variants = categoryQueries[category] ?: return emptyList()
+                val queryIndex = (page - 1) % variants.size
+                val query = variants[queryIndex]
                 val encoded = encodeUrl("$query album")
-                val index = (page - 1) * 20
+                val index = ((randomPage - 1) * 20) + ((1..5).random())
                 fetchAlbums("$BASE/search/album?q=$encoded&limit=20&index=$index")
             }
         }

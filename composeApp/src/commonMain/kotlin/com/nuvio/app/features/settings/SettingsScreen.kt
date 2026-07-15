@@ -655,6 +655,7 @@ private fun MobileSettingsScreen(
                             onLicensesAttributionsClick = onLicensesAttributionsClick,
                             onCheckForUpdatesClick = onCheckForUpdatesClick,
                             onDownloadsClick = onDownloadsClick,
+                            onBackupRestoreClick = { onPageChange(SettingsPage.BackupRestore) },
                             onAccountClick = onAccountClick,
                             onSwitchProfileClick = onSwitchProfile,
                             showSupportersContributorsPage = AppFeaturePolicy.supportersContributorsPageEnabled,
@@ -782,6 +783,7 @@ private fun MobileSettingsScreen(
                     commentsEnabled = traktCommentsEnabled,
                     onCommentsEnabledChange = TraktCommentsSettings::setEnabled,
                 )
+                SettingsPage.BackupRestore -> { item { com.nuvio.app.features.backup.BackupScreen() } }
             }
         }
     }
@@ -1057,6 +1059,7 @@ private fun TabletSettingsScreen(
                                 onLicensesAttributionsClick = { openInlinePage(SettingsPage.LicensesAttributions) },
                                 onCheckForUpdatesClick = onCheckForUpdatesClick,
                                 onDownloadsClick = onDownloadsClick,
+                                onBackupRestoreClick = { openInlinePage(SettingsPage.BackupRestore) },
                                 onAccountClick = { openInlinePage(SettingsPage.Account) },
                                 onSwitchProfileClick = onSwitchProfile,
                                 showAccountSection = activeCategory == SettingsCategory.Account,
@@ -1188,6 +1191,7 @@ private fun TabletSettingsScreen(
                         commentsEnabled = traktCommentsEnabled,
                         onCommentsEnabledChange = TraktCommentsSettings::setEnabled,
                     )
+                    SettingsPage.BackupRestore -> { item { com.nuvio.app.features.backup.BackupScreen() } }
                 }
             }
         }

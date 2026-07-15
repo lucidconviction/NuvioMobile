@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Quantum Resonance - MusicNutz Hub</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&amp;family=Geist:wght@400;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .fill-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #000000;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1A1A1A;
+            border-radius: 2px;
+        }
+        body {
+            background-color: #000000;
+            color: #e2e2e2;
+            font-family: 'Geist', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "outline-variant": "#444748",
+                      "secondary-fixed": "#e5e2e1",
+                      "inverse-primary": "#5d5f5f",
+                      "tertiary-container": "#e3e2e2",
+                      "primary-fixed": "#e2e2e2",
+                      "surface-container-high": "#2a2a2a",
+                      "surface-tint": "#c6c6c7",
+                      "on-primary-fixed-variant": "#454747",
+                      "surface-variant": "#353535",
+                      "primary-container": "#e2e2e2",
+                      "on-primary": "#2f3131",
+                      "primary-fixed-dim": "#c6c6c7",
+                      "inverse-surface": "#e2e2e2",
+                      "tertiary-fixed-dim": "#c7c6c6",
+                      "on-secondary-fixed": "#1c1b1b",
+                      "on-error-container": "#ffdad6",
+                      "surface-container-low": "#1b1b1b",
+                      "on-tertiary-container": "#646465",
+                      "on-primary-fixed": "#1a1c1c",
+                      "surface-container-highest": "#353535",
+                      "on-tertiary-fixed-variant": "#464747",
+                      "on-surface-variant": "#c4c7c8",
+                      "on-surface": "#e2e2e2",
+                      "surface-container": "#1f1f1f",
+                      "background": "#131313",
+                      "on-tertiary": "#2f3131",
+                      "inverse-on-surface": "#303030",
+                      "surface": "#131313",
+                      "surface-bright": "#393939",
+                      "on-primary-container": "#636565",
+                      "outline": "#8e9192",
+                      "tertiary": "#ffffff",
+                      "on-tertiary-fixed": "#1a1c1c",
+                      "on-secondary-container": "#b7b5b4",
+                      "secondary": "#c8c6c5",
+                      "surface-dim": "#131313",
+                      "surface-container-lowest": "#0e0e0e",
+                      "secondary-fixed-dim": "#c8c6c5",
+                      "on-background": "#e2e2e2",
+                      "error-container": "#93000a",
+                      "error": "#ffb4ab",
+                      "on-error": "#690005",
+                      "secondary-container": "#474746",
+                      "on-secondary-fixed-variant": "#474746",
+                      "primary": "#ffffff",
+                      "on-secondary": "#313030",
+                      "tertiary-fixed": "#e3e2e2"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "gutter": "24px",
+                      "stack-xs": "4px",
+                      "stack-sm": "8px",
+                      "margin-mobile": "16px",
+                      "stack-md": "16px",
+                      "margin-tablet": "32px",
+                      "margin-desktop": "48px",
+                      "stack-lg": "32px"
+              },
+              "fontFamily": {
+                      "body-md": ["Geist"],
+                      "meta-sm": ["JetBrains Mono"],
+                      "display-lg-mobile": ["Geist"],
+                      "meta-xs": ["JetBrains Mono"],
+                      "headline-md": ["Geist"],
+                      "display-lg": ["Geist"]
+              },
+              "fontSize": {
+                      "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "meta-sm": ["14px", {"lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                      "display-lg-mobile": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "meta-xs": ["12px", {"lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                      "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                      "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+              }
+            },
+          },
+        }
+      </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-[#000000] min-h-screen flex flex-col overflow-x-hidden">
+<!-- TopNavBar (Simulated Sticky Header for Details Screen) -->
+<header class="sticky top-0 z-50 bg-[#000000]/80 backdrop-blur-md flex items-center justify-between h-16 px-margin-mobile">
+<button aria-label="Go back" class="p-2 -ml-2 rounded-full hover:bg-surface-variant transition-colors active:scale-90">
+<span class="material-symbols-outlined text-primary">arrow_back</span>
+</button>
+<h1 class="font-headline-md text-body-md text-primary truncate max-w-[200px]">Quantum Resonance</h1>
+<button aria-label="More options" class="p-2 -mr-2 rounded-full hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined text-primary">more_vert</span>
+</button>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 px-margin-mobile pb-24">
+<!-- Hero Section -->
+<section class="flex flex-col items-center mt-6 text-center">
+<div class="relative w-[200px] h-[200px] mb-8 group">
+<div class="absolute inset-0 bg-white/5 rounded-xl blur-xl group-hover:blur-2xl transition-all duration-500"></div>
+<img class="relative w-full h-full object-cover rounded-[16px] shadow-2xl border border-white/10 group-hover:scale-[1.02] transition-transform duration-500" data-alt="A futuristic and atmospheric album cover featuring complex monochromatic geometric patterns and glitch-art distortions in high-contrast black and white. The aesthetic is clean, sophisticated, and dark, evoking a high-fidelity audio engineering vibe with sleek chrome textures and deep obsidian shadows. Sharp lines and abstract digital structures suggest a quantum computing or advanced synthesis theme, perfectly aligned with a professional music hub aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHL8tU46yHoC9Uh67HWsGNvxhjw-h85fxOyhIWux892YnS6zen0iojZLorJP7QQRJLXOn9UhhgfInUAwkAoGQRlOplokntRSwz-8n84zjG8NqumhxkpN8XU87-WyQRJ_OtsCK24eM-XQ-bjiAfe2wiJm4KpoF2qg9fKNsNeCbNp-Z-C4MAAvVhuuWi-2b-L2x-PYQ2m2CNuOQu88pDBGreAGVzztn69UhmuF9oORqOmPheIywYeqSG901svi8RuGvtfiXU13kWIjI"/>
+</div>
+<!-- Metadata -->
+<div class="space-y-1">
+<h2 class="text-[22px] font-bold text-primary tracking-tight">Quantum Resonance</h2>
+<p class="text-[16px] font-medium text-[#B0B0B0]">Synthetic Echoes</p>
+<div class="flex items-center justify-center space-x-2 text-[13px] text-[#888888] font-meta-sm">
+<span>2024</span>
+<span class="w-1 h-1 rounded-full bg-[#444748]"></span>
+<span>12 Tracks</span>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex items-center space-x-4 mt-8 w-full">
+<button class="flex-1 h-12 bg-primary text-[#000000] rounded-full font-bold flex items-center justify-center space-x-2 hover:opacity-90 active:scale-95 transition-all">
+<span class="material-symbols-outlined fill-icon" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+<span>Play</span>
+</button>
+<button class="w-12 h-12 bg-[#1A1A1A] text-primary rounded-full flex items-center justify-center border border-[#888888]/20 hover:bg-surface-variant active:scale-90 transition-all">
+<span class="material-symbols-outlined" id="like-btn">favorite</span>
+</button>
+<button class="w-12 h-12 bg-[#1A1A1A] text-primary rounded-full flex items-center justify-center border border-[#888888]/20 hover:bg-surface-variant active:scale-90 transition-all">
+<span class="material-symbols-outlined">download</span>
+</button>
+</div>
+</section>
+<!-- Track List Section -->
+<section class="mt-10 mb-10">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-meta-sm text-[#888888] uppercase tracking-widest">Tracklist</h3>
+<button class="text-meta-sm text-primary font-bold">Shuffle</button>
+</div>
+<div class="space-y-1">
+<!-- Track Items -->
+<div class="flex flex-col" id="tracklist-container">
+<!-- Tracks will be injected by JS or mapped manually below -->
+</div>
+</div>
+</section>
+</main>
+<!-- Suppressed BottomNavBar (User task focused) but following "Canvas First" mandate for sub-pages -->
+<!-- The prompt implies a detailed sub-page view, so global nav is suppressed per shell logic. -->
+<script>
+        const tracks = [
+            { title: "Initial Singularity", artist: "Synthetic Echoes", duration: "03:45" },
+            { title: "Phase Shift", artist: "Synthetic Echoes", duration: "04:12" },
+            { title: "Binary Horizon", artist: "Synthetic Echoes", duration: "05:01" },
+            { title: "Null Vector", artist: "Synthetic Echoes", duration: "03:58" },
+            { title: "Entropy Cascade", artist: "Synthetic Echoes", duration: "04:33" },
+            { title: "Static Pulse", artist: "Synthetic Echoes", duration: "02:15" },
+            { title: "Vector Field", artist: "Synthetic Echoes", duration: "05:22" },
+            { title: "Coherence Loss", artist: "Synthetic Echoes", duration: "04:10" },
+            { title: "Dark Matter Drift", artist: "Synthetic Echoes", duration: "06:04" },
+            { title: "Echo Chambers", artist: "Synthetic Echoes", duration: "03:47" },
+            { title: "Signal Decay", artist: "Synthetic Echoes", duration: "04:21" },
+            { title: "The Last Waveform", artist: "Synthetic Echoes", duration: "07:12" }
+        ];
+
+        const container = document.getElementById('tracklist-container');
+        
+        tracks.forEach((track, index) => {
+            const trackEl = document.createElement('div');
+            trackEl.className = 'flex items-center h-16 px-2 rounded-lg hover:bg-[#1A1A1A] transition-colors group cursor-pointer border-b border-white/5 last:border-0';
+            trackEl.innerHTML = `
+                <div class="w-8 flex-shrink-0 text-meta-xs text-[#888888] font-meta-sm group-hover:hidden">
+                    ${index + 1}
+                </div>
+                <div class="w-8 flex-shrink-0 hidden group-hover:flex items-center">
+                    <span class="material-symbols-outlined text-primary text-[20px]">play_arrow</span>
+                </div>
+                <div class="flex-1 min-w-0 pr-4">
+                    <div class="text-[14px] font-semibold text-white truncate">${track.title}</div>
+                    <div class="text-[11px] text-[#888888] font-medium">${track.artist}</div>
+                </div>
+                <div class="text-[11px] text-[#888888] font-meta-sm font-normal">
+                    ${track.duration}
+                </div>
+                <button class="ml-4 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span class="material-symbols-outlined text-[18px] text-[#888888]">more_horiz</span>
+                </button>
+            `;
+            container.appendChild(trackEl);
+        });
+
+        // Simple Toggle Interaction for Like Button
+        const likeBtn = document.getElementById('like-btn');
+        likeBtn.parentElement.addEventListener('click', () => {
+            const isLiked = likeBtn.classList.contains('fill-icon');
+            if (isLiked) {
+                likeBtn.classList.remove('fill-icon');
+                likeBtn.style.fontVariationSettings = "'FILL' 0";
+                likeBtn.style.color = "";
+            } else {
+                likeBtn.classList.add('fill-icon');
+                likeBtn.style.fontVariationSettings = "'FILL' 1";
+                likeBtn.style.color = "white";
+            }
+        });
+
+        // Handle scroll behavior for header title appearance
+        window.addEventListener('scroll', () => {
+            const scrollPos = window.scrollY;
+            const header = document.querySelector('header');
+            if (scrollPos > 100) {
+                header.classList.add('border-b', 'border-white/10');
+            } else {
+                header.classList.remove('border-b', 'border-white/10');
+            }
+        });
+    </script>
+</body></html>

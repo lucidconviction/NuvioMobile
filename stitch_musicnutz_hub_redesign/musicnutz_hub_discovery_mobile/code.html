@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<title>MusicNutz Hub - Discovery</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "outline-variant": "#444748",
+                "secondary-fixed": "#e5e2e1",
+                "inverse-primary": "#5d5f5f",
+                "tertiary-container": "#e3e2e2",
+                "primary-fixed": "#e2e2e2",
+                "surface-container-high": "#2a2a2a",
+                "surface-tint": "#c6c6c7",
+                "on-primary-fixed-variant": "#454747",
+                "surface-variant": "#353535",
+                "primary-container": "#e2e2e2",
+                "on-primary": "#2f3131",
+                "primary-fixed-dim": "#c6c6c7",
+                "inverse-surface": "#e2e2e2",
+                "tertiary-fixed-dim": "#c7c6c6",
+                "on-secondary-fixed": "#1c1b1b",
+                "on-error-container": "#ffdad6",
+                "surface-container-low": "#1b1b1b",
+                "on-tertiary-container": "#646465",
+                "on-primary-fixed": "#1a1c1c",
+                "surface-container-highest": "#353535",
+                "on-tertiary-fixed-variant": "#464747",
+                "on-surface-variant": "#c4c7c8",
+                "on-surface": "#e2e2e2",
+                "surface-container": "#1f1f1f",
+                "background": "#000000", /* Overridden to True Black as per brand intent */
+                "on-tertiary": "#2f3131",
+                "inverse-on-surface": "#303030",
+                "surface": "#131313",
+                "surface-bright": "#393939",
+                "on-primary-container": "#636565",
+                "outline": "#8e9192",
+                "tertiary": "#ffffff",
+                "on-tertiary-fixed": "#1a1c1c",
+                "on-secondary-container": "#b7b5b4",
+                "secondary": "#c8c6c5",
+                "surface-dim": "#131313",
+                "surface-container-lowest": "#0e0e0e",
+                "secondary-fixed-dim": "#c8c6c5",
+                "on-background": "#e2e2e2",
+                "error-container": "#93000a",
+                "error": "#ffb4ab",
+                "on-error": "#690005",
+                "secondary-container": "#474746",
+                "on-secondary-fixed-variant": "#474746",
+                "primary": "#ffffff",
+                "on-secondary": "#313030",
+                "tertiary-fixed": "#e3e2e2"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+            },
+            "spacing": {
+                "gutter": "24px",
+                "stack-xs": "4px",
+                "stack-sm": "8px",
+                "margin-mobile": "16px",
+                "stack-md": "16px",
+                "margin-tablet": "32px",
+                "margin-desktop": "48px",
+                "stack-lg": "32px"
+            },
+            "fontFamily": {
+                "body-md": ["Geist"],
+                "meta-sm": ["JetBrains Mono"],
+                "display-lg-mobile": ["Geist"],
+                "meta-xs": ["JetBrains Mono"],
+                "headline-md": ["Geist"],
+                "display-lg": ["Geist"]
+            },
+            "fontSize": {
+                "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                "meta-sm": ["14px", {"lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                "display-lg-mobile": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                "meta-xs": ["12px", {"lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #000000;
+            color: #e2e2e2;
+            -webkit-font-smoothing: antialiased;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .active-pill {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="font-body-md text-on-background min-h-screen pb-20">
+<!-- Top Navigation Bar (Mobile Header) -->
+<header class="sticky top-0 z-50 bg-black/80 backdrop-blur-md px-margin-mobile pt-4 pb-2">
+<div class="flex justify-between items-center mb-4">
+<h1 class="text-headline-md font-headline-md font-bold text-primary">MusicNutz Hub</h1>
+<div class="flex gap-4">
+<span class="material-symbols-outlined text-primary cursor-pointer hover:opacity-80 transition-opacity">search</span>
+<span class="material-symbols-outlined text-primary cursor-pointer hover:opacity-80 transition-opacity">account_circle</span>
+</div>
+</div>
+<!-- Search Bar Shell -->
+<div class="relative w-full group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline text-sm">search</span>
+<input class="w-full bg-[#1A1A1A] border-none rounded-full py-3 pl-12 pr-4 text-meta-sm font-meta-sm text-on-surface focus:ring-2 focus:ring-white transition-all placeholder:text-outline-variant" placeholder="Search songs..." type="text"/>
+</div>
+</header>
+<!-- Category Chips (Horizontal Scroll) -->
+<nav class="mt-4 px-margin-mobile">
+<div class="flex gap-stack-sm overflow-x-auto hide-scrollbar py-2">
+<button class="active-pill flex-none px-4 py-2 rounded-full bg-[#1A1A1A] text-[#B0B0B0] text-meta-sm font-meta-sm hover:opacity-80 transition-all">All Genres</button>
+<button class="flex-none px-4 py-2 rounded-full bg-[#1A1A1A] text-[#B0B0B0] text-meta-sm font-meta-sm hover:opacity-80 transition-all">Techno</button>
+<button class="flex-none px-4 py-2 rounded-full bg-[#1A1A1A] text-[#B0B0B0] text-meta-sm font-meta-sm hover:opacity-80 transition-all">Dark Ambient</button>
+<button class="flex-none px-4 py-2 rounded-full bg-[#1A1A1A] text-[#B0B0B0] text-meta-sm font-meta-sm hover:opacity-80 transition-all">Modular Synth</button>
+<button class="flex-none px-4 py-2 rounded-full bg-[#1A1A1A] text-[#B0B0B0] text-meta-sm font-meta-sm hover:opacity-80 transition-all">Industrial</button>
+<button class="flex-none px-4 py-2 rounded-full bg-[#1A1A1A] text-[#B0B0B0] text-meta-sm font-meta-sm hover:opacity-80 transition-all">Jazz Fusion</button>
+</div>
+</nav>
+<!-- Mode Toggle -->
+<section class="mt-6 px-margin-mobile flex gap-2">
+<div class="flex bg-[#1A1A1A] rounded-full p-1 border border-outline-variant/30">
+<button class="px-6 py-1.5 rounded-full text-meta-xs font-meta-xs bg-white text-black transition-all" id="toggle-tracks">TRACKS</button>
+<button class="px-6 py-1.5 rounded-full text-meta-xs font-meta-xs text-[#888888] hover:text-white transition-all" id="toggle-albums">ALBUMS</button>
+</div>
+</section>
+<!-- Main Content Grid -->
+<main class="mt-8 px-margin-mobile grid grid-cols-2 gap-x-4 gap-y-8 pb-10">
+<!-- Card 1 -->
+<article class="flex flex-col group cursor-pointer">
+<div class="relative aspect-square w-full mb-3">
+<div class="w-full h-full rounded-xl overflow-hidden bg-surface-container shadow-2xl transition-transform duration-300 group-hover:scale-[1.02]">
+<div class="w-full h-full bg-cover bg-center" data-alt="A moody, high-contrast close-up of a vintage analog synthesizer with glowing red LED lights in a pitch-black studio setting. The aesthetic is clean and professional, using a true black foundation and silver metallic textures. Dramatic shadows emphasize the technical complexity of the knobs and sliders." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBgbEEf5p860xQ1BQ_SbjhPkPPySG_6oer0KiyhoDRrEp2I4JakXK28KYNrz7BzacNazDC5bjtnw-yhhCzWPjBTF6-gJ-x1fjHdfxYEZrz8KZwhD-nw9xeaWfUcfmWevFFQ47WRyEnubN1ohr_6GygTfuS3sUnFnABqSzL811rw5Q_9VHA623EF-r9xD0_cLafi4UXpALLhKNFXOKvn6rXZoKvTkMNK1wGc--iLXKaYWyQBBvo9HHYVpItYlDTksW2lGhOCjC8uQbU')"></div>
+</div>
+<div class="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-meta-sm text-white">4:24</div>
+</div>
+<div class="space-y-0.5">
+<h3 class="text-[14px] font-semibold text-white leading-tight">Neon Monolith</h3>
+<p class="text-[11px] font-meta-sm text-[#888888] uppercase tracking-wider">AETHER FLOW</p>
+</div>
+</article>
+<!-- Card 2 -->
+<article class="flex flex-col group cursor-pointer">
+<div class="relative aspect-square w-full mb-3">
+<div class="w-full h-full rounded-xl overflow-hidden bg-surface-container transition-transform duration-300 group-hover:scale-[1.02]">
+<div class="w-full h-full bg-cover bg-center" data-alt="An abstract 3D render of architectural Brutalist structures made of dark obsidian glass, reflecting subtle grey and white highlights. The composition is minimalist and symmetrical, set against a true black background. The mood is cold, sophisticated, and evokes high-fidelity audio engineering." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAAKa7qzUoi8thkscoej6ot_HxNx6jOCKfr5eMcUfoiQRZnGTnDhgJW0kIOiDSkobk4Jjtf3-2ioK_6Gg-59vSokz5v9z7pbTdxoLzdTu-_M_mPUXhV72uaZnA1rzxFiCoyVfoFSpgRbqQF-dbzjNci1mOH9Sz0Fp_40BFdaS-_PWHKPneaal0Pu4KHoeMiuA7gFBZE52_ORYP0V_5q8dO7ZniIViH-uhhKOk8gb-ayQmkxkns6MP2u4eQZEsQcIOYo2Kn_mJiqHtQ')"></div>
+</div>
+<div class="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-meta-sm text-white">3:58</div>
+</div>
+<div class="space-y-0.5">
+<h3 class="text-[14px] font-semibold text-white leading-tight">Signal Loss</h3>
+<p class="text-[11px] font-meta-sm text-[#888888] uppercase tracking-wider">VOID SECTOR</p>
+</div>
+</article>
+<!-- Card 3 -->
+<article class="flex flex-col group cursor-pointer">
+<div class="relative aspect-square w-full mb-3">
+<div class="w-full h-full rounded-xl overflow-hidden bg-surface-container transition-transform duration-300 group-hover:scale-[1.02]">
+<div class="w-full h-full bg-cover bg-center" data-alt="A minimalist digital artwork featuring a single, vibrant white soundwave line cutting through a deep black void. The line is sharp and precise, with subtle grain textures reminiscent of professional audio software. The visual style is focused and technical, emphasizing premium precision and dark aesthetics." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAwY_mrNiVfy06f5CBJeXiaw8HkPAgQO6wGnyN2tzDXN9H5v-9Qy-zxFRbbhmK_WoCqdYCBvzTwFQSaKT_BFbXKBUeu6L96YiAgqp_KtvKadEanD_9_Hn3mdsKk9FzFzLZv8Eu7kUQjaYRD8grFPIwyb4420PiYuX4uAJvxNhJMJaErrBN3kWcaHSYNbTYROWT98ha_0fZ-lA93478NpARtJJw5GBZVE7OMD4tnREr5OXQ3IaVYSVjcuYoiaZLuMC-VcrNrhLrs9Wo')"></div>
+</div>
+<div class="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-meta-sm text-white">5:12</div>
+</div>
+<div class="space-y-0.5">
+<h3 class="text-[14px] font-semibold text-white leading-tight">Frequency Response</h3>
+<p class="text-[11px] font-meta-sm text-[#888888] uppercase tracking-wider">MODULAR X</p>
+</div>
+</article>
+<!-- Card 4 -->
+<article class="flex flex-col group cursor-pointer">
+<div class="relative aspect-square w-full mb-3">
+<div class="w-full h-full rounded-xl overflow-hidden bg-surface-container transition-transform duration-300 group-hover:scale-[1.02]">
+<div class="w-full h-full bg-cover bg-center" data-alt="A cinematic, low-light photograph of a high-end audiophile turntable with a glowing white needle point. The scene is dominated by deep blacks and subtle grey gradients on metallic surfaces. The atmosphere is sophisticated and unapologetically technical, reflecting a professional studio monitor feeling." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCe8cQ0HluyUNnFuieev17warZwC2oHAoZtbhAhzmTaiH_30AsomhWYoUQAj4azoWTsZ6Sn5HcMyNF4Enx9SJdyPnsNpdlWwkNgKH5RDQUQ_IqVGpRo2kqtspsTomsv_OidyImyl7EYEvoI4Old6fWdp1hu9EpiIOZSL0OyNhhMe7UpDBtQnpAJNOZaMNcUwNGieA1dOFeHm1m0029cWdIqcKuJa5LZQ-p22R9rV9CNQooY1QR7Q0mFA0u8-99-cHIN9SGuAoqM3CU')"></div>
+</div>
+<div class="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-meta-sm text-white">2:45</div>
+</div>
+<div class="space-y-0.5">
+<h3 class="text-[14px] font-semibold text-white leading-tight">Vinyl Static</h3>
+<p class="text-[11px] font-meta-sm text-[#888888] uppercase tracking-wider">ANALOGUE GHOSTS</p>
+</div>
+</article>
+<!-- Card 5 -->
+<article class="flex flex-col group cursor-pointer">
+<div class="relative aspect-square w-full mb-3">
+<div class="w-full h-full rounded-xl overflow-hidden bg-surface-container transition-transform duration-300 group-hover:scale-[1.02]">
+<div class="w-full h-full bg-cover bg-center" data-alt="Generative art piece of fluid, smoke-like shapes in shades of charcoal and silver swirling in a black vacuum. The lighting is harsh and dramatic, highlighting the intricate details of the vapor. The overall design is minimalist and focuses on high-contrast monochrome values for an immersive music experience." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDRAgf1AJSXZzpjsGexJMpyplM9tb65XqhBqBCwpc3nvJHcgVoxOCZeRCbMHxsuGsrSWYfhLSACLAZ-jttcs8UsKxRrlr9YdXoa7J3tkGpoXd6yXUovcUK_eCEn6uyKoh6_cfN56NC9n0wnpTbwL8lHmwIRF3wwi0LRk-FB5wcUGcSWwIL6R2WOMUia8yU-Q8OSza0whK2yXzb8j7DPgGqdTmDXrxN1cyWsrxMjbhBKxPeyRdHslaZq_9wl9WCm_C65tqhFL96lr58')"></div>
+</div>
+<div class="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-meta-sm text-white">6:30</div>
+</div>
+<div class="space-y-0.5">
+<h3 class="text-[14px] font-semibold text-white leading-tight">Sub-Zero Bass</h3>
+<p class="text-[11px] font-meta-sm text-[#888888] uppercase tracking-wider">TUNDRA BEATS</p>
+</div>
+</article>
+<!-- Card 6 -->
+<article class="flex flex-col group cursor-pointer">
+<div class="relative aspect-square w-full mb-3">
+<div class="w-full h-full rounded-xl overflow-hidden bg-surface-container transition-transform duration-300 group-hover:scale-[1.02]">
+<div class="w-full h-full bg-cover bg-center" data-alt="Macro photography of a professional mixing console in the dark, with faders perfectly aligned. Only the faint white indicators and soft green glow from the level meters are visible. The aesthetic is extremely technical and developer-centric, leaning into a blend of utility and high-end design." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAWcojxtIZAX-7vHxoCsZDzjKOd1HXIaPnI2h407Yy9bt5imcE1hB9lRI9YxCh0FBRv1Xu2aY3hHBGA7iDBD6woy-pw_jU8i6UPmAFpRl23_Scsh350u0lbxGQM04MRcH_fptLRX_oHJhJmQVcF9WS3Z8hvLTQOX-2j-smmgwuKnzcQOhcIjivMHW2ibpZScarRg-mM8ZRGFfGn279mGjvXEnzYHF-CcFH59klIFIo97nclHmv0U0ZN0OSPqzQv0hKP6G6raqiEvBo')"></div>
+</div>
+<div class="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded text-[10px] font-meta-sm text-white">4:10</div>
+</div>
+<div class="space-y-0.5">
+<h3 class="text-[14px] font-semibold text-white leading-tight">Mastering Chain</h3>
+<p class="text-[11px] font-meta-sm text-[#888888] uppercase tracking-wider">THE ENGINEER</p>
+</div>
+</article>
+</main>
+<!-- Bottom Navigation Bar (Fixed) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 bg-surface-container-low border-t border-outline-variant/20 flex justify-around items-center h-16 px-4 pb-safe lg:hidden">
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="text-meta-xs font-meta-xs">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary font-bold" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">search</span>
+<span class="text-meta-xs font-meta-xs">Explore</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">subscriptions</span>
+<span class="text-meta-xs font-meta-xs">Library</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-meta-xs font-meta-xs">Profile</span>
+</a>
+</nav>
+<script>
+        // Simple Micro-interactions for Toggle
+        const toggleTracks = document.getElementById('toggle-tracks');
+        const toggleAlbums = document.getElementById('toggle-albums');
+
+        toggleTracks.addEventListener('click', () => {
+            toggleTracks.classList.add('bg-white', 'text-black');
+            toggleTracks.classList.remove('text-[#888888]');
+            toggleAlbums.classList.remove('bg-white', 'text-black');
+            toggleAlbums.classList.add('text-[#888888]');
+        });
+
+        toggleAlbums.addEventListener('click', () => {
+            toggleAlbums.classList.add('bg-white', 'text-black');
+            toggleAlbums.classList.remove('text-[#888888]');
+            toggleTracks.classList.remove('bg-white', 'text-black');
+            toggleTracks.classList.add('text-[#888888]');
+        });
+
+        // Category Chips Toggle
+        const categoryChips = document.querySelectorAll('nav button');
+        categoryChips.forEach(chip => {
+            chip.addEventListener('click', () => {
+                categoryChips.forEach(c => c.classList.remove('active-pill'));
+                chip.classList.add('active-pill');
+            });
+        });
+
+        // Add 2px focus ring effect with offset programmatically for clean components
+        document.querySelectorAll('article').forEach(card => {
+            card.setAttribute('tabindex', '0');
+            card.classList.add('focus:outline-none', 'focus-visible:ring-2', 'focus-visible:ring-white', 'focus-visible:ring-offset-4', 'focus-visible:ring-offset-black', 'rounded-xl', 'transition-all');
+        });
+    </script>
+</body></html>

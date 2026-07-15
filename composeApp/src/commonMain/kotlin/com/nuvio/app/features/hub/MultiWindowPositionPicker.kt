@@ -51,12 +51,17 @@ private val Accent = Color(0xFF4A90D9)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MultiWindowPositionPicker(
-    channel: IptvChannel,
+    channel: IptvChannel? = null,
+    streamTitle: String? = null,
+    streamUrl: String? = null,
+    streamPoster: String? = null,
     onDismiss: () -> Unit,
     onSlotSelected: (Int) -> Unit,
     onSlotSelectedAndOpenHub: ((Int) -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val displayTitle = channel?.name ?: streamTitle ?: "Unknown"
+    val displayLogo = channel?.logo ?: streamPoster
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
     val isSelectionMode = onSlotSelectedAndOpenHub != null
 
@@ -69,7 +74,7 @@ fun MultiWindowPositionPicker(
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
             Text("Add to MultiWindow", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 20.sp)
             Spacer(Modifier.height(4.dp))
-            Text(channel.name, color = OnSurfaceVariant, fontSize = 14.sp)
+            Text(displayTitle, color = OnSurfaceVariant, fontSize = 14.sp)
             Spacer(Modifier.height(16.dp))
 
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -107,22 +112,25 @@ fun MultiWindowPositionPicker(
                                 if (isSelectionMode) {
                                     selectedSlotIndex = if (isSelected) null else slotIndex
                                 } else {
-                                    onSlotSelected(slotIndex)
+                                    try { onSlotSelected(slotIndex) } catch (_: Exception) {}
                                 }
                             },
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             if (isOccupied) {
-                                if (!existing!!.channel.logo.isNullOrBlank()) {
+                                val safeExisting = existing
+                                val existingLogo = safeExisting?.channel?.logo ?: safeExisting?.playerPoster
+                                val existingName = safeExisting?.playerTitle ?: safeExisting?.channel?.name ?: ""
+                                if (!existingLogo.isNullOrBlank()) {
                                     AsyncImage(
-                                        model = existing.channel.logo,
+                                        model = existingLogo,
                                         contentDescription = null,
                                         contentScale = ContentScale.Fit,
                                         modifier = Modifier.size(28.dp),
                                     )
                                 }
-                                Text(existing!!.channel.name, color = OnSurface, fontSize = 9.sp, fontWeight = FontWeight.Medium,
+                                Text(existingName, color = OnSurface, fontSize = 9.sp, fontWeight = FontWeight.Medium,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 4.dp))
                                 Text("Slot ${slotIndex + 1}", color = OnSurfaceVariant, fontSize = 8.sp)
                             } else {

@@ -70,6 +70,7 @@ class MainActivity : AppCompatActivity() {
                 scrim = 0xFF020404.toInt(),
             ),
         )
+        com.nuvio.app.appContext = applicationContext
         ThemeSettingsStorage.initialize(applicationContext)
         SentrySettingsStorage.initialize(applicationContext)
         SentryInitializer.start(application)

@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -18,7 +19,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -52,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,13 +67,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val ObsidianBg = Color(0xFF000000)
-private val SurfaceLow = Color(0xFF121212)
-private val SurfaceCard = Color(0xFF1B1B1B)
+private val SurfaceCard = Color(0xFF1A1A1A)
 private val OnSurface = Color(0xFFFFFFFF)
 private val OnSurfaceVariant = Color(0xFFB0B0B0)
 private val TertiaryText = Color(0xFF888888)
 private val BorderColor = Color(0xFF2A2A2A)
-private val InputBg = Color(0xFF121212)
 private val FocusRing = Color(0xFFFFFFFF)
 
 @Composable
@@ -147,64 +149,16 @@ fun VidNutzScreen(
         }
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().background(ObsidianBg),
-    ) {
-        OutlinedTextField(
-            value = uiState.searchQuery,
-            onValueChange = { q ->
-                uiState = uiState.copy(searchQuery = q, searchCurrentPage = 1, searchHasMore = true)
-                searchJob?.cancel()
-                if (q.isNotBlank()) {
-                    searchJob = scope.launch {
-                        delay(400)
-                        val results = VidNutzRepository.search(q)
-                        uiState = uiState.copy(searchResults = results, searchHasMore = results.isNotEmpty())
-                    }
-                } else {
-                    uiState = uiState.copy(searchResults = null)
-                }
-            },
-            placeholder = { Text("Search videos...", color = TertiaryText, fontSize = 14.sp) },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = TertiaryText, modifier = Modifier.size(18.dp)) },
-            trailingIcon = {
-                if (uiState.searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { uiState = uiState.copy(searchQuery = "", searchResults = null) }) {
-                        Icon(Icons.Filled.Clear, contentDescription = "Clear", tint = OnSurfaceVariant)
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(8.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = OnSurface, unfocusedTextColor = OnSurface,
-                focusedBorderColor = BorderColor, unfocusedBorderColor = BorderColor,
-                cursorColor = OnSurface, focusedContainerColor = InputBg, unfocusedContainerColor = InputBg,
-            ),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            VidNutzCategory.entries.forEach { category ->
-                CategoryChip(
-                    label = category.displayName,
-                    isSelected = category == uiState.selectedCategory,
-                    onClick = {
-                        uiState = uiState.copy(
-                            selectedCategory = category, videos = emptyList(), searchResults = null,
-                            searchQuery = "", currentPage = 1, hasMore = true,
-                        )
-                    },
-                )
-            }
-        }
-
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(ObsidianBg)) {
+        val isTvMode = maxWidth >= 1024.dp
+        val isTablet = maxWidth >= 768.dp
+        val margin = if (isTablet) 32.dp else 16.dp
         val displayVideos = if (uiState.searchResults != null) uiState.searchResults!! else uiState.videos
+        val columns = if (isTablet) GridCells.Fixed(3) else GridCells.Fixed(1)
 
-        Box(
+        LazyVerticalGrid(
+            columns = columns,
+            state = gridState,
             modifier = Modifier.fillMaxSize().pointerInput(uiState.searchQuery.isBlank()) {
                 if (uiState.searchQuery.isBlank()) {
                     detectHorizontalDragGestures(
@@ -218,21 +172,136 @@ fun VidNutzScreen(
                     )
                 }
             },
+            contentPadding = PaddingValues(horizontal = if (isTvMode) 48.dp else margin, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isTvMode) 24.dp else 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (isTvMode) 24.dp else 16.dp),
         ) {
-            if (uiState.isLoading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Loading...", color = OnSurfaceVariant, fontSize = 14.sp) }
-            } else if (displayVideos.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No videos found", color = OnSurfaceVariant, fontSize = 14.sp) }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(1),
-                    state = gridState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+            // ── Search bar (TV) ──
+            if (isTvMode) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("VidNutz Hub", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                        Spacer(Modifier.width(32.dp))
+                        OutlinedTextField(
+                            value = uiState.searchQuery,
+                            onValueChange = { q ->
+                                uiState = uiState.copy(searchQuery = q, searchCurrentPage = 1, searchHasMore = true)
+                                searchJob?.cancel()
+                                if (q.isNotBlank()) {
+                                    searchJob = scope.launch {
+                                        delay(400)
+                                        val results = VidNutzRepository.search(q)
+                                        uiState = uiState.copy(searchResults = results, searchHasMore = results.isNotEmpty())
+                                    }
+                                } else {
+                                    uiState = uiState.copy(searchResults = null)
+                                }
+                            },
+                            placeholder = { Text("Search for technical content...", color = TertiaryText, fontSize = 14.sp) },
+                            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = TertiaryText, modifier = Modifier.size(20.dp)) },
+                            trailingIcon = {
+                                if (uiState.searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { uiState = uiState.copy(searchQuery = "", searchResults = null) }) {
+                                        Icon(Icons.Filled.Clear, contentDescription = "Clear", tint = OnSurfaceVariant)
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = OnSurface, unfocusedTextColor = OnSurface,
+                                focusedBorderColor = OnSurfaceVariant, unfocusedBorderColor = Color.Transparent,
+                                cursorColor = OnSurface, focusedContainerColor = SurfaceCard, unfocusedContainerColor = SurfaceCard,
+                            ),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+
+            // ── Search bar (Mobile) ──
+            if (!isTvMode) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    OutlinedTextField(
+                        value = uiState.searchQuery,
+                        onValueChange = { q ->
+                            uiState = uiState.copy(searchQuery = q, searchCurrentPage = 1, searchHasMore = true)
+                            searchJob?.cancel()
+                            if (q.isNotBlank()) {
+                                searchJob = scope.launch {
+                                    delay(400)
+                                    val results = VidNutzRepository.search(q)
+                                    uiState = uiState.copy(searchResults = results, searchHasMore = results.isNotEmpty())
+                                }
+                            } else {
+                                uiState = uiState.copy(searchResults = null)
+                            }
+                        },
+                        placeholder = { Text("Search videos...", color = TertiaryText, fontSize = 14.sp) },
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = TertiaryText, modifier = Modifier.size(18.dp)) },
+                        trailingIcon = {
+                            if (uiState.searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { uiState = uiState.copy(searchQuery = "", searchResults = null) }) {
+                                    Icon(Icons.Filled.Clear, contentDescription = "Clear", tint = OnSurfaceVariant)
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = OnSurface, unfocusedTextColor = OnSurface,
+                            focusedBorderColor = BorderColor, unfocusedBorderColor = BorderColor,
+                            cursorColor = OnSurface, focusedContainerColor = SurfaceCard, unfocusedContainerColor = SurfaceCard,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+
+            // ── Category chips ──
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
+                    horizontalArrangement = if (isTablet) Arrangement.Center else Arrangement.Start,
                 ) {
-                    items(displayVideos, key = { it.videoId }) { video ->
-                        VideoCard(video = video, onPlay = {
+                    VidNutzCategory.entries.forEach { category ->
+                        VidNutzChip(
+                            label = category.displayName,
+                            isSelected = category == uiState.selectedCategory,
+                            onClick = {
+                                uiState = uiState.copy(
+                                    selectedCategory = category, videos = emptyList(), searchResults = null,
+                                    searchQuery = "", currentPage = 1, hasMore = true,
+                                )
+                            },
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                }
+            }
+
+            // ── Content ──
+            if (uiState.isLoading) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                        Text("Loading...", color = OnSurfaceVariant, fontSize = 14.sp)
+                    }
+                }
+            } else if (displayVideos.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                        Text("No videos found", color = OnSurfaceVariant, fontSize = 14.sp)
+                    }
+                }
+            } else {
+                items(displayVideos, key = { it.videoId }) { video ->
+                    VidNutzVideoCard(
+                        video = video,
+                        isTvMode = isTvMode,
+                        onPlay = {
                             scope.launch {
                                 val result = VidNutzRepository.resolveStream(video.videoId)
                                 if (result != null && onPlayChannel != null) {
@@ -243,18 +312,25 @@ fun VidNutzScreen(
                                     ))
                                 }
                             }
-                        })
-                    }
-                    item(key = "__load_more__") {
-                        val showLoading = uiState.isLoadingMore
-                        val showButton = !uiState.isLoadingMore && uiState.hasMore && displayVideos.isNotEmpty()
-                        Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
-                            if (showLoading) {
-                                CircularProgressIndicator(color = Color.White.copy(alpha = 0.5f), strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
-                            } else if (showButton) {
-                                Button(onClick = { loadMore() }, shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)) {
-                                    Text("Load More", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                }
+                        },
+                    )
+                }
+                item(key = "__load_more__") {
+                    val showLoading = uiState.isLoadingMore
+                    val showButton = !uiState.isLoadingMore && uiState.hasMore && displayVideos.isNotEmpty()
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (showLoading) {
+                            CircularProgressIndicator(color = Color.White.copy(alpha = 0.5f), strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+                        } else if (showButton) {
+                            Button(
+                                onClick = { loadMore() },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                            ) {
+                                Text("LOAD MORE", fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = FontFamily.SansSerif)
                             }
                         }
                     }
@@ -265,9 +341,13 @@ fun VidNutzScreen(
 }
 
 @Composable
-private fun CategoryChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
+private fun VidNutzChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
     var isFocused by remember { mutableStateOf(false) }
-    val bgColor = when { isSelected -> Color.White; isFocused -> Color.White.copy(alpha = 0.15f); else -> Color.Transparent }
+    val bgColor = when {
+        isSelected -> Color.White
+        isFocused -> Color.White.copy(alpha = 0.15f)
+        else -> SurfaceCard
+    }
     val textColor = if (isSelected || isFocused) Color.Black else OnSurfaceVariant
     Box(
         modifier = Modifier.clip(RoundedCornerShape(50)).background(bgColor)
@@ -280,34 +360,134 @@ private fun CategoryChip(label: String, isSelected: Boolean, onClick: () -> Unit
 }
 
 @Composable
-private fun VideoCard(video: VidNutzVideo, onPlay: () -> Unit) {
+private fun VidNutzVideoCard(video: VidNutzVideo, isTvMode: Boolean, onPlay: () -> Unit) {
     var isFocused by remember { mutableStateOf(false) }
     val thumbShape = RoundedCornerShape(12.dp)
-    Column(
-        modifier = Modifier.fillMaxWidth().focusable().onFocusChanged { isFocused = it.isFocused }.clickable(onClick = onPlay),
-    ) {
-        Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(thumbShape).background(SurfaceLow)
-            .then(if (isFocused) Modifier.border(2.dp, FocusRing, thumbShape) else Modifier)) {
-            AsyncImage(model = video.thumbnail, contentDescription = video.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            if (isFocused) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)))
-            Icon(Icons.Filled.PlayArrow, "Play", tint = Color.White.copy(alpha = if (isFocused) 1f else 0.7f),
-                modifier = Modifier.size(if (isFocused) 56.dp else 48.dp).align(Alignment.Center).clip(CircleShape)
-                    .background(Color.Black.copy(alpha = if (isFocused) 0.5f else 0.3f)).padding(12.dp))
-            if (video.durationSeconds > 0) {
-                Box(Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 6.dp).background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 2.dp)) {
-                    Text(formatDuration(video.durationSeconds), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+
+    if (isTvMode) {
+        Column(
+            modifier = Modifier.fillMaxWidth().focusable().onFocusChanged { isFocused = it.isFocused }
+                .clickable(onClick = onPlay),
+        ) {
+            Box(
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(thumbShape).background(SurfaceCard)
+                    .then(if (isFocused) Modifier.border(2.dp, FocusRing, thumbShape) else Modifier),
+            ) {
+                AsyncImage(
+                    model = video.thumbnail,
+                    contentDescription = video.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Filled.PlayArrow, "Play",
+                        tint = Color.White,
+                        modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.3f)).padding(12.dp),
+                    )
+                }
+                if (video.durationSeconds > 0) {
+                    Box(
+                        Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 6.dp)
+                            .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 5.dp, vertical = 2.dp),
+                    ) {
+                        Text(formatDuration(video.durationSeconds), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    }
                 }
             }
+            Text(
+                video.title, color = OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 8.dp, start = 2.dp),
+            )
+            Text(
+                video.channelName, color = OnSurfaceVariant, fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp, start = 2.dp),
+            )
+            if (video.viewCount > 0 || video.uploadDate.isNotEmpty()) {
+                Text(
+                    buildList {
+                        if (video.viewCount > 0) add(formatViews(video.viewCount))
+                        if (video.uploadDate.isNotEmpty()) { if (isNotEmpty()) add("·"); add(video.uploadDate) }
+                    }.joinToString(" "),
+                    color = TertiaryText, fontSize = 11.sp, fontFamily = FontFamily.Monospace, maxLines = 1,
+                    modifier = Modifier.padding(top = 1.dp, start = 2.dp),
+                )
+            }
+            Spacer(Modifier.height(4.dp))
         }
-        Text(video.title, color = OnSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp, start = 2.dp))
-        Text(video.channelName, color = TertiaryText, fontSize = 12.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, start = 2.dp))
-        if (video.viewCount > 0 || video.uploadDate.isNotEmpty()) {
-            Text(buildString {
-                if (video.viewCount > 0) append(formatViews(video.viewCount))
-                if (video.uploadDate.isNotEmpty()) { if (isNotEmpty()) append(" · "); append(video.uploadDate) }
-            }, color = TertiaryText, fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, maxLines = 1, modifier = Modifier.padding(top = 1.dp, start = 2.dp))
+    } else {
+        Column(
+            modifier = Modifier.fillMaxWidth().focusable().onFocusChanged { isFocused = it.isFocused }
+                .clickable(onClick = onPlay),
+        ) {
+            Box(
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(thumbShape).background(SurfaceCard)
+                    .then(if (isFocused) Modifier.border(2.dp, FocusRing, thumbShape) else Modifier),
+            ) {
+                AsyncImage(
+                    model = video.thumbnail,
+                    contentDescription = video.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+                if (isFocused) {
+                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)))
+                }
+                Icon(
+                    Icons.Filled.PlayArrow, "Play",
+                    tint = Color.White.copy(alpha = if (isFocused) 1f else 0.7f),
+                    modifier = Modifier.size(if (isFocused) 56.dp else 48.dp).align(Alignment.Center).clip(CircleShape)
+                        .background(Color.Black.copy(alpha = if (isFocused) 0.5f else 0.3f)).padding(12.dp),
+                )
+                if (video.durationSeconds > 0) {
+                    Box(
+                        Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 6.dp)
+                            .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 5.dp, vertical = 2.dp),
+                    ) {
+                        Text(formatDuration(video.durationSeconds), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    }
+                }
+            }
+            Row(modifier = Modifier.padding(top = 8.dp, start = 2.dp)) {
+                Box(
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(SurfaceCard),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        video.channelName.take(1).uppercase(),
+                        color = OnSurfaceVariant,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        video.title, color = OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        video.channelName, color = OnSurfaceVariant, fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 1.dp),
+                    )
+                    if (video.viewCount > 0 || video.uploadDate.isNotEmpty()) {
+                        Text(
+                            buildList {
+                                if (video.viewCount > 0) add(formatViews(video.viewCount))
+                                if (video.uploadDate.isNotEmpty()) { if (isNotEmpty()) add("·"); add(video.uploadDate) }
+                            }.joinToString(" "),
+                            color = TertiaryText, fontSize = 11.sp, fontFamily = FontFamily.Monospace, maxLines = 1,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
         }
-        Spacer(Modifier.height(4.dp))
     }
 }
 

@@ -1,5 +1,26 @@
 # Nuvio Mobile — Version History & Knowledge Base
 
+## Latest Build
+```bash
+./gradlew :androidApp:assembleFullDebug -Pnuvio.android.distribution=full
+```
+APK: `androidApp/build/outputs/apk/full/debug/androidApp-full-debug.apk`
+
+### v0.3.0 — Backup/Restore, Hub Header Tuning, Multiwindow Fixes (July 2026)
+- **Backup & Restore** — export/import all profiles, library, watched status, progress, collections, IPTV, settings, auth, identity via clipboard or file picker
+- **NuvioSync backup import** — import `.json` backups from the original NuvioSync format (library, watched, progress, addons) with automatic conversion
+- **Hub header tunings** — smaller compact headers (14sp, reduced padding), consistent across all 4 hubs, persistent back buttons, translucent hub cards
+- **VidNutz randomization** — each category uses random page offset + rotating search query variants so different videos show per category
+- **SportNutz grid** — changed live events to 4-column grid, aggregates trending news across 16 sports queries
+- **MusicNutz randomization** — each genre category uses random page offset + query variants
+- **D-pad focusable** — `NuvioPosterCard` (home catalog), `ChannelCard` (IPTV) all focusable with scale + border highlight for TV remote
+- **IPTV search toggle** — search bar hidden by default, tap search icon to show
+- **Multiwindow crash fix** — removed `!!` force-unwraps in slot picker, try-catch around `addToSlot`
+- **Multiwindow auto-layout** — layout no longer locks when adding streams (stays auto by default)
+- **Spacing** — added 20dp between header and grid in hub screen, 32dp between header and pills in SportNutz
+- **File picker** — "Pick File" button in Backup → Import NuvioSync opens Android file picker for `.json` files
+- **Restart reminder** — restore success message now says "Restart app to see changes"
+
 ## Build Commands
 ```bash
 ./gradlew :androidApp:assembleDebug -Pnuvio.android.distribution=full
@@ -396,6 +417,51 @@ A bottom sheet with four sections. On TV, use a side panel or dialog instead.
 - **Search field** — `OutlinedTextField` at top of channel overlay filters channels by name in real-time
 - **Group subtitle** — each channel row shows its group name as a smaller subtitle when no group filter is active
 - **Swap position overlay** — new overlay in cell options showing slot grid; tapping an occupied slot swaps the two streams
+
+### CloudNutz Removed (July 2026)
+- **CloudStream plugin system removed** — after extensive attempts (PathClassLoader, Plugin bridge, code_cache DEX loading, app init, logging), CloudStream `.cs3` plugin loading was abandoned due to:
+  - Android 14+ blocking DEX loading from writable app directories
+  - Missing `Plugin` class in `cloudstream:library` (requires cloudstream-runtime-api AAR)
+  - `NiceHttp` HTTP client dependency not available
+  - CloudStream's `app.get()` network client initialization issues
+- **10 files deleted** — all `CloudNutz*`, `CloudNutzRepositoryManager*`, `Plugin.kt` bridge removed
+- **Dependencies removed** — `cloudstream:library:master-SNAPSHOT` from libs.versions.toml and build.gradle.kts
+- **JitPack repository retained** — still used by `TeamNewPipe:NewPipeExtractor`
+
+### Hub Grid Redesign (July 2026)
+- **RobbdeezeNutzHub home redesigned** — replaced vertical `HubCard` list with responsive `LazyVerticalGrid` (`GridCells.Adaptive(minSize=160dp)`)
+- **Square grid cards** — aspect-ratio 1:1, `Color(0xFF1F1F1F)` surface, 80dp circular icon containers (turn white on focus), 32sp bold 2-letter badges (TV/SP/VN/MU/MW)
+- **Header simplified** — removed "Explore Hubz" headline and subtitle, grid starts directly below title bar
+- **Compact top padding** — reduced from 96dp→48dp (tablet) and 32dp→12dp (mobile)
+- **All navigation preserved** — 5 hub cards still navigate to sub-screens, back button works
+
+### Multi-View "MV" Button in Player (July 2026)
+- **Send any video to MultiNutz** — new "MV" button (Dashboard icon) in player controls action bar
+- **Works with ALL content** — IPTV, movies, shows, sports, music — anything playing in ExoPlayer
+- **Generic stream support** — `WindowStream` now has `playerUrl`, `playerTitle`, `playerPoster` fields
+- **`MultiWindowStore.addStream()`** — new function that creates a stream without needing an `IptvChannel`
+- **`MultiWindowPositionPicker`** — now accepts generic `streamTitle?`/`streamUrl?`/`streamPoster?` alongside `channel?`
+- **Slot selection flow** — tap MV → picker shows slots → select slot → stream added → picker closes
+- **IptvChannel dummy** — generic streams wrapped in minimal dummy channel for existing grid rendering
+
+### Upstream Merge (July 2026)
+- **NuvioMedia/NuvioMobile cmp-rewrite merged** — 68 commits from upstream
+- **Navigation3 migration** — replaced old tab navigation (`AppScreenTab`, `selectedTab`) with `navigation3` (`AppRoute` sealed interface, `navBackStack`, `entry<>{}` composable pattern)
+- **Routes refactored** — all `AppRoute` implementations moved to `navigation/Routes.kt`, `TeamDetailRoute` added there
+- **`TeamDetailRoute`** — preserved as a Robbdeeze-specific route, re-added with `entry<>{}` pattern
+- **`PlayerControls.kt`** — updated to upstream's new signature (nullable subtitle/audio callbacks, `NuvioLoadingIndicator`, `showDeviceStatusOverlay`, `qualityLabel`, `onRandomEpisodeClick`, shuffle/tune/tv/wifi icons)
+- **`PlayerScreen.kt`** — added `onOpenExternalUrl` parameter from upstream
+- **`PlayerSubtitleCueParser.kt`** — regex updated to upstream version
+- **Merge conflicts resolved** — 5 in App.kt, 2 player files, 1 subtitle parser; all resolved without breaking our custom features
+- **All hub/MV/IPTV features preserved** — grid layout, MV button, IPTV tokens, hub sub-screens all work post-merge
+
+### Enhanced Fork Review & .AAR Discovery (July 2026)
+- **Full analysis of `yesnt10/NuvioMobile-Enhanced`** — saved to `_bmad-output/enhanced-fork-review-cloudstream-ai.md`
+- **CloudStream approach** — uses local AAR (`cloudstream-runtime-api-4.8.0-3496e5f.aar` NOT in git) + bridged source files + hand-written adapters (no DEX loading at runtime)
+- **AI Assistant** — 4 providers (Cerebras, Groq, Gemini, OpenRouter) with auto-fallback + Tavily web search
+- **Critical discovery: .AAR not needed** — the enhanced fork's adapter code (`CloudStreamModels.kt`, `CloudStreamRepository.kt`, `CloudStreamNuvioAdapter.kt`, etc.) **never imports from the `.aar`**. It defines its own DTOs and uses `kotlinx.serialization` (already a dependency). The `.aar` only provides classes for the CloudStream plugin runtime (`BasePlugin`, `Plugin`, `MainAPI`), which we don't use because we don't load `.cs3` DEX files.
+- **Implementation path** — can copy 25+ adapter source files directly (~4 hours effort). No `.aar`, no `.cs3` loading, no `PathClassLoader`, no Android 14+ restrictions. The adapters are pure Kotlin compiled into the app using standard HTTP + JSON. Only covers the 1-2 providers the enhanced fork wrote adapters for (KickTR + maybe 1 more), but we can write additional adapters for any website with an API.
+- **Not a merge blocker** — the `.aar` was thought to block the merge, but we can integrate the adapter code without it. Full details in `_bmad-output/enhanced-fork-review-cloudstream-ai.md#5-critical-discovery-we-dont-need-the-aar`
 
 ### Phase 17c — Sports Hub Fixes (July 2026)
 - **"Live Now" → "Live/Upcoming"** — header shows both active game count with pulse dot AND upcoming count

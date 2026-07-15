@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.VideoLibrary
+import androidx.compose.material.icons.rounded.Dashboard
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -100,6 +101,7 @@ internal fun PlayerControlsShell(
     onEpisodesClick: (() -> Unit)? = null,
     onLiveGamesClick: (() -> Unit)? = null,
     onOpenInExternalPlayer: (() -> Unit)? = null,
+    onMultiViewClick: (() -> Unit)? = null,
     onSubmitIntroClick: (() -> Unit)? = null,
     parentalWarnings: List<ParentalWarning> = emptyList(),
     showParentalGuide: Boolean = false,
@@ -204,6 +206,7 @@ internal fun PlayerControlsShell(
                     onSourcesClick = onSourcesClick,
                     onChannelsClick = onChannelsClick,
                     onEpisodesClick = onEpisodesClick,
+                    onMultiViewClick = onMultiViewClick,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
@@ -514,6 +517,7 @@ private fun ProgressControls(
     onChannelsClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
     onLiveGamesClick: (() -> Unit)? = null,
+    onMultiViewClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val durationMs = playbackSnapshot.durationMs.coerceAtLeast(1L)
@@ -616,6 +620,13 @@ private fun ProgressControls(
                             label = stringResource(Res.string.compose_player_episodes),
                             icon = Icons.Rounded.VideoLibrary,
                             onClick = onEpisodesClick,
+                        )
+                    }
+                    if (onMultiViewClick != null) {
+                        PlayerActionPillButton(
+                            label = "MV",
+                            icon = Icons.Rounded.Dashboard,
+                            onClick = onMultiViewClick,
                         )
                     }
                 }

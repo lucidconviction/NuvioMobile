@@ -303,13 +303,20 @@ object SportsRepository {
     private fun isLeapYear(y: Long): Boolean = (y % 4 == 0L && y % 100 != 0L) || (y % 400 == 0L)
 
     private suspend fun fetchTrendingNewsVideos(): List<YouTubeVideo> {
-        val queries = listOf("sports news today", "NFL highlights", "NBA highlights", "MLB highlights", "NHL highlights", "soccer highlights", "UFC news")
-        for (query in queries) {
+        val queries = listOf(
+            "sports news today", "NFL highlights", "NBA highlights", "MLB highlights",
+            "NHL highlights", "soccer highlights", "UFC news", "boxing highlights",
+            "tennis highlights", "F1 racing", "college football", "March Madness",
+            "Super Bowl", "World Series", "Stanley Cup", "NBA Finals",
+        )
+        val allResults = mutableSetOf<YouTubeVideo>()
+        for (query in queries.shuffled()) {
+            if (allResults.size >= 20) break
             try {
                 val results = YouTubeHighlightClient.searchHighlights(query)
-                if (results.isNotEmpty()) return results.take(8)
+                allResults.addAll(results.filter { it.videoId.isNotBlank() })
             } catch (_: Exception) {}
         }
-        return emptyList()
+        return allResults.take(20).shuffled()
     }
 }

@@ -28,7 +28,12 @@ asset
 scripts/scrape_android_compose_animation_docs.py
 tools
 AGENTS.md
+<<<<<<< Updated upstream
 PERFORMANCE_FINDINGS.md
 
 # Local MPVKit iOS build environment (sparse APFS image, see MPVKit docs)
 .mpvkit-build.sparseimage
+=======
+stitch_modernized_sports_hub_layout/
+stitch_modernized_sports_hub_layout.zip
+>>>>>>> Stashed changes
