@@ -6,7 +6,7 @@
 ```
 APK: `androidApp/build/outputs/apk/full/debug/androidApp-full-debug.apk`
 
-### v0.7.1 — ProGuard/R8 Fix for Full Release Build (July 2026)
+### v0.3.0 — TeleNutz Streaming, MagNutz Torrents, MusicNutz Playlists, MultiWindow Expansion, SportNutz League Drawers, ProGuard/R8 Fix (July 2026)
 
 #### Build Fixes
 - **R8 missing classes fix** — Added `-dontwarn` rules for `java.beans.*` and `javax.script.ScriptEngineFactory` in `composeApp/proguard-rules.pro` to suppress R8 warnings when minifying the full release APK (Mozilla Rhino JavaScript engine references JVM-only classes not available on Android).
