@@ -87,6 +87,7 @@ fun VidNutzScreen(
     val swipeThresholdPx = with(density) { 80.dp.toPx() }
 
     fun swipeToCategory(direction: Int) {
+        searchJob?.cancel()
         val entries = VidNutzCategory.entries
         val currentIdx = entries.indexOf(uiState.selectedCategory)
         val newIdx = when (direction) {
@@ -109,6 +110,11 @@ fun VidNutzScreen(
             uiState = uiState.copy(isLoading = true, currentPage = 1, hasMore = true)
             val videos = VidNutzRepository.fetchByCategory(uiState.selectedCategory, page = 1)
             uiState = uiState.copy(videos = videos, isLoading = false, hasMore = videos.isNotEmpty())
+            if (videos.isNotEmpty()) {
+                scope.launch {
+                    VidNutzRepository.fetchByCategory(uiState.selectedCategory, page = 2)
+                }
+            }
         }
     }
 
@@ -154,7 +160,7 @@ fun VidNutzScreen(
         val isTablet = maxWidth >= 768.dp
         val margin = if (isTablet) 32.dp else 16.dp
         val displayVideos = if (uiState.searchResults != null) uiState.searchResults!! else uiState.videos
-        val columns = if (isTablet) GridCells.Fixed(3) else GridCells.Fixed(1)
+        val columns = if (isTvMode) GridCells.Fixed(4) else if (isTablet) GridCells.Fixed(3) else GridCells.Fixed(2)
 
         LazyVerticalGrid(
             columns = columns,
@@ -194,7 +200,7 @@ fun VidNutzScreen(
                                     searchJob = scope.launch {
                                         delay(400)
                                         val results = VidNutzRepository.search(q)
-                                        uiState = uiState.copy(searchResults = results, searchHasMore = results.isNotEmpty())
+                                        uiState = uiState.copy(searchResults = results, searchHasMore = results.isNotEmpty(), isLoading = false)
                                     }
                                 } else {
                                     uiState = uiState.copy(searchResults = null)
@@ -234,7 +240,7 @@ fun VidNutzScreen(
                                 searchJob = scope.launch {
                                     delay(400)
                                     val results = VidNutzRepository.search(q)
-                                    uiState = uiState.copy(searchResults = results, searchHasMore = results.isNotEmpty())
+                                    uiState = uiState.copy(searchResults = results, searchHasMore = results.isNotEmpty(), isLoading = false)
                                 }
                             } else {
                                 uiState = uiState.copy(searchResults = null)
@@ -266,28 +272,54 @@ fun VidNutzScreen(
                 Row(
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 4.dp),
                     horizontalArrangement = if (isTablet) Arrangement.Center else Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    VidNutzCategory.entries.forEach { category ->
-                        VidNutzChip(
-                            label = category.displayName,
-                            isSelected = category == uiState.selectedCategory,
-                            onClick = {
-                                uiState = uiState.copy(
-                                    selectedCategory = category, videos = emptyList(), searchResults = null,
-                                    searchQuery = "", currentPage = 1, hasMore = true,
-                                )
+                                                    VidNutzCategory.entries.forEach { category ->
+                                                        VidNutzChip(
+                                                            label = category.displayName,
+                                                            isSelected = category == uiState.selectedCategory,
+                                                            onClick = {
+                                                                searchJob?.cancel()
+                                                                uiState = uiState.copy(
+                                                                    selectedCategory = category, videos = emptyList(), searchResults = null,
+                                                                    searchQuery = "", currentPage = 1, hasMore = true,
+                                                                )
                             },
                         )
                         Spacer(Modifier.width(8.dp))
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Box(
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(SurfaceCard)
+                            .clickable {
+                                scope.launch {
+                                    VidNutzRepository.refreshCategory(uiState.selectedCategory)
+                                    VidNutzRepository.invalidateEngineCache()
+                                    uiState = uiState.copy(
+                                        videos = emptyList(), searchResults = null,
+                                        currentPage = 1, hasMore = true,
+                                    )
+                                    uiState = uiState.copy(isLoading = true)
+                                    val videos = VidNutzRepository.fetchByCategory(uiState.selectedCategory, page = 1)
+                                    uiState = uiState.copy(videos = videos, isLoading = false, hasMore = videos.isNotEmpty())
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text("\u21bb", color = OnSurfaceVariant, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
 
             // ── Content ──
-            if (uiState.isLoading) {
+            if (uiState.isLoading && uiState.searchResults == null) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                        Text("Loading...", color = OnSurfaceVariant, fontSize = 14.sp)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = OnSurfaceVariant.copy(alpha = 0.5f), strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.height(8.dp))
+                            Text("Loading...", color = OnSurfaceVariant, fontSize = 13.sp)
+                        }
                     }
                 }
             } else if (displayVideos.isEmpty()) {
@@ -305,10 +337,28 @@ fun VidNutzScreen(
                             scope.launch {
                                 val result = VidNutzRepository.resolveStream(video.videoId)
                                 if (result != null && onPlayChannel != null) {
+                                    val videoIdx = displayVideos.indexOfFirst { it.videoId == video.videoId }.coerceAtLeast(0)
+                                    val queueUrls = mutableListOf<String>()
+                                    val queueTitles = mutableListOf<String>()
+                                    for (v in displayVideos) {
+                                        if (v.videoId == video.videoId) {
+                                            queueUrls.add(result.url)
+                                            queueTitles.add(video.title)
+                                        } else {
+                                            val r = VidNutzRepository.resolveStream(v.videoId)
+                                            queueUrls.add(r?.url ?: "")
+                                            queueTitles.add(v.title)
+                                        }
+                                    }
                                     onPlayChannel(PlayerLaunch(
                                         profileId = 0, title = video.title, sourceUrl = result.url,
                                         sourceHeaders = result.headers, streamTitle = video.title,
-                                        providerName = "YouTube", parentMetaId = "youtube", parentMetaType = "youtube",
+                                        providerName = "YouTube",
+                                        parentMetaId = "youtube",
+                                        parentMetaType = "youtube",
+                                        autoPlayQueueUrls = queueUrls,
+                                        autoPlayQueueTitles = queueTitles,
+                                        autoPlayQueueIndex = videoIdx,
                                     ))
                                 }
                             }

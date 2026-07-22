@@ -176,6 +176,7 @@ abstract class GenerateRuntimeConfigsTask : DefaultTask() {
                 """.trimMargin()
             )
         }
+
     }
 }
 
@@ -397,6 +398,9 @@ kotlin {
                 if (androidDistribution == "full") {
                     implementation(files("libs/quickjs-kt-android-1.0.5-nuvio.aar"))
                     implementation(libs.ksoup)
+                    implementation("io.ktor:ktor-server-core:3.4.1")
+                    implementation("io.ktor:ktor-server-cio:3.4.1")
+                    implementation(project(":tdlib-java"))
                 }
             }
         }

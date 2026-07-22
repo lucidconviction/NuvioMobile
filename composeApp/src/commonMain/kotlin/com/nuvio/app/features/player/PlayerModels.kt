@@ -55,6 +55,9 @@ data class PlayerLaunch(
     val historyChannelUrls: List<String>? = null,
     val historyChannelLogos: List<String>? = null,
     val historyChannelIds: List<String>? = null,
+    val autoPlayQueueUrls: List<String> = emptyList(),
+    val autoPlayQueueTitles: List<String> = emptyList(),
+    val autoPlayQueueIndex: Int = 0,
 )
 
 object PlayerLaunchStore {

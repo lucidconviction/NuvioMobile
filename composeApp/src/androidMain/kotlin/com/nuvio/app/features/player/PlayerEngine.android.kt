@@ -264,14 +264,31 @@ private fun ExoPlayerSurface(
         sanitizedSourceResponseHeaders,
         useYoutubeChunkedPlayback,
         externalSubtitles,
+        sourceUrl,
     ) {
-        PlatformPlaybackDataSourceFactory.create(
+        val base = PlatformPlaybackDataSourceFactory.create(
             context = context,
             defaultRequestHeaders = sanitizedSourceHeaders,
             defaultResponseHeaders = sanitizedSourceResponseHeaders,
             useYoutubeChunkedPlayback = useYoutubeChunkedPlayback,
             externalSubtitles = externalSubtitles,
         )
+        if (sourceUrl.startsWith("tdlib://")) {
+            val tdlibFileId = sourceUrl.removePrefix("tdlib://").substringBefore("/").toIntOrNull()
+            if (tdlibFileId != null) {
+                val engineRef = try {
+                    com.nuvio.app.features.hub.TeleNutzRepository.engine
+                } catch (_: Exception) { null }
+                if (engineRef != null) {
+                    return@remember TdlibAwareDataSourceFactory(
+                        upstreamFactory = base,
+                        tdlibFileId = tdlibFileId,
+                        tdlibEngine = engineRef,
+                    )
+                }
+            }
+        }
+        base
     }
 
     fun ExoPlayer.setPlaybackMediaItem(videoMediaItem: MediaItem, startPositionMs: Long? = null) {

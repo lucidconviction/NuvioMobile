@@ -19,6 +19,27 @@ data class MusicAlbum(
     val trackCount: Int,
 )
 
+data class MusicNutzPlaylist(
+    val id: String,
+    val name: String,
+    val tracks: List<MusicTrack> = emptyList(),
+    val createdAtEpochMs: Long = 0L,
+) {
+    val trackCount: Int get() = tracks.size
+    val durationSeconds: Int get() = tracks.sumOf { it.durationSeconds }
+}
+
+data class MusicDownload(
+    val trackId: Long,
+    val title: String,
+    val artistName: String,
+    val albumCover: String,
+    val localFilePath: String? = null,
+    val isDownloading: Boolean = false,
+    val progress: Float = 0f,
+    val error: String? = null,
+)
+
 enum class MusicNutzCategory(val displayName: String) {
     TRENDING("Trending"),
     NEW_RELEASES("New Releases"),
@@ -34,7 +55,7 @@ enum class MusicNutzCategory(val displayName: String) {
     INDIE("Indie"),
 }
 
-enum class MusicNutzMode { TRACKS, ALBUMS }
+enum class MusicNutzMode { TRACKS, ALBUMS, PLAYLISTS, DOWNLOADS, SAVED_ALBUMS }
 
 data class MusicNutzUiState(
     val selectedCategory: MusicNutzCategory = MusicNutzCategory.TRENDING,
@@ -56,4 +77,12 @@ data class MusicNutzUiState(
     val selectedAlbum: MusicAlbum? = null,
     val albumTracks: List<MusicTrack> = emptyList(),
     val isLoadingAlbumTracks: Boolean = false,
+    val playlists: List<MusicNutzPlaylist> = emptyList(),
+    val downloads: List<MusicDownload> = emptyList(),
+    val currentPlaylist: MusicNutzPlaylist? = null,
+    val showAddToPlaylist: MusicTrack? = null,
+    val newPlaylistName: String = "",
+    val savedAlbums: List<MusicAlbum> = emptyList(),
+    val isPlayingTrack: Boolean = false,
+    val streamError: String? = null,
 )

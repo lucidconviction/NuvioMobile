@@ -129,7 +129,7 @@ object MultiWindowStore {
     fun isLayoutLocked(): Boolean = _layoutLocked.value
     fun setLayout(layout: MultiWindowLayout) { _currentLayout.value = layout; _layoutLocked.value = true }
     fun setAutoLayout() { _currentLayout.value = null; _layoutLocked.value = false }
-    fun resolveLayout(count: Int, isPortrait: Boolean): MultiWindowLayout = _currentLayout.value ?: defaultLayout(count, isPortrait)
+    fun resolveLayout(count: Int, isPortrait: Boolean, isTablet: Boolean = false): MultiWindowLayout = _currentLayout.value ?: defaultLayout(count, isPortrait, isTablet)
 
     fun swapSlots(slotA: Int, slotB: Int) {
         val idxA = streams.indexOfFirst { it.slotIndex == slotA }

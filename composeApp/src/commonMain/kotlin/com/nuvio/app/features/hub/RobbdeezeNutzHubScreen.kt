@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -41,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -50,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.build.AppVersionConfig
 import com.nuvio.app.features.iptv.IptvScreen
+import com.nuvio.app.features.magnutz.MagNutzScreen
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.sports.SportsScreen
 import kotlinx.coroutines.flow.Flow
@@ -67,8 +70,9 @@ private val Outline = Color(0xFF8E9192)
 private val OutlineVariant = Color(0xFF444748)
 private val CardBorder = Color(0x1AFFFFFF)
 private val Primary = Color(0xFFFDFDFC)
+private val GlassBg = Color(0x991E1E1E)
 
-private enum class HubSubScreen { Hub, Iptv, Sports, VidNutz, Music, Multi }
+private enum class HubSubScreen { Hub, Iptv, Sports, VidNutz, Music, Multi, MagNutz, TeleNutz }
 
 private data class HubItem(
     val title: String,
@@ -82,6 +86,8 @@ private val hubItems = listOf(
     HubItem("VidNutz Hub", "VN", HubSubScreen.VidNutz),
     HubItem("MusicNutz Hub", "MU", HubSubScreen.Music),
     HubItem("MultiNutz Hub", "MW", HubSubScreen.Multi),
+    HubItem("MagNutz Hub", "MG", HubSubScreen.MagNutz),
+    HubItem("TeleNutz Hub", "TG", HubSubScreen.TeleNutz),
 )
 
 @Composable
@@ -98,7 +104,8 @@ fun RobbdeezeNutzHubScreen(
             when (HubReturnStore.subScreen) {
                 "Iptv" -> HubSubScreen.Iptv; "Sports" -> HubSubScreen.Sports
                 "VidNutz" -> HubSubScreen.VidNutz; "Music" -> HubSubScreen.Music
-                "Multi" -> HubSubScreen.Multi
+                "Multi" -> HubSubScreen.Multi; "MagNutz" -> HubSubScreen.MagNutz
+                "TeleNutz" -> HubSubScreen.TeleNutz
                 else -> HubSubScreen.Hub
             },
         )
@@ -112,7 +119,8 @@ fun RobbdeezeNutzHubScreen(
                     val restored = when (saved) {
                         "Iptv" -> HubSubScreen.Iptv; "Sports" -> HubSubScreen.Sports
                         "VidNutz" -> HubSubScreen.VidNutz; "Music" -> HubSubScreen.Music
-                        "Multi" -> HubSubScreen.Multi
+                        "Multi" -> HubSubScreen.Multi; "MagNutz" -> HubSubScreen.MagNutz
+                        "TeleNutz" -> HubSubScreen.TeleNutz
                         else -> null
                     }
                     if (restored != null && restored != subScreen) {
@@ -137,7 +145,19 @@ fun RobbdeezeNutzHubScreen(
     ) {
         val isTablet = maxWidth >= 768.dp
 
-        Column(modifier = Modifier.fillMaxSize()) {
+        Box(
+            Modifier.fillMaxSize().pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = {
+                        if (MultiWindowStore.allStreams.isNotEmpty() && subScreen != HubSubScreen.Multi) {
+                            HubReturnStore.subScreen = "Multi"
+                            subScreen = HubSubScreen.Multi
+                        }
+                    },
+                )
+            },
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
             when (subScreen) {
                 HubSubScreen.Hub -> {
                     Row(
@@ -205,9 +225,48 @@ fun RobbdeezeNutzHubScreen(
                         Box(Modifier.fillMaxSize()) {
                             MultiWindowContent(
                                 onSubScreenChange = { subScreen = it },
+                                onPlayChannel = onPlayChannelSave,
                             )
                         }
                     }
+                }
+                HubSubScreen.MagNutz -> {
+                    Column(Modifier.fillMaxSize()) {
+                        Row(Modifier.fillMaxWidth().padding(start = 2.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { HubReturnStore.subScreen = "Hub"; subScreen = HubSubScreen.Hub }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = OnSurface)
+                            }
+                        }
+                        Box(Modifier.fillMaxSize()) { MagNutzScreen(onPlayChannel = onPlayChannelSave) }
+                    }
+                }
+                HubSubScreen.TeleNutz -> {
+                    Column(Modifier.fillMaxSize()) {
+                        Row(Modifier.fillMaxWidth().padding(start = 2.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { HubReturnStore.subScreen = "Hub"; subScreen = HubSubScreen.Hub }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = OnSurface)
+                            }
+                        }
+                        Box(Modifier.fillMaxSize()) { TeleNutzScreen(onPlayChannel = onPlayChannelSave) }
+                    }
+                }
+            }
+            }
+
+            // Floating MW quick-nav button — appears when streams active and not on Multi sub-screen
+            if (MultiWindowStore.allStreams.isNotEmpty() && subScreen != HubSubScreen.Multi) {
+                Box(
+                    Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 24.dp)
+                        .size(52.dp).clip(CircleShape)
+                        .background(GlassBg)
+                        .border(1.dp, Primary.copy(alpha = 0.4f), CircleShape)
+                        .clickable {
+                            HubReturnStore.subScreen = "Multi"
+                            subScreen = HubSubScreen.Multi
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("MW", color = Primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -314,6 +373,7 @@ private fun HubGridCard(
 @Composable
 private fun MultiWindowContent(
     onSubScreenChange: (HubSubScreen) -> Unit,
+    onPlayChannel: ((PlayerLaunch) -> Unit)? = null,
 ) {
         var selectedCell by remember { mutableStateOf<WindowStream?>(null) }
         var showBookmarks by remember { mutableStateOf(false) }
@@ -323,6 +383,22 @@ private fun MultiWindowContent(
                 onRemoveStream = { MultiWindowStore.remove(it) },
                 onAddMore = { onSubScreenChange(HubSubScreen.Iptv) },
                 onCellLongPress = { selectedCell = it },
+                onFullscreenCell = onPlayChannel?.let { cb -> { stream ->
+                    val url = stream.playerUrl ?: stream.channel.url
+                    val title = stream.playerTitle ?: stream.channel.name
+                    val poster = stream.playerPoster ?: stream.channel.logo
+                    cb(PlayerLaunch(
+                        profileId = 0,
+                        title = title,
+                        sourceUrl = url,
+                        streamTitle = title,
+                        providerName = "MultiNutz",
+                        parentMetaId = "multiview",
+                        parentMetaType = "tv",
+                        logo = poster,
+                        poster = poster,
+                    ))
+                } },
                 onCellVolumeToggle = { stream, active ->
                     MultiWindowStore.setVolume(stream.id, if (active) 1f else 0f)
                     if (active) MultiWindowStore.setAudioFocus(stream.id)
@@ -397,6 +473,23 @@ private fun MultiWindowContent(
                         )
                     }
                 },
+                onFullscreen = onPlayChannel?.let { cb -> {
+                    val url = stream.playerUrl ?: stream.channel.url
+                    val title = stream.playerTitle ?: stream.channel.name
+                    val poster = stream.playerPoster ?: stream.channel.logo
+                    cb(PlayerLaunch(
+                        profileId = 0,
+                        title = title,
+                        sourceUrl = url,
+                        streamTitle = title,
+                        providerName = "MultiNutz",
+                        parentMetaId = "multiview",
+                        parentMetaType = "tv",
+                        logo = poster,
+                        poster = poster,
+                    ))
+                    selectedCell = null
+                } },
                 onRefresh = {
                     val slot = stream.slotIndex
                     val channel = stream.channel

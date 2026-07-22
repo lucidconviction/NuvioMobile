@@ -77,6 +77,7 @@ fun MultiWindowGrid(
     onCloseAll: (() -> Unit)? = null,
     onPauseAll: (() -> Unit)? = null,
     onRefreshAll: (() -> Unit)? = null,
+    onFullscreenCell: ((WindowStream) -> Unit)? = null,
 ) {
     if (streams.isEmpty()) {
         // ── Empty State (render-match) ──
@@ -117,7 +118,7 @@ fun MultiWindowGrid(
         val isTablet = maxWidth >= 600.dp
         val maxSlots = if (isTablet) 9 else 6
         val count = streams.size
-        val layout = MultiWindowStore.resolveLayout(count, isPortrait)
+        val layout = MultiWindowStore.resolveLayout(count, isPortrait, isTablet)
         val slots = layout.calculateSlots(count)
         val totalRows = (slots.maxOfOrNull { it.row + it.rowSpan } ?: 1).coerceAtLeast(1)
         val totalCols = (slots.maxOfOrNull { it.col + it.colSpan } ?: 1).coerceAtLeast(1)
@@ -151,7 +152,7 @@ fun MultiWindowGrid(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                val validLayouts = getValidLayouts(count, isPortrait)
+                val validLayouts = getValidLayouts(count, isPortrait, isTablet)
                 val isAuto = !MultiWindowStore.isLayoutLocked()
 
                 // Auto pill
@@ -166,7 +167,7 @@ fun MultiWindowGrid(
                         fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                 }
                 validLayouts.forEach { l ->
-                    val isSelected = MultiWindowStore.currentLayout() == l || (isAuto && defaultLayout(count, isPortrait) == l)
+                    val isSelected = MultiWindowStore.currentLayout() == l || (isAuto && defaultLayout(count, isPortrait, isTablet) == l)
                     Box(
                         Modifier.clip(RoundedCornerShape(9999.dp))
                             .background(if (isSelected) PrimaryContainer else SurfaceContainer)
@@ -264,6 +265,7 @@ fun MultiWindowGrid(
                                             onRemove = { onRemoveStream(stream.id) },
                                             onLongPress = { onCellLongPress(stream) },
                                             onVolumeToggle = { active -> onCellVolumeToggle(stream, active) },
+                                            onFullscreen = onFullscreenCell?.let { { it(stream) } },
                                             modifier = Modifier.weight((slot.colSpan * totalRows).toFloat()).padding(4.dp),
                                         )
                                     }
@@ -314,6 +316,7 @@ private fun VideoCell(
     onRemove: () -> Unit,
     onLongPress: () -> Unit,
     onVolumeToggle: (Boolean) -> Unit,
+    onFullscreen: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val playerHandle = remember(stream.id) {
@@ -381,6 +384,20 @@ private fun VideoCell(
             ) {
                 Text("$gridPosition | ${stream.channel.name}", color = Color.White,
                     fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+
+            // Top-right: fullscreen button
+            if (onFullscreen != null) {
+                Box(
+                    Modifier.align(Alignment.TopEnd).padding(6.dp)
+                        .size(28.dp).clip(CircleShape)
+                        .background(SurfaceContainerHighest.copy(alpha = 0.8f))
+                        .border(0.5.dp, OutlineVariant.copy(alpha = 0.3f), CircleShape)
+                        .clickable { onFullscreen(); onInteraction() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("⛶", color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
             }
 
             // Center: play/pause button

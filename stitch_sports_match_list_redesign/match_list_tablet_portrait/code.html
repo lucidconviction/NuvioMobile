@@ -1,0 +1,328 @@
+<!DOCTYPE html><html lang="en" class="dark" style=""><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700;800&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet"><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">try{
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary": "#a0caff",
+                    "outline": "#8a919d",
+                    "on-tertiary-fixed-variant": "#005321",
+                    "surface-bright": "#36393f",
+                    "on-background": "#e0e2ea",
+                    "inverse-primary": "#0061a5",
+                    "secondary": "#c0c6dc",
+                    "on-secondary-fixed": "#151b2b",
+                    "surface-container": "#1c2025",
+                    "on-error-container": "#ffdad6",
+                    "primary-container": "#4da6ff",
+                    "primary-fixed": "#d2e4ff",
+                    "on-error": "#690005",
+                    "secondary-fixed": "#dce2f8",
+                    "on-primary-fixed-variant": "#00497e",
+                    "tertiary-container": "#06bb55",
+                    "secondary-fixed-dim": "#c0c6dc",
+                    "inverse-surface": "#e0e2ea",
+                    "surface": "#101419",
+                    "surface-container-low": "#181c21",
+                    "on-secondary-fixed-variant": "#404658",
+                    "surface-container-highest": "#31353b",
+                    "surface-container-lowest": "#0b0e14",
+                    "tertiary-fixed-dim": "#4ae176",
+                    "error": "#ffb4ab",
+                    "background": "#101419",
+                    "tertiary-fixed": "#6bff8f",
+                    "on-secondary": "#2a3041",
+                    "tertiary": "#4ae176",
+                    "primary-fixed-dim": "#a0caff",
+                    "on-primary-fixed": "#001c37",
+                    "on-tertiary-fixed": "#002109",
+                    "inverse-on-surface": "#2d3136",
+                    "on-primary-container": "#003a67",
+                    "surface-variant": "#31353b",
+                    "on-secondary-container": "#afb4ca",
+                    "on-surface": "#e0e2ea",
+                    "surface-dim": "#101419",
+                    "outline-variant": "#404752",
+                    "on-primary": "#003259",
+                    "on-surface-variant": "#c0c7d4",
+                    "surface-container-high": "#262a30",
+                    "on-tertiary": "#003915",
+                    "surface-tint": "#a0caff",
+                    "secondary-container": "#404658",
+                    "on-tertiary-container": "#00431a",
+                    "error-container": "#93000a"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "base": "4px",
+                    "xl": "32px",
+                    "margin-mobile": "16px",
+                    "margin-desktop": "48px",
+                    "sm": "8px",
+                    "xs": "4px",
+                    "lg": "24px",
+                    "gutter": "16px",
+                    "md": "16px"
+            },
+            "fontFamily": {
+                    "label-md": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "headline-md": ["Plus Jakarta Sans"],
+                    "headline-sm": ["Plus Jakarta Sans"],
+                    "headline-lg": ["Plus Jakarta Sans"],
+                    "body-md": ["Inter"],
+                    "score-display": ["Plus Jakarta Sans"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "label-sm": ["11px", {"lineHeight": "14px", "fontWeight": "500"}],
+                    "headline-md": ["18px", {"lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "headline-sm": ["16px", {"lineHeight": "20px", "fontWeight": "600"}],
+                    "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "score-display": ["28px", {"lineHeight": "32px", "letterSpacing": "-0.03em", "fontWeight": "800"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    }catch(_e){}</script><meta charset="utf-8"></head><body class="bg-surface text-on-surface font-body-md selection:bg-primary/30">
+<div class="flex min-h-screen overflow-hidden">
+<!-- NavigationDrawer (Shared Component) -->
+
+<!-- Main Content Area -->
+<main class="flex-1 min-h-screen relative overflow-y-auto">
+<!-- TopAppBar (Shared Component) -->
+<header class="sticky top-0 z-50 flex justify-between items-center w-full h-16 px-margin-mobile md:px-margin-desktop bg-surface/95 backdrop-blur-md border-b border-white/5">
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-primary cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors active:scale-95">menu</span>
+<h1 class="text-headline-lg font-headline-lg text-primary tracking-tight">SportNutz</h1>
+</div>
+<div class="flex items-center gap-sm">
+<div class="bg-surface-container px-3 py-1.5 rounded-full flex items-center gap-2 border border-white/5">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-label-md font-label-md w-32 md:w-48 placeholder:text-outline" placeholder="Search leagues..." type="text">
+</div>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:bg-surface-container-high p-2 rounded-full transition-colors active:scale-95">notifications</span>
+</div>
+</header>
+<!-- Page Content Canvas -->
+<div class="px-margin-mobile md:px-6 py-8">
+<!-- Section Header -->
+<div class="flex items-end justify-between mb-8">
+<div>
+<h2 class="text-headline-lg font-headline-lg text-on-surface">Live Matches</h2>
+<p class="text-body-md font-body-md text-on-surface-variant">Real-time updates from major world leagues</p>
+</div>
+<div class="flex gap-2">
+<span class="bg-surface-container-high text-label-sm font-label-sm px-3 py-1.5 rounded-full text-on-surface border border-white/5 cursor-pointer hover:bg-primary-container/20 transition-all">All Leagues</span>
+<span class="bg-primary-container/10 text-primary text-label-sm font-label-sm px-3 py-1.5 rounded-full border border-primary/20 cursor-pointer">Live Only</span>
+</div>
+</div>
+<!-- Match Bento Grid (2-Column Tablet Layout) -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter">
+<!-- Match Card 1: LIVE -->
+<div class="glass-card match-card-hover rounded-xl p-md flex flex-col justify-between transition-all group">
+<div class="flex justify-between items-center mb-md">
+<div class="flex items-center gap-2">
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-bold text-outline uppercase tracking-wider">Premier League</span>
+<div class="flex items-center gap-1 bg-red-500/10 px-2 py-0.5 rounded-full">
+<div class="w-1.5 h-1.5 bg-red-500 rounded-full live-pulse"></div>
+<span class="text-[10px] font-bold text-red-500 uppercase tracking-tighter">Live</span>
+</div>
+</div>
+<span class="text-label-sm font-label-sm text-tertiary font-bold">72'</span>
+</div>
+<div class="flex items-center justify-between py-2">
+<!-- Team 1 -->
+<div class="flex flex-col items-center gap-2 w-1/3">
+<div class="w-16 h-16 flex items-center justify-center">
+<img class="w-12 h-12 object-contain" data-alt="A professional, high-resolution minimalist football club crest for a team called Arsenal, featuring bold red and white colors with sharp vector lines. The design is modern, athletic, and presented against a clean dark studio background with professional lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA2R8NlaTAR_sRBYFutQxLs0k4o1qGsFr2_C_OigPBjdi0i9TJHaboP-cDM64wyGLOeNs1YB13922T19n-wRCKRLgF34IxiwnZsu9q9iwoecrk6In2rOcB4Rb_ASgrnzrt39sGXbdLLCjsf3Al5ZPsKx2in9KX-0xPBXl7T94sOUsFDGt7kD2J0ebXy2WwHllhxwFMFK4ANUXTgE-CJSTf4P5woqxFfzEpScFLwzCQAoK4SN4ZSYJM7yNC7APt36-IQ6wGMKL-9MIU">
+</div>
+<span class="text-headline-sm font-headline-sm text-center">Arsenal</span>
+</div>
+<!-- Score/Center Area -->
+<div class="flex flex-col items-center justify-center w-1/3">
+<div class="text-score-display font-score-display text-tertiary flex gap-2">
+<span class="">2</span>
+<span class="text-outline/30">-</span>
+<span class="">1</span>
+</div>
+<span class="text-label-sm font-label-sm text-outline mt-1">Agg: 3-2</span>
+</div>
+<!-- Team 2 -->
+<div class="flex flex-col items-center gap-2 w-1/3">
+<div class="w-16 h-16 flex items-center justify-center">
+<img class="w-12 h-12 object-contain" data-alt="A professional, high-resolution football club crest for a team called Manchester City, featuring sky blue and white colors in a circular shield design. The logo is rendered with a slight premium metallic sheen on a dark, high-contrast background for a sports broadcast aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuADnBwPoMiJ-J-q9adaskB79KDMCDNn-2VDer61BRvEkyFvxE2qQItKWpOEBJXVbq8kJHMU5qRPr5Jdly_JWvkUx61-p4hPO4vdI4sqn3pS--vEnn2F_Ha1YvJQy8Hjn6NvhCQSHiSMNaxS8iuqQdEF2xI8tCCT6I-LtW4GpYqUP91ZQeYzFnmTc43TZVWFXJlEdEW1oKghQB0tek1Nl19DCSoDUAcZbsD6J9FbrVa2YtoOcdQ3adwXR43NYvvPfWhZLmK8I7MH8YI">
+</div>
+<span class="text-headline-sm font-headline-sm text-center">Man City</span>
+</div>
+</div>
+<div class="mt-md pt-md border-t border-white/5 flex justify-between items-center">
+<div class="flex -space-x-2">
+<div class="w-6 h-6 rounded-full bg-primary-container/20 flex items-center justify-center border border-surface">
+<span class="material-symbols-outlined text-[14px] text-primary">person</span>
+</div>
+<div class="w-6 h-6 rounded-full bg-surface-container-high flex items-center justify-center border border-surface">
+<span class="text-[9px] font-bold">+12k</span>
+</div>
+</div>
+<button class="bg-primary-container text-on-primary-container text-label-md font-label-md px-4 py-1.5 rounded-lg active:scale-95 transition-transform">Match Center</button>
+</div>
+</div>
+<!-- Match Card 2: LIVE -->
+<div class="glass-card match-card-hover rounded-xl p-md flex flex-col justify-between transition-all group">
+<div class="flex justify-between items-center mb-md">
+<div class="flex items-center gap-2">
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-bold text-outline uppercase tracking-wider">La Liga</span>
+<div class="flex items-center gap-1 bg-red-500/10 px-2 py-0.5 rounded-full">
+<div class="w-1.5 h-1.5 bg-red-500 rounded-full live-pulse"></div>
+<span class="text-[10px] font-bold text-red-500 uppercase tracking-tighter">Live</span>
+</div>
+</div>
+<span class="text-label-sm font-label-sm text-tertiary font-bold">HT</span>
+</div>
+<div class="flex items-center justify-between py-2">
+<!-- Team 1 -->
+<div class="flex flex-col items-center gap-2 w-1/3">
+<div class="w-16 h-16 flex items-center justify-center">
+<img class="w-12 h-12 object-contain" data-alt="A detailed, premium football club logo for Real Madrid, featuring the iconic crown and shield in gold, blue, and white. The artwork has a professional 3D-shaded look, placed in a dark cinematic space with soft blue ambient light reflections." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHefdqqj67FsciW8sHEjaXNCynTzJZkXRsmHSXxC6KK_DJUbf3hyONDQ0eA-lroXER1D_ReTuxMhzyA98dJ-EKUCILDuWMmRPsMlM_YFvMYfPnJhbP-rkl_KL9O6hAhWRZi-UtnYI_Mm3IrCtd1WAT27jJE8Mf35vGsDznSHrM91y7EeDo9Ur1aMrsNRDD-v-nwqkybyuXA5MMxG3wovLJmGLq-2OR2cfrqFcH8cv_PzeTt2T6dbwKj7NxyFztmdzMivMq4WRO9K0">
+</div>
+<span class="text-headline-sm font-headline-sm text-center">Real Madrid</span>
+</div>
+<!-- Score/Center Area -->
+<div class="flex flex-col items-center justify-center w-1/3">
+<div class="text-score-display font-score-display text-tertiary flex gap-2">
+<span class="">0</span>
+<span class="text-outline/30">-</span>
+<span class="">0</span>
+</div>
+<div class="flex gap-1 mt-1">
+<div class="w-1 h-3 bg-red-500 rounded-full"></div>
+<span class="text-[9px] font-bold text-red-500 uppercase">1 RC</span>
+</div>
+</div>
+<!-- Team 2 -->
+<div class="flex flex-col items-center gap-2 w-1/3">
+<div class="w-16 h-16 flex items-center justify-center">
+<img class="w-12 h-12 object-contain" data-alt="A modern, high-contrast football crest for FC Barcelona, displaying the traditional red, blue, and yellow stripes with the St. George Cross. The logo is rendered with sharp, clean lines for high-end digital screens, set against a deep-space dark background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFWaPWKqdj6yAymK6ieOZuScUw1pxoADhWWBTibzTGd3bc8IpdsD_EfgWGa1Nim59PbUY4jgq8nFBgIOIavYmP5WdWB7goZBQff0GBRBkwB2SCp6zKkgGNHoskFVkB25v0k_T9FINn2PElmEcDC6GvKuFVgM2q1HhI7JB-WN4Ri6QQeYkZzw8SoWci88ypuYgy-VAL8yfretmHoJ4teumKh_qxEPqZfDMrUxOH94q1uKVYWh0zJjWp6Cf-H65dAnMgeaAP6raj0_k">
+</div>
+<span class="text-headline-sm font-headline-sm text-center">Barcelona</span>
+</div>
+</div>
+<div class="mt-md pt-md border-t border-white/5 flex justify-between items-center">
+<span class="text-label-sm font-label-sm text-outline italic">Possession: 48% - 52%</span>
+<button class="bg-primary-container text-on-primary-container text-label-md font-label-md px-4 py-1.5 rounded-lg active:scale-95 transition-transform">Match Center</button>
+</div>
+</div>
+<!-- Match Card 3: Upcoming -->
+<div class="glass-card match-card-hover rounded-xl p-md flex flex-col justify-between transition-all group opacity-80 hover:opacity-100">
+<div class="flex justify-between items-center mb-md">
+<div class="flex items-center gap-2">
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-bold text-outline uppercase tracking-wider">Bundesliga</span>
+<span class="text-[10px] font-bold text-primary-fixed-dim uppercase tracking-tighter">Scheduled</span>
+</div>
+<span class="text-label-sm font-label-sm text-on-surface-variant">Today, 20:45</span>
+</div>
+<div class="flex items-center justify-between py-2">
+<div class="flex flex-col items-center gap-2 w-1/3">
+<img class="w-12 h-12 object-contain" data-alt="A detailed football crest for Bayern Munich, featuring the iconic blue and white diamond pattern inside a red circle. Modern flat design style with subtle depth, presented against a dark, tech-oriented backdrop with soft glow effects." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCxMYbVHshVpMlEJMbnLW4PIb4YDF7kYRbvzR7KiwFbluXHRncRfNxWEBYdCWWLMeZZVPYEIYBRo5BHMDz0Vjc80pzY90Sc43S7kVhrN2V7a7bdRk1eDlzWk2w9oYepMfSNobvCVqWHa4ZVmFtxrSrMHo07aZ3vNQsZb8zsD59HErPQgZjpmdoBrXK9ptFfwOBEpcXMUyhWg4UbqxIJ7asT9WyNWscIipukoFjHIECBmAeEknNaF8xW0fmPD6H8lXwfaJiuc_MnIao">
+<span class="text-headline-sm font-headline-sm text-center">B. Munich</span>
+</div>
+<div class="flex flex-col items-center justify-center w-1/3">
+<div class="px-4 py-1 rounded bg-surface-container-highest text-on-surface-variant font-bold text-label-md">VS</div>
+</div>
+<div class="flex flex-col items-center gap-2 w-1/3">
+<img class="w-12 h-12 object-contain" data-alt="A professional football crest for Borussia Dortmund, featuring the classic BVB 09 lettering in black on a vibrant yellow circle. The design is bold, high-contrast, and optimized for a modern dark-mode sports interface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQ2HRaOZGJ0cyPCv019qEHapypjhLHelLk36olkHyx1k7amWisfsIRldtTAGEzg0Xeom2nYJWXKkh-XF1UmVrIm8kmid06luQ8pVw5XPv64NZE-JVl8ZImiS_w3SNltGGF-g5PKXFkm7kkrNf3k6KAGHkHIT7EZ8scrRNw-ps19olnnBQfhVP4LjPIUX8-1K6C60D3Jm0IZ8xldPBEDIzOxsxAtXSp1827Wc5kLipvY25xy48KRROENpWGIrArh-WaR0Im5Hi_SsQ">
+<span class="text-headline-sm font-headline-sm text-center">Dortmund</span>
+</div>
+</div>
+<div class="mt-md pt-md border-t border-white/5 flex justify-center">
+<button class="w-full border border-primary text-primary hover:bg-primary/10 text-label-md font-label-md px-4 py-2 rounded-lg transition-all">Set Reminder</button>
+</div>
+</div>
+<!-- Match Card 4: Live -->
+<div class="glass-card match-card-hover rounded-xl p-md flex flex-col justify-between transition-all group">
+<div class="flex justify-between items-center mb-md">
+<div class="flex items-center gap-2">
+<span class="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-bold text-outline uppercase tracking-wider">Serie A</span>
+<div class="flex items-center gap-1 bg-red-500/10 px-2 py-0.5 rounded-full">
+<div class="w-1.5 h-1.5 bg-red-500 rounded-full live-pulse"></div>
+<span class="text-[10px] font-bold text-red-500 uppercase tracking-tighter">Live</span>
+</div>
+</div>
+<span class="text-label-sm font-label-sm text-tertiary font-bold">12'</span>
+</div>
+<div class="flex items-center justify-between py-2">
+<div class="flex flex-col items-center gap-2 w-1/3">
+<img class="w-12 h-12 object-contain" data-alt="A professional crest for Juventus FC, featuring the minimalist black and white J-shield design. High-fidelity rendering with sharp corners and premium matte finish, set against a dark grey and black background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDQ58p4mg4VYF29ocWC9CzaaIgkmNbKbsvocn_9Rn9CWdoqO2W5k85Lw-NG9F8hGstgJajZl84xV1SYIScAmxLXt_MIx1RFzem2W8q-QxwYpZWrteixFsNzIVRzmS_2TErP0g1B729zzO8ei9MoDhbOCAPruUNSXk6jGCCFqs5Sg8e2xlQQd9S5SCk6YL6fBlwQXDD9x_gs-kUBpVQlAag_vJ0VaSpgyUy4gtsLc_rq36QLnPEkqmkJ2kGk_FP-xFQ4M5fcieRwJBY">
+<span class="text-headline-sm font-headline-sm text-center">Juventus</span>
+</div>
+<div class="flex flex-col items-center justify-center w-1/3">
+<div class="text-score-display font-score-display text-on-surface flex gap-2">
+<span class="">0</span>
+<span class="text-outline/30">-</span>
+<span class="">0</span>
+</div>
+</div>
+<div class="flex flex-col items-center gap-2 w-1/3">
+<img class="w-12 h-12 object-contain" data-alt="A professional football crest for AC Milan, showing the oval shield with red and white stripes and the cross of St. Ambrose. Modern digital aesthetic with clean gradients and sharp detail on a dark space-themed background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBCkvUMzT43NlHDC8bJihXY9tqiI6V1CUgtTfkId443R16v0gXwi4_B1vUcXcyggTM-nfL3Vn3IdXU1odLirzhoOJ3VDOoSI5UcjIKRW52gkH81q9sso7Yfv6hquH8pKsLCL1-r2WTXnUpGDruFXCHSBFvsSS6jUyziMppN6D6U5Oxv6C6X3b0iwV0VWU5NxoOqRhEdojmHWGCvvSrucAAK3Zx9yd2u6aJrjnbkkxChIF3s8fNfGPnrJQsENlgWDYEzj3jCLR_M0wI">
+<span class="text-headline-sm font-headline-sm text-center">AC Milan</span>
+</div>
+</div>
+<div class="mt-md pt-md border-t border-white/5 flex justify-between items-center">
+<span class="text-label-sm font-label-sm text-outline italic">Shots on target: 2 - 0</span>
+<button class="bg-primary-container text-on-primary-container text-label-md font-label-md px-4 py-1.5 rounded-lg active:scale-95 transition-transform">Match Center</button>
+</div>
+</div>
+</div>
+<!-- Featured Betting Promo / Asymmetric Element -->
+<div class="mt-xl relative overflow-hidden rounded-2xl h-48 group">
+
+<div class="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent"></div>
+<div class="relative h-full z-10 p-lg flex flex-col justify-center max-w-md">
+<span class="text-primary text-label-md font-label-md mb-2 uppercase tracking-widest">Featured Offer</span>
+<h3 class="text-headline-lg font-headline-lg text-white mb-4">UCL Final Match Day Special</h3>
+<div class="flex gap-4">
+<button class="bg-white text-surface font-bold px-6 py-2 rounded-full hover:scale-105 transition-transform">Claim Odds</button>
+<button class="border border-white/30 text-white backdrop-blur-sm px-6 py-2 rounded-full hover:bg-white/10 transition-colors">Details</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Contextual Floating Action Button -->
+<button class="fixed bottom-8 right-8 w-14 h-14 bg-primary text-on-primary-container rounded-full shadow-2xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all z-50">
+<span class="material-symbols-outlined font-bold" style="font-variation-settings: 'FILL' 1;">sports_soccer</span>
+</button>
+</main>
+</div>
+<!-- Micro-interactions Script -->
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Placeholder for real-time score updates simulation
+            const scores = document.querySelectorAll('.text-score-display.text-tertiary');
+            
+            // Subtle highlight on match cards when scrolled into view
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('opacity-100');
+                        entry.target.classList.remove('translate-y-4');
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            document.querySelectorAll('.glass-card').forEach(card => {
+                card.classList.add('transition-all', 'duration-500');
+                observer.observe(card);
+            });
+        });
+    </script>
+
+</body></html>

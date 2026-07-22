@@ -21,4 +21,6 @@ actual object P2pStreamingEngine {
     actual fun shutdown() {
         _state.value = P2pStreamingState.Idle
     }
+
+    actual suspend fun startTorrServer() {}
 }

@@ -61,7 +61,7 @@ data class SportsUiState(
     val news: List<EspnNewsArticle> = emptyList(),
     val selectedSport: String? = null,
     val selectedDate: String = "",
-    val selectedSeason: Int = 0, // 0 = current season
+    val selectedSeason: Int = 0,
     val isLoading: Boolean = false,
     val error: String? = null,
     val highlightVideos: List<HighlightVideo> = emptyList(),
@@ -82,6 +82,8 @@ data class SportsUiState(
     val sportVideosLoading: Boolean = false,
     val regionFilter: String = "ALL",
     val activeEventTab: EventTab = EventTab.LIVE,
+    val daddyLiveEvents: List<DaddyLiveEvent> = emptyList(),
+    val daddyLiveLoading: Boolean = false,
 )
 
 sealed class SportsTab {

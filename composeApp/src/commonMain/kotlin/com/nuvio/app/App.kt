@@ -1376,6 +1376,10 @@ private fun MainAppContent(
                         AppDeepLinkRepository.markConsumed(deepLink)
                     }
 
+                    is AppDeepLink.MagnetLink -> {
+                        AppDeepLinkRepository.markConsumed(deepLink)
+                    }
+
                     null -> Unit
                 }
             }
@@ -2978,6 +2982,15 @@ private fun MainAppContent(
                         },
                         onOpenExternalUrl = { url ->
                             openExternalStreamUrl(url)
+                        },
+                        autoPlayQueueUrls = launch.autoPlayQueueUrls,
+                        autoPlayQueueTitles = launch.autoPlayQueueTitles,
+                        autoPlayQueueIndex = launch.autoPlayQueueIndex,
+                        onAutoPlayNext = { newLaunchId: Long ->
+                            ResumePromptRepository.markPlayerExitedNormally()
+                            PlayerLaunchStore.remove(route.launchId)
+                            onBack()
+                            navController.navigate(PlayerRoute(launchId = newLaunchId))
                         },
                         modifier = Modifier.fillMaxSize(),
                     )

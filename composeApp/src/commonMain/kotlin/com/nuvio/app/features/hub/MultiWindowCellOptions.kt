@@ -68,6 +68,7 @@ fun MultiWindowCellOptions(
     onVolumeChange: (Float) -> Unit,
     onSwap: ((Int) -> Unit)? = null,
     onRefresh: (() -> Unit)? = null,
+    onFullscreen: (() -> Unit)? = null,
     onClose: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -175,6 +176,16 @@ fun MultiWindowCellOptions(
                         ) {
                             Text("Refresh Stream", color = Accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Text("↻", color = Accent, fontSize = 16.sp)
+                        }
+                    }
+
+                    if (onFullscreen != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(SurfaceCard).clickable(onClick = onFullscreen).padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text("Fullscreen", color = Accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("⛶", color = Accent, fontSize = 16.sp)
                         }
                     }
 

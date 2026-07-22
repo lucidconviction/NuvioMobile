@@ -47,6 +47,13 @@ actual object P2pStreamingEngine {
         binary.initialize(context.applicationContext)
     }
 
+    actual suspend fun startTorrServer() {
+        try {
+            binary.start()
+            api.applyOptimizedSettings()
+        } catch (_: Exception) { }
+    }
+
     actual suspend fun startStream(request: P2pStreamRequest): String = withContext(Dispatchers.IO) {
         stopStreamNow(stopBinary = false)
         val generation = nextStreamGeneration()
@@ -54,6 +61,7 @@ actual object P2pStreamingEngine {
 
         try {
             binary.start()
+            api.applyOptimizedSettings()
             ensureCurrentGeneration(generation)
 
             val magnetLink = buildMagnetUri(request.infoHash, request.trackers)
@@ -451,6 +459,40 @@ actual object P2pStreamingEngine {
             .build()
 
         private val baseUrl: String get() = binary.baseUrl
+
+        suspend fun applyOptimizedSettings() = withContext(Dispatchers.IO) {
+            val body = JSONObject().apply {
+                put("action", "set")
+                put("connectionsLimit", 500)
+                put("downloadRateLimit", 0)
+                put("uploadRateLimit", 0)
+                put("disableDHT", false)
+                put("disablePEX", false)
+                put("disableTCP", false)
+                put("disableUTP", false)
+                put("disableUPNP", false)
+                put("disableUpload", false)
+                put("enableIPv6", false)
+                put("forceEncrypt", false)
+            }
+
+            val request = Request.Builder()
+                .url("$baseUrl/settings")
+                .post(body.toString().toRequestBody(JSON_TYPE))
+                .build()
+
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        Log.d(TAG, "Optimized BitTorrent settings applied (connectionsLimit=500)")
+                    } else {
+                        Log.w(TAG, "Failed to apply settings: ${response.code}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to apply settings", e)
+            }
+        }
 
         suspend fun addTorrent(magnetLink: String, title: String? = null): String? = withContext(Dispatchers.IO) {
             val body = JSONObject().apply {

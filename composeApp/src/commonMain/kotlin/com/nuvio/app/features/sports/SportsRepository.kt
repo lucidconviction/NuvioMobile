@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 object SportsRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -25,56 +27,97 @@ object SportsRepository {
     private var refreshJob: Job? = null
     private var autoRefreshJob: Job? = null
 
+    private data class LeagueCache(
+        val events: List<EspnProcessedEvent>,
+        val highlights: List<HighlightVideo>,
+        val timestamp: Long,
+    )
+    private val leagueCache = mutableMapOf<String, LeagueCache>()
+    private const val CACHE_TTL_MS = 60_000L
+
     val leagues: List<SportLeague> = listOf(
-        SportLeague("ufc", "UFC MMA", "UFC", "mma/ufc"),
-        SportLeague("boxing", "Boxing", "BOX", "boxing/_"),
-        SportLeague("pfl", "PFL MMA", "PFL", "mma/pfl"),
         SportLeague("nfl", "NFL Football", "NFL", "football/nfl"),
         SportLeague("nba", "NBA Basketball", "NBA", "basketball/nba"),
         SportLeague("mlb", "MLB Baseball", "MLB", "baseball/mlb"),
         SportLeague("nhl", "NHL Hockey", "NHL", "hockey/nhl"),
-        SportLeague("soccer", "MLS Soccer", "MLS", "soccer/usa.1"),
+        SportLeague("ufc", "UFC MMA", "UFC", "mma/ufc"),
+        SportLeague("boxing", "Boxing", "BOX", "boxing/boxing"),
+        SportLeague("pfl", "PFL MMA", "PFL", "mma/pfl"),
+        SportLeague("mls", "MLS Soccer", "MLS", "soccer/usa.1"),
+        SportLeague("epl", "Premier League", "EPL", "soccer/eng.1"),
+        SportLeague("laliga", "La Liga", "LALIGA", "soccer/esp.1"),
+        SportLeague("seriea", "Serie A", "SERIEA", "soccer/ita.1"),
+        SportLeague("bundes", "Bundesliga", "BUNDES", "soccer/ger.1"),
+        SportLeague("ligue1", "Ligue 1", "LIGUE1", "soccer/fra.1"),
+        SportLeague("ucl", "Champions League", "UCL", "soccer/uefa.champions"),
+        SportLeague("f1", "Formula 1", "F1", "racing/f1"),
+        SportLeague("tennis", "Tennis", "TEN", "tennis/atp"),
+        SportLeague("golf", "Golf", "GOLF", "golf/pga"),
+        SportLeague("cfb", "College Football", "CFB", "football/college-football"),
+        SportLeague("cbb", "College Basketball", "CBB", "basketball/mens-college-basketball"),
+        SportLeague("wnba", "WNBA", "WNBA", "basketball/wnba"),
     )
 
     fun refresh() {
         refreshJob?.cancel()
         refreshJob = scope.launch {
             _uiState.value = _uiState.value.copy(isLoading = _uiState.value.events.isEmpty(), error = null)
-            val trendingVideos = fetchTrendingNewsVideos()
-            _uiState.value = _uiState.value.copy(
-                trendingNewsVideos = trendingVideos,
-                isLoading = false,
-            )
+            if (_uiState.value.trendingNewsVideos.isEmpty()) {
+                val trendingVideos = fetchTrendingNewsVideos()
+                _uiState.value = _uiState.value.copy(
+                    trendingNewsVideos = trendingVideos,
+                    isLoading = false,
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(isLoading = false)
+            }
         }
     }
 
-    fun loadLeagueEvents(league: SportLeague, date: String? = null) {
+    fun loadLeagueEvents(league: SportLeague, date: String? = null, forceRefresh: Boolean = false) {
         refreshJob?.cancel()
         val parts = league.slug.split("/")
         if (parts.size < 2) return
         val sport = parts[0]
         val leagueName = parts[1]
         val queryDate = date ?: _uiState.value.selectedDate.ifBlank { null }
+        val cacheKey = "${league.id}_${queryDate ?: "today"}"
+
+        if (!forceRefresh) {
+            val cached = leagueCache[cacheKey]
+            if (cached != null && System.currentTimeMillis() - cached.timestamp < CACHE_TTL_MS) {
+                _uiState.value = _uiState.value.copy(
+                    events = cached.events, highlightVideos = cached.highlights,
+                    isLoading = false, error = null,
+                )
+                return
+            }
+        }
 
         scope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                val events = EspnClient.fetchLeague(sport, leagueName, queryDate)
-                val highlights = YouTubeHighlightClient.searchHighlights("${league.name} highlights")
+                val eventsDeferred = async { EspnClient.fetchLeague(sport, leagueName, queryDate) }
+                val highlightsDeferred = async { YouTubeHighlightClient.searchHighlights("${league.name} highlights") }
+                val events = withTimeout(15_000) { eventsDeferred.await() }
+                val highlights = try { withTimeout(10_000) { highlightsDeferred.await() } } catch (_: Exception) { emptyList() }
                 val highlightVideos = if (highlights.isNotEmpty()) {
                     listOf(HighlightVideo(eventId = "league_${league.id}", video = highlights.first(), sport = sport))
                 } else emptyList()
-                val trendingVids = if (_uiState.value.trendingNewsVideos.isEmpty()) fetchTrendingNewsVideos()
-                    else _uiState.value.trendingNewsVideos
 
+                leagueCache[cacheKey] = LeagueCache(events, highlightVideos, System.currentTimeMillis())
                 _uiState.value = _uiState.value.copy(
                     events = events,
                     highlightVideos = highlightVideos,
-                    trendingNewsVideos = trendingVids,
                     isLoading = false,
                 )
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
+                val cached = leagueCache[cacheKey]
+                if (cached != null) {
+                    _uiState.value = _uiState.value.copy(events = cached.events, highlightVideos = cached.highlights, isLoading = false)
+                } else {
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
+                }
             }
         }
     }
@@ -82,14 +125,24 @@ object SportsRepository {
     fun loadAllLiveEvents() {
         scope.launch {
             _uiState.value = _uiState.value.copy(allLiveLoading = true)
-            val allEvents = EspnClient.fetchAll().filter { it.isLive }
-            SportsNowStore.liveEvents = allEvents
-            _uiState.value = _uiState.value.copy(allLiveEvents = allEvents, allLiveLoading = false)
+            try {
+                val today = formatToday()
+                val twoWeeks = addDays(today, 14)
+                val dateRange = "${today.replace("-", "")}${twoWeeks.replace("-", "")}"
+                val allEvents = withTimeout(40_000) { EspnClient.fetchAll(dateRange) }
+                SportsNowStore.liveEvents = allEvents
+                _uiState.value = _uiState.value.copy(allLiveEvents = allEvents, allLiveLoading = false)
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(allLiveLoading = false)
+            }
         }
     }
 
     fun selectLeague(league: SportLeague?) {
         _uiState.value = _uiState.value.copy(selectedLeague = league)
+        if (league == null) {
+            loadAllLiveEvents()
+        }
     }
 
     fun selectEvent(event: EspnProcessedEvent?) {
@@ -146,6 +199,21 @@ object SportsRepository {
         _uiState.value = _uiState.value.copy(activeEventTab = tab)
     }
 
+    fun loadDaddyLiveEvents() {
+        scope.launch {
+            _uiState.value = _uiState.value.copy(daddyLiveLoading = true)
+            try {
+                val events = withTimeout(15_000) { DaddyLiveClient.fetchEvents() }
+                _uiState.value = _uiState.value.copy(daddyLiveEvents = events, daddyLiveLoading = false)
+                SportsNowStore.daddyLiveEvents = events
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(daddyLiveLoading = false)
+            }
+        }
+    }
+
+    fun clearLeagueCache() { leagueCache.clear() }
+
     fun clearSportSelection() {
         _uiState.value = _uiState.value.copy(
             selectedEvent = null, matchedChannels = emptyList(),
@@ -158,7 +226,7 @@ object SportsRepository {
         autoRefreshJob = scope.launch {
             while (true) {
                 delay(45_000)
-                loadLeagueEvents(league)
+                loadLeagueEvents(league, forceRefresh = true)
             }
         }
     }
@@ -194,15 +262,27 @@ object SportsRepository {
     fun loadStandings(league: SportLeague, season: Int? = null) {
         scope.launch {
             val parts = league.slug.split("/")
-            if (parts.size < 2) return@launch
+            if (parts.size < 2) {
+                _uiState.value = _uiState.value.copy(isLoading = false, error = "Invalid league slug: ${league.slug}")
+                return@launch
+            }
             val sport = parts[0]
             val leagueName = parts[1]
-            _uiState.value = _uiState.value.copy(isLoading = true)
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
                 val standings = EspnClient.fetchStandings(sport, leagueName, season)
-                _uiState.value = _uiState.value.copy(standings = standings, isLoading = false)
-            } catch (_: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false)
+                if (standings.isEmpty()) {
+                    _uiState.value = _uiState.value.copy(
+                        standings = emptyList(), isLoading = false,
+                        error = "No standings available for ${league.name}",
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(standings = standings, isLoading = false, error = null)
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false, error = "Failed to load standings: ${e.message?.take(60) ?: "unknown error"}",
+                )
             }
         }
     }
@@ -302,21 +382,24 @@ object SportsRepository {
 
     private fun isLeapYear(y: Long): Boolean = (y % 4 == 0L && y % 100 != 0L) || (y % 400 == 0L)
 
-    private suspend fun fetchTrendingNewsVideos(): List<YouTubeVideo> {
+    private suspend fun fetchTrendingNewsVideos(): List<YouTubeVideo> = coroutineScope {
         val queries = listOf(
-            "sports news today", "NFL highlights", "NBA highlights", "MLB highlights",
-            "NHL highlights", "soccer highlights", "UFC news", "boxing highlights",
-            "tennis highlights", "F1 racing", "college football", "March Madness",
-            "Super Bowl", "World Series", "Stanley Cup", "NBA Finals",
+            "sports news this week", "NFL highlights", "NBA highlights",
+            "UFC news", "soccer highlights", "F1 racing",
+            "MLB highlights", "NHL highlights", "college football highlights",
         )
-        val allResults = mutableSetOf<YouTubeVideo>()
-        for (query in queries.shuffled()) {
-            if (allResults.size >= 20) break
-            try {
-                val results = YouTubeHighlightClient.searchHighlights(query)
-                allResults.addAll(results.filter { it.videoId.isNotBlank() })
-            } catch (_: Exception) {}
+        val results = mutableSetOf<YouTubeVideo>()
+        queries.shuffled().take(6).map { query ->
+            async {
+                try { withTimeout(10_000) { YouTubeHighlightClient.searchHighlights(query) } }
+                catch (_: Exception) { emptyList() }
+            }
+        }.also { deferreds ->
+            deferreds.forEach { def ->
+                try { results.addAll(def.await().filter { it.videoId.isNotBlank() }) } catch (_: Exception) {}
+                if (results.size >= 15) return@forEach
+            }
         }
-        return allResults.take(20).shuffled()
+        results.take(15).shuffled()
     }
 }

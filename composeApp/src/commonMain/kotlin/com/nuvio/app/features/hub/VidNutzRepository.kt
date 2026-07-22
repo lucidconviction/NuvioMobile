@@ -9,6 +9,21 @@ import kotlinx.serialization.json.Json
 
 object VidNutzRepository {
 
+    // Per-category engine cache for pagination
+    private data class EngineCache(
+        val videos: List<VidNutzVideo>,
+        val pageSize: Int = 28,
+    ) {
+        fun getPage(page: Int): List<VidNutzVideo> {
+            val start = (page - 1) * pageSize
+            if (start >= videos.size) return emptyList()
+            val end = minOf(start + pageSize, videos.size)
+            return videos.subList(start, end)
+        }
+        val hasMore: Boolean get() = videos.size > 28
+    }
+    private var engineCache: Map<VidNutzCategory, EngineCache> = emptyMap()
+
     private val invidiousInstances = listOf(
         "https://inv.nadeko.net",
         "https://vid.puffyan.us",
@@ -45,18 +60,26 @@ object VidNutzRepository {
     }
 
     suspend fun fetchTrending(page: Int = 1): List<VidNutzVideo> {
-        if (page == 1) {
+        val offset = (page - 1) * 3
+
+        // Piped API first
+        for (instance in rotatedPiped()) {
             try {
-                val platformResult = platformYouTubeSearch("trending")
-                if (platformResult != null) {
-                    return platformResult.map { fromYouTubeVideo(it) }.shuffled()
+                val url = "$instance/feed/trending"
+                val response = httpGetText(url)
+                val parsed = json.decodeFromString<PipedTrendingResponse>(response)
+                if (parsed.items.isNotEmpty()) {
+                    return parsed.items
+                        .filter { it.duration in 30..1800 }
+                        .take(28)
+                        .map { it.toVidNutz() }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
 
-        val offset = (page - 1) * 3
+        // Invidious fallback
         for (instance in rotatedInvidious()) {
             try {
                 val url = "$instance/api/v1/trending?type=video&page=${page + offset}"
@@ -64,9 +87,20 @@ object VidNutzRepository {
                 val raw = json.decodeFromString<List<InvidiousVideo>>(response)
                 if (raw.isNotEmpty()) {
                     return raw.filter { it.lengthSeconds in 30..1800 }
-                        .take(20)
+                        .take(28)
                         .map { it.toVidNutz() }
-                        .shuffled()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // Platform (NewPipe) last resort
+        if (page == 1) {
+            try {
+                val platformResult = platformYouTubeSearch("trending")
+                if (platformResult != null) {
+                    return platformResult.map { fromYouTubeVideo(it) }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -79,36 +113,10 @@ object VidNutzRepository {
     suspend fun search(query: String, page: Int = 1): List<VidNutzVideo> {
         if (query.isBlank()) return emptyList()
 
-        if (page == 1) {
-            try {
-                val platformResult = platformYouTubeSearch(query)
-                if (platformResult != null) {
-                    return platformResult.map { fromYouTubeVideo(it) }.shuffled()
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
         val encodedQuery = encodeUrl(query)
         val offset = (page - 1) * 3
 
-        for (instance in rotatedInvidious()) {
-            try {
-                val url = "$instance/api/v1/search?q=${encodedQuery}&type=video&sort=relevance&page=${page + offset}"
-                val response = httpGetText(url)
-                val raw = json.decodeFromString<List<InvidiousVideo>>(response)
-                if (raw.isNotEmpty()) {
-                    return raw.filter { it.lengthSeconds in 30..1800 }
-                        .take(20)
-                        .map { it.toVidNutz() }
-                        .shuffled()
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
+        // Piped API first (fastest, most reliable)
         for (instance in rotatedPiped()) {
             try {
                 val url = "$instance/search?q=${encodedQuery}&filter=videos&page=${page + offset}"
@@ -117,9 +125,36 @@ object VidNutzRepository {
                 if (parsed.items.isNotEmpty()) {
                     return parsed.items
                         .filter { it.duration in 30..1800 }
-                        .take(20)
+                        .take(28)
                         .map { it.toVidNutz() }
-                        .shuffled()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // Invidious fallback
+        for (instance in rotatedInvidious()) {
+            try {
+                val url = "$instance/api/v1/search?q=${encodedQuery}&type=video&sort=relevance&page=${page + offset}"
+                val response = httpGetText(url)
+                val raw = json.decodeFromString<List<InvidiousVideo>>(response)
+                if (raw.isNotEmpty()) {
+                    return raw.filter { it.lengthSeconds in 30..1800 }
+                        .take(28)
+                        .map { it.toVidNutz() }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // Platform (NewPipe) last resort
+        if (page == 1) {
+            try {
+                val platformResult = platformYouTubeSearch(query)
+                if (platformResult != null) {
+                    return platformResult.map { fromYouTubeVideo(it) }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -129,36 +164,69 @@ object VidNutzRepository {
         return emptyList()
     }
 
-    private val categoryPageOffsets = mutableMapOf<VidNutzCategory, Int>()
-    private val categoryQueryVariants = mapOf(
-        VidNutzCategory.POLITICS to listOf("politics news today", "political analysis", "government news", "election coverage"),
-        VidNutzCategory.NEWS to listOf("breaking news today", "world news", "current events", "daily news briefing"),
-        VidNutzCategory.MUSIC to listOf("music videos", "new music", "music trending", "live performances"),
-        VidNutzCategory.SPORTS to listOf("sports highlights", "sports news", "game recap", "athlete interviews"),
-        VidNutzCategory.DOCUMENTARY to listOf("documentary", "full documentary", "documentary film", "nature documentary"),
-        VidNutzCategory.TECHNOLOGY to listOf("technology tech review", "gadget review", "tech news", "new technology"),
-        VidNutzCategory.ENTERTAINMENT to listOf("entertainment", "entertainment news", "celebrity gossip", "tv show clips"),
-        VidNutzCategory.COMEDY to listOf("comedy standup", "funny clips", "comedian", "sketch comedy"),
-        VidNutzCategory.SCIENCE to listOf("science", "science news", "space exploration", "physics explained"),
-        VidNutzCategory.TRUE_CRIME to listOf("true crime documentary", "crime story", "mystery", "cold case"),
-        VidNutzCategory.FOOD_DRINK to listOf("food drink cooking", "recipe", "cooking tutorial", "food review"),
+    suspend fun refreshCategory(category: VidNutzCategory) {
+        invalidateEngineCache()
+        VideoSuggestionEngine.resetCategory(categoryToEngineKey[category] ?: "Trending")
+    }
+
+    private val categoryToEngineKey = mapOf(
+        VidNutzCategory.TRENDING to "Trending",
+        VidNutzCategory.POLITICS to "Politics",
+        VidNutzCategory.NEWS to "News",
+        VidNutzCategory.MUSIC to "Music",
+        VidNutzCategory.SPORTS to "Sports",
+        VidNutzCategory.DOCUMENTARY to "Documentary",
+        VidNutzCategory.TECHNOLOGY to "Technology",
+        VidNutzCategory.ENTERTAINMENT to "Entertainment",
+        VidNutzCategory.COMEDY to "Comedy",
+        VidNutzCategory.SCIENCE to "Science",
+        VidNutzCategory.TRUE_CRIME to "True Crime",
+        VidNutzCategory.FOOD_DRINK to "Food & Drink",
     )
 
     suspend fun fetchByCategory(category: VidNutzCategory, page: Int = 1): List<VidNutzVideo> {
+        val cache = engineCache[category]
+        if (cache != null) {
+            val cached = cache.getPage(page)
+            if (cached.isNotEmpty()) return cached
+        }
+
+        if (page == 1 || cache == null) {
+            try {
+                val engineKey = categoryToEngineKey[category] ?: "Trending"
+                val engineResults = VideoSuggestionEngine.suggest("", engineKey, 96)
+                if (engineResults.isNotEmpty()) {
+                    val mapped = engineResults.map { fromYouTubeVideo(it) }.distinctBy { it.videoId }
+                    engineCache = engineCache + (category to EngineCache(videos = mapped, pageSize = 28))
+                    val paged = mapped.take(28)
+                    if (paged.isNotEmpty()) return paged
+                }
+            } catch (_: Exception) {}
+        }
+
         if (category == VidNutzCategory.TRENDING) {
             return fetchTrending(page)
         }
 
-        val offset = categoryPageOffsets.getOrPut(category) {
-            (1..5).random()
+        val query = category.displayName
+        val results = search(query, page)
+        if (results.isNotEmpty()) return results
+
+        // Last-ditch: platform search
+        if (page == 1) {
+            try {
+                val platformResult = platformYouTubeSearch(query)
+                if (platformResult != null) {
+                    return platformResult.map { fromYouTubeVideo(it) }
+                }
+            } catch (_: Exception) {}
         }
-        val randomPage = page + offset
 
-        val variants = categoryQueryVariants[category] ?: listOf("trending")
-        val queryIndex = (page - 1) % variants.size
-        val query = variants[queryIndex]
+        return emptyList()
+    }
 
-        return search(query, randomPage)
+    fun invalidateEngineCache() {
+        engineCache = emptyMap()
     }
 
     suspend fun resolveStream(videoId: String): StreamResult? {
@@ -206,6 +274,11 @@ object VidNutzRepository {
 
     @Serializable
     data class PipedSearchResponse(
+        val items: List<PipedSearchItem> = emptyList(),
+    )
+
+    @Serializable
+    data class PipedTrendingResponse(
         val items: List<PipedSearchItem> = emptyList(),
     )
 

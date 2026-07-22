@@ -1,5 +1,6 @@
 package com.nuvio.app.features.player
 
+import com.nuvio.app.features.sports.DaddyLiveEvent
 import com.nuvio.app.features.trakt.TraktPlatformClock
 
 import androidx.compose.animation.AnimatedVisibility
@@ -32,6 +33,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
@@ -219,21 +221,30 @@ internal fun BoxScope.PlayerPlaybackOverlays(
 
     // Live Games overlay
     if (showLiveGamesOverlay) {
+        val espnEvents = SportsNowStore.liveEvents
+        val dlEvents = SportsNowStore.daddyLiveEvents
+        val hasAny = espnEvents.isNotEmpty() || dlEvents.isNotEmpty()
         Box(
             modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)).clickable { /* dismiss handled by parent */ },
             contentAlignment = Alignment.BottomCenter,
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).background(Color(0xFF1A1A1A), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                modifier = Modifier.fillMaxWidth().heightIn(max = 450.dp).background(Color(0xFF1A1A1A), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                     .padding(top = 16.dp, bottom = 32.dp, start = 16.dp, end = 16.dp),
             ) {
-                Text("Live Games", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Live Games", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (espnEvents.isNotEmpty()) Text("${espnEvents.size} ESPN", color = Color(0xFF4A90D9), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        if (dlEvents.isNotEmpty()) Text("${dlEvents.size} DADDYLIVE", color = Color(0xFFE8553A), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
-                if (SportsNowStore.liveEvents.isEmpty()) {
+                if (!hasAny) {
                     Text("No live games right now", color = Color(0xFF888888))
                 } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(320.dp)) {
-                        itemsIndexed(SportsNowStore.liveEvents) { _, event ->
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(360.dp)) {
+                        itemsIndexed(espnEvents) { _, event ->
                             Row(
                                 modifier = Modifier.fillMaxWidth().background(Color(0xFF111111), RoundedCornerShape(8.dp)).clickable {
                                     SportsNowStore.onSwitchToEvent?.invoke(event)
@@ -242,14 +253,38 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text("${event.awayTeam} vs ${event.homeTeam}", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Text(event.league, color = Color(0xFF4A90D9), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(event.detail, color = Color(0xFF00FF00), fontSize = 11.sp)
+                                        Text(event.detail, color = Color(0xFF00FF00), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                                 Text("${event.awayScore ?: "-"} - ${event.homeScore ?: "-"}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(horizontal = 12.dp))
                                 Text("Switch", color = Color(0xFF4A90D9), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                        itemsIndexed(dlEvents) { _, dlEvent ->
+                            val isLive = dlEvent.isLive
+                            val chNames = dlEvent.channels.joinToString(", ") { it.name }
+                            Row(
+                                modifier = Modifier.fillMaxWidth().background(Color(0xFF1A0A0A), RoundedCornerShape(8.dp)).padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(dlEvent.eventName, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(dlEvent.category, color = Color(0xFFE8553A), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        if (isLive) {
+                                            Box(Modifier.size(5.dp).clip(CircleShape).background(Color(0xFF00FF00)))
+                                            Text("LIVE", color = Color(0xFF00FF00), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                    if (chNames.isNotEmpty()) {
+                                        Text(chNames.take(80), color = Color(0xFF888888), fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                                    }
+                                }
+                                Box(Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFFE8553A).copy(alpha = 0.2f)).padding(horizontal = 10.dp, vertical = 5.dp)) {
+                                    Text(if (isLive) "LIVE" else "UPCOMING", color = Color(0xFFE8553A), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }

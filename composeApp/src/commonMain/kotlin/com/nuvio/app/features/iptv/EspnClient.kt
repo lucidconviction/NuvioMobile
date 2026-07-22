@@ -74,8 +74,15 @@ object EspnClient {
     }
 
     suspend fun fetchAll(date: String? = null): List<EspnProcessedEvent> {
-        val dateParam = if (!date.isNullOrBlank()) "?dates=${date.replace("-", "")}" else ""
-        val skipFilter = !date.isNullOrBlank()
+        val dateParam = if (!date.isNullOrBlank()) {
+            // Support both single date "YYYYMMDD" and range "YYYYMMDD-YYYYMMDD"
+            val cleaned = date.replace("-", "").let { d ->
+                if (d.length == 8) "?dates=$d" else "?dates=${d.take(8)}-${d.drop(8)}"
+            }
+            cleaned
+        } else ""
+        val isRange = date?.replace("-", "")?.let { it.length > 8 } ?: false
+        val skipFilter = !date.isNullOrBlank() && isRange
         val results = mutableListOf<EspnProcessedEvent>()
 
         for (sport in prioritizedSports) {
@@ -88,7 +95,7 @@ object EspnClient {
                     parsed.events.flatMap { event ->
                         processEvent(event, sport)
                     }.filter { e ->
-                        e.isLive || e.status != "STATUS_FINAL" || detailWithinHours(e.detail, 3) || skipFilter
+                        isRange || e.isLive || e.status != "STATUS_FINAL" || detailWithinHours(e.detail, 3) || skipFilter
                     }
                 } catch (_: Exception) {
                     emptyList()
@@ -235,13 +242,20 @@ object EspnClient {
 
     // ── Standings ───────────────────────────────────────────────────────────
     suspend fun fetchStandings(sport: String, league: String, season: Int? = null): List<TeamStanding> {
-        val seasonParam = if (season != null) "?season=$season" else ""
-        val url = "$BASE/$sport/$league/standings$seasonParam"
-        return try {
-            val response = httpGetText(url)
-            val parsed = json.decodeFromString<EspnStandingsResponse>(response)
-            parseStandingsResponse(parsed, sport, league)
-        } catch (_: Exception) { emptyList() }
+        val seasonParam = if (season != null) "?season=$season" else "?season=${java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)}"
+        val urls = listOf(
+            "$BASE/$sport/$league/standings$seasonParam",
+            "$BASE/$sport/$league/standings",
+        )
+        for (url in urls) {
+            try {
+                val response = httpGetText(url)
+                val parsed = json.decodeFromString<EspnStandingsResponse>(response)
+                val standings = parseStandingsResponse(parsed, sport, league)
+                if (standings.isNotEmpty()) return standings
+            } catch (_: Exception) { continue }
+        }
+        return emptyList()
     }
 
     private fun parseStandingsResponse(response: EspnStandingsResponse, sport: String, league: String): List<TeamStanding> {
@@ -381,6 +395,8 @@ object EspnClient {
             val lowerTerm = term.lowercase().trim()
             for (ch in channels) {
                 val chName = ch.name.lowercase().trim()
+                val catName = (ch.group ?: "").lowercase().trim()
+                if (com.nuvio.app.features.sports.GameToChannelMatcher.isNonSportsChannel(chName, catName)) continue
                 if (chName.contains(lowerTerm) || lowerTerm.contains(chName)) {
                     matched.add(ch)
                 }
@@ -403,7 +419,9 @@ object EspnClient {
                 val lowerTerm = term.lowercase().trim()
                 found = channels.firstOrNull { ch ->
                     val chName = ch.name.lowercase().trim()
-                    chName.contains(lowerTerm) || lowerTerm.contains(chName)
+                    val catName = (ch.group ?: "").lowercase().trim()
+                    if (com.nuvio.app.features.sports.GameToChannelMatcher.isNonSportsChannel(chName, catName)) false
+                    else chName.contains(lowerTerm) || lowerTerm.contains(chName)
                 }
                 if (found != null) break
             }

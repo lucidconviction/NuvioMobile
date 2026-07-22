@@ -485,6 +485,78 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
             }
         }
     }
+
+    LaunchedEffect(playbackSnapshot.isEnded, args.autoPlayQueueUrls) {
+        if (playbackSnapshot.isEnded && args.autoPlayQueueUrls.isNotEmpty()) {
+            navOverlayVisible = true
+            delay(5000)
+            if (!playbackSnapshot.isEnded) return@LaunchedEffect
+            val nextIdx = args.autoPlayQueueIndex + 1
+            if (nextIdx < args.autoPlayQueueUrls.size) {
+                val nextUrl = args.autoPlayQueueUrls[nextIdx]
+                val nextTitle = args.autoPlayQueueTitles.getOrElse(nextIdx) { "Track $nextIdx" }
+                val nextLaunch = if (nextUrl.startsWith("telenutz://")) {
+                    val uri = nextUrl.substring(11)
+                    val parts = uri.substringBefore("?").split("/")
+                    val chatId = parts.getOrNull(0)?.toLongOrNull() ?: 0L
+                    val msgId = parts.getOrNull(1)?.toLongOrNull() ?: 0L
+                    val fileId = parts.getOrNull(2)?.toIntOrNull() ?: 0
+                    val chatTitle = parts.getOrNull(3).orEmpty()
+                    val text = uri.substringAfter("?text=", "")
+
+                    val video = com.nuvio.app.features.hub.TeleNutzVideo(
+                        id = msgId,
+                        chatId = chatId,
+                        chatTitle = chatTitle,
+                        text = text,
+                        date = "",
+                        thumbnailUrl = null,
+                        fileId = fileId,
+                        localPath = com.nuvio.app.features.hub.TeleNutzStore.getDownloads().firstOrNull { it.id == msgId && it.chatId == chatId }?.localPath,
+                        fileSize = 0L,
+                        isDownloaded = com.nuvio.app.features.hub.TeleNutzStore.isDownloaded(msgId, chatId),
+                        isBookmarked = com.nuvio.app.features.hub.TeleNutzStore.isBookmarked(msgId, chatId),
+                    )
+                    val resolved = com.nuvio.app.features.hub.TeleNutzRepository.resolveVideoPlayback(video)
+                    resolved?.copy(
+                        autoPlayQueueUrls = args.autoPlayQueueUrls,
+                        autoPlayQueueTitles = args.autoPlayQueueTitles,
+                        autoPlayQueueIndex = nextIdx,
+                    ) ?: PlayerLaunch(
+                        profileId = args.profileId,
+                        title = nextTitle,
+                        sourceUrl = nextUrl,
+                        streamTitle = nextTitle,
+                        streamSubtitle = args.streamSubtitle,
+                        providerName = args.providerName,
+                        parentMetaId = args.parentMetaId,
+                        parentMetaType = args.parentMetaType,
+                        poster = args.poster,
+                        autoPlayQueueUrls = args.autoPlayQueueUrls,
+                        autoPlayQueueTitles = args.autoPlayQueueTitles,
+                        autoPlayQueueIndex = nextIdx,
+                    )
+                } else {
+                    PlayerLaunch(
+                        profileId = args.profileId,
+                        title = nextTitle,
+                        sourceUrl = nextUrl,
+                        streamTitle = nextTitle,
+                        streamSubtitle = args.streamSubtitle,
+                        providerName = args.providerName,
+                        parentMetaId = args.parentMetaId,
+                        parentMetaType = args.parentMetaType,
+                        poster = args.poster,
+                        autoPlayQueueUrls = args.autoPlayQueueUrls,
+                        autoPlayQueueTitles = args.autoPlayQueueTitles,
+                        autoPlayQueueIndex = nextIdx,
+                    )
+                }
+                val launchId = PlayerLaunchStore.put(nextLaunch)
+                args.onAutoPlayNext?.invoke(launchId)
+            }
+        }
+    }
 }
 
 private fun PlayerScreenRuntime.buildNowPlayingInfo(): PlayerNowPlayingInfo {

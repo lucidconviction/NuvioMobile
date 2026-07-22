@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
@@ -28,6 +29,7 @@ import androidx.compose.ui.layout.onSizeChanged
 
 import com.nuvio.app.features.hub.MultiWindowPositionPicker
 import com.nuvio.app.features.hub.MultiWindowStore
+import com.nuvio.app.features.player.PlayerLaunchStore
 import com.nuvio.app.features.p2p.P2pStreamingState
 import com.nuvio.app.features.p2p.formatP2pMegabytes
 import com.nuvio.app.features.p2p.formatP2pSpeed
@@ -201,6 +203,110 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             p2pRebufferMessage = p2pRebufferMessage,
             p2pRebufferProgress = p2pRebufferProgress,
         )
+        if (args.autoPlayQueueUrls.isNotEmpty() && (navOverlayVisible || controlsVisible)) {
+            LaunchedEffect(navOverlayVisible, controlsVisible) {
+                if (navOverlayVisible || controlsVisible) {
+                    delay(3000)
+                    if (navOverlayVisible) navOverlayVisible = false
+                }
+            }
+            val currentIndex = args.autoPlayQueueIndex
+            val queueSize = args.autoPlayQueueUrls.size
+            val hasPrev = currentIndex > 0
+            val hasNext = currentIndex < queueSize - 1
+            if (hasPrev || hasNext) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = 8.dp, end = 8.dp),
+                ) {
+                    if (hasPrev) {
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .align(Alignment.CenterStart)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.45f))
+                                .clickable {
+                                    navOverlayVisible = true
+                                    val newIndex = currentIndex - 1
+                                    val nextUrl = args.autoPlayQueueUrls[newIndex]
+                                    val nextTitle = args.autoPlayQueueTitles.getOrElse(newIndex) { "" }
+                                    val nextLaunch = PlayerLaunch(
+                                        profileId = args.profileId,
+                                        title = nextTitle,
+                                        sourceUrl = nextUrl,
+                                        streamTitle = nextTitle,
+                                        streamSubtitle = args.streamSubtitle,
+                                        providerName = args.providerName,
+                                        parentMetaId = args.parentMetaId,
+                                        parentMetaType = args.parentMetaType,
+                                        poster = args.poster,
+                                        logo = args.logo,
+                                        autoPlayQueueUrls = args.autoPlayQueueUrls,
+                                        autoPlayQueueTitles = args.autoPlayQueueTitles,
+                                        autoPlayQueueIndex = newIndex,
+                                        channelNames = args.iptvChannelNames,
+                                        channelUrls = args.iptvChannelUrls,
+                                        channelLogos = args.iptvChannelLogos,
+                                        channelIds = args.iptvChannelIds,
+                                        currentChannelIndex = if (args.parentMetaId == "iptv") newIndex else 0,
+                                    )
+                                    flushWatchProgress()
+                                    val onSwitch = if (args.parentMetaId == "iptv") args.onSwitchIptvChannel else args.onAutoPlayNext
+                                    onSwitch?.invoke(PlayerLaunchStore.put(nextLaunch))
+                                }
+                                .padding(14.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("\u25C0", color = Color.White, fontSize = 22.sp)
+                        }
+                    }
+                    if (hasNext) {
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .align(Alignment.CenterEnd)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.45f))
+                                .clickable {
+                                    navOverlayVisible = true
+                                    val newIndex = currentIndex + 1
+                                    val nextUrl = args.autoPlayQueueUrls[newIndex]
+                                    val nextTitle = args.autoPlayQueueTitles.getOrElse(newIndex) { "" }
+                                    val nextLaunch = PlayerLaunch(
+                                        profileId = args.profileId,
+                                        title = nextTitle,
+                                        sourceUrl = nextUrl,
+                                        streamTitle = nextTitle,
+                                        streamSubtitle = args.streamSubtitle,
+                                        providerName = args.providerName,
+                                        parentMetaId = args.parentMetaId,
+                                        parentMetaType = args.parentMetaType,
+                                        poster = args.poster,
+                                        logo = args.logo,
+                                        autoPlayQueueUrls = args.autoPlayQueueUrls,
+                                        autoPlayQueueTitles = args.autoPlayQueueTitles,
+                                        autoPlayQueueIndex = newIndex,
+                                        channelNames = args.iptvChannelNames,
+                                        channelUrls = args.iptvChannelUrls,
+                                        channelLogos = args.iptvChannelLogos,
+                                        channelIds = args.iptvChannelIds,
+                                        currentChannelIndex = if (args.parentMetaId == "iptv") newIndex else 0,
+                                    )
+                                    flushWatchProgress()
+                                    val onSwitch = if (args.parentMetaId == "iptv") args.onSwitchIptvChannel else args.onAutoPlayNext
+                                    onSwitch?.invoke(PlayerLaunchStore.put(nextLaunch))
+                                }
+                                .padding(14.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("\u25B6", color = Color.White, fontSize = 22.sp)
+                        }
+                    }
+                }
+            }
+        }
         RenderPlayerModals(displayedPositionMs = displayedPositionMs)
 
         // Toast overlay for user feedback

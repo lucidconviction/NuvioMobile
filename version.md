@@ -6,6 +6,173 @@
 ```
 APK: `androidApp/build/outputs/apk/full/debug/androidApp-full-debug.apk`
 
+### v0.7.1 — ProGuard/R8 Fix for Full Release Build (July 2026)
+
+#### Build Fixes
+- **R8 missing classes fix** — Added `-dontwarn` rules for `java.beans.*` and `javax.script.ScriptEngineFactory` in `composeApp/proguard-rules.pro` to suppress R8 warnings when minifying the full release APK (Mozilla Rhino JavaScript engine references JVM-only classes not available on Android).
+
+#### Latest Debug Build
+```bash
+./gradlew :androidApp:assembleFullDebug -Pnuvio.android.distribution=full
+```
+APK: `androidApp/build/outputs/apk/full/debug/androidApp-full-debug.apk`
+
+To build release, set up release keystore in `local.properties`:
+```
+NUVIO_RELEASE_STORE_FILE=path/to/keystore.jks
+NUVIO_RELEASE_STORE_PASSWORD=...
+NUVIO_RELEASE_KEY_ALIAS=...
+NUVIO_RELEASE_KEY_PASSWORD=...
+```
+
+### v0.7.0 — TeleNutz ExoPlayer Streaming, Auto-Next Queue, Persistent Search & SportNutz League Drawers (July 2026)
+
+#### TeleNutz — Video Search, Auto-Play-Next & Persistent Results (`TeleNutzScreen.kt`, `TeleNutzRepository.kt`, `PlayerScreenRuntimeEffects.kt`)
+- **ExoPlayer Video Streaming & Auto-Play-Next** — TeleNutz videos play directly inside the internal ExoPlayer. Automatically passes `autoPlayQueueUrls`, `autoPlayQueueTitles`, and `autoPlayQueueIndex` from search results, bookmarks, or downloads lists.
+- **On-Demand Telegram Stream Resolution** — `PlayerScreenRuntimeEffects.kt` detects `telenutz://` queue URLs when advancing to the next video, downloading/resolving Telegram media on demand via TDLib before playback.
+- **Persistent Search State** — `TeleNutzRepository` retains `lastSearchQuery` and `lastSearchResults`, preserving search results across tab switches and navigation until a new search is performed.
+- **Bookmarks & Downloads** — Bookmark toggles, local file caching, download progress tracking, and file deletion.
+
+#### SportNutz — Collapsible League Drawers & Text Cards (`SportsScreen.kt`, `GameToChannelMatcher.kt`)
+- **Categorized Collapsible Drawers** — In the "ALL LEAGUES" tab, sports events are organized in expandable/collapsible drawers per league with match counts.
+- **Clean Text Cards in Portrait View** — Upcoming/Live event cards in portrait view are simplified to clean text-only layouts showing team names, scores, and channel info.
+- **Enhanced Broadcaster Channel Matcher** — Expanded league-to-channel matching logic to suggest relevant sports channels and reduce non-sports channel false matches.
+
+#### MagNutz — Verification & Torrents (`MagNutzScreen.kt`, `MagNutzRepository.android.kt`)
+- **Verified Torrent Operations** — Confirmed magnet parsing, TorrServer background engine integration, pause/resume/cancel actions, progress tracking, and ExoPlayer playback from local storage.
+
+### v0.5.0 — MagNutz Torrents, MusicNutz Playlists/Downloads, MultiNutz Fullscreen, Auto-Play-Next, IPTV Polish (July 2026)
+
+#### MagNutz — Torrent Download Manager (`MagNutzScreen.kt`, `MagNutzRepository.android.kt`)
+- **New hub:** MagNutz — paste magnet links, download torrents via TorrServer, browse/add/remove
+- **Magnet parsing** — `MagNutzMagnetParser` extracts `btih:`, trackers, display name from any magnet URI
+- **TorrServer integration** — `P2pStreamingEngine.startTorrServer()` starts the native binary on demand; magnets submitted via TorrServer HTTP API; stats polling (speed/peers/seeds/progress) every 2s
+- **File completion** — auto-detect when download finishes (size match or stalled), saves to user-chosen directory
+- **Download management** — pause/resume/cancel per torrent; persistent state via SharedPreferences JSON; Delete button on each card
+- **Save location picker** — SAF directory picker (`OpenDocumentTree`) with `takePersistableUriPermission`; Change button in UI
+- **External magnet intents** — `<data android:scheme="magnet" />` in manifest; `MainActivity.handleIncomingAppIntent()` routes to MagNutz hub
+- **Default trackers** — 9 UDP/HTTPS/WSS trackers appended to magnets without trackers for better peer discovery
+- **Phone layout** — search bar + ADD MAGNET button + filter chips + scrollable download list with progress bars
+- **Tablet layout** — two-panel: left card grid + right detail panel with full specs + Play/Pause/Remove buttons
+
+#### MusicNutz — Playlists, Downloads, Saved Albums (`MusicNutzModels.kt`, `MusicNutzScreen.kt`, `MusicNutzStore.kt`)
+- **Playlist system** — 5th mode chip "Playlists"; create named playlists, add tracks, view/manage/delete
+- **Album-to-Playlist** — "Add All to Playlist" button on album detail; fetches album tracks, appends to selected playlist
+- **Download system** — "Download" button on each track card; resolves YouTube/Deezer stream via OkHttp, saves to `filesDir/music/`
+- **Downloads tab** — view downloaded tracks with album art, play, delete; progress spinner while downloading
+- **Saved Albums** — bookmark icon on album cards; "Saved" mode chip shows bookmarked albums without downloading
+- **Playback error display** — inline red error banner when `resolveStream()` fails; "Resolving stream..." overlay while loading
+- **Auto-play-next for albums** — when playing from album detail view, pre-resolves all remaining track URLs, passes as `autoPlayQueueUrls`
+
+#### MultiNutz — Layout Expansion & Fullscreen (`MultiWindowLayouts.kt`, `MultiWindowGrid.kt`)
+- **30+ new window layouts** — Full set per user spec: 3-screen (1×3 columns, 2+1 vertical, 1+2 horizontal), 4-screen (1×4, 4 vert, 1+3, 3+1, 2-1-1, 1-1-2), 5-screen (1×5, 2+3, 1+2×2, 3+2v), 6-screen (1×6, 6 vert, 4+2, 3+3), 7-screen (3×2+1, 2×3+1, 1+3+3, 7 asym), 8-screen (3×2+2, 2×3+1×2, 4+2+1), 9-screen (3×3 center, 3×2+3, 2×3+3)
+- **isTablet-aware layout selection** — phone gets orientation-appropriate layouts, tablet (≥600dp) gets full set
+- **Fullscreen button per cell** — `⛶` icon at top-right of each VideoCell glass overlay; launches stream in full-screen player
+- **Floating MW quick-nav** — translucent 52dp "MW" button at bottom-right when streams active and on different sub-screen
+- **Double-tap gesture** — double-tap hub background navigates to MultiNutz when streams active
+
+#### Auto-Play-Next — ExoPlayer Queue (`PlayerLaunch`, `PlayerScreenArgs`, `PlayerScreenRuntimeEffects.kt`)
+- **Queue fields** — `autoPlayQueueUrls`, `autoPlayQueueTitles`, `autoPlayQueueIndex` added to `PlayerLaunch`
+- **Auto-advance on end** — when ExoPlayer reaches `STATE_ENDED` and queue has remaining items, creates new `PlayerLaunch` with next URL + metadata, stores in `PlayerLaunchStore`, calls `onAutoPlayNext(launchId)` → navigates to fresh `PlayerScreen`
+- **NutzScreen queue wiring** — MusicNutz album playback pre-resolves remaining tracks as queue; IPTV/VidNutz/Sports channel lists pass through automatically
+
+#### SportNutz — Cache, New Leagues, Standings Fix (`SportsRepository.kt`, `GameToChannelMatcher.kt`, `SportsScreen.kt`)
+- **League event cache** — in-memory cache per league+date combo (60s TTL); switching leagues loads instantly; cache fallback on network errors
+- **20 leagues** (up from 8) — added EPL, La Liga, Serie A, Bundesliga, Ligue 1, UCL, F1, Tennis, Golf, CFB, CBB, WNBA, fixed MLS slug
+- **Fixed Boxing standings** — slug changed from `boxing/_` (invalid ESPN) to `boxing/boxing`
+- **Standings error display** — shows error + Retry button on failure (was silently failing before); ESPN API tries `?season=` first, falls back to no param
+- **Expanded channel matcher** — 25+ league mappings with 100+ broadcaster keywords (F1, MotoGP, Tennis, Golf, Cricket, Rugby, NRL, AFL, College sports, soccer leagues per-broadcaster)
+- **Upcoming card contrast** — match names/VS text changed from `OnSurfaceVariant` (gray) to `OnSurface` (white) in both phone and TV cards
+
+#### IPTVNutz — Layout Polish (`IptvScreen.kt`)
+- **Persistent search bar** — TV mode search bar + header row moved outside scrollable column; stays fixed at top while channels scroll
+- **Top margin 5dp** — header padding reduced from 16dp to 5dp
+- **Button text contrast fix** — changed `Color.White` to `onPrimary` (dark gray) on `primary` (near-white) backgrounds across source selector tabs, ADD button, CONNECT SOURCE buttons
+
+### v0.6.1 — App Icon Refresh, Collapsible IPTV Groups, All Leagues Fix, VidNutz Pre-Cache (July 2026)
+
+#### App Icon
+- **All icons replaced** — Android launcher icons (5 densities × 3 variants), splash logo (1080×1080), and iOS app icon (1024×1024) all replaced with new icon art
+
+#### IPTVNutz — Collapsible M3U Groups (`IptvScreen.kt`)
+- **Group headers are now clickable** — each channel group header in mobile mode has an expand/collapse arrow. All groups collapsed by default. Tapping a header toggles that group's channels visibility.
+
+#### SportNutz — All Leagues Fix (`SportsRepository.kt`, `SportsScreen.kt`)
+- **ALL LEAGUES now fetches all events** — tapping the "ALL LEAGUES" chip calls `loadAllLiveEvents()` which scans all 20 leagues within a 14-day window. Previously it only showed stale single-league data.
+
+#### VidNutz — Background Pre-Cache (`VidNutzScreen.kt`)
+- **Next page pre-fetched** — after loading a category's first page (24 videos), the next page is fetched in the background to warm the cache, so tapping "LOAD MORE" is instant
+
+### v0.6.0 — All Leagues, Channel Auto-Advance, Nav Overlay, Net Smutt Polish (July 2026)
+
+#### SportNutz — All Leagues & Upcoming Cards (`SportsRepository.kt`, `EspnClient.kt`, `GameToChannelMatcher.kt`, `SportsScreen.kt`)
+- **ALL LEAGUES button** — now fetches all upcoming events across all sports within 2 weeks (not just live). `EspnClient.fetchAll()` accepts date range `YYYYMMDD-YYYYMMDD`, skips the live-only filter for range queries. `SportsRepository.loadAllLiveEvents()` passes a 14-day window.
+- **Upcoming match cards text-only** — removed team logos, VS separator, and SET ALERT button. Now shows time + away team + home team + league name as clean plain text.
+- **Expanded channel matcher** — 2× more league-specific keywords per league (espn2, fs1, fs2, tsn, sportsnet, dazn1, dazn2, btn, sec network, acc network, nbcsn, paramount, peacock, prime video). `generalSportsKeywords` expanded from 15 → 40+ entries.
+
+#### Auto-Advance — 5-Second Grace Period (`PlayerScreenRuntimeEffects.kt`)
+- **Error-based debounce** — auto-next now waits 5 seconds after the stream ends before advancing. If playback resumes during the window (transient glitch), auto-advance is cancelled. Works across all content types (IPTV, MusicNutz, VidNutz).
+
+#### Prev/Next Nav Overlay (`PlayerScreenRuntimeUi.kt`)
+- **Floating ◀/▶ buttons** — two semi-transparent 52dp circle buttons positioned at vertical center of the player. Left edge (prev), right edge (next).
+- **Auto-hide** — disappears after 3 seconds of no interaction. Reappears on screen tap alongside controls.
+- **Works everywhere** — shows for any content with an auto-play queue (IPTV, MusicNutz, VidNutz). Button state disables at queue boundaries.
+
+#### MusicNutz — Full Queue Support (`MusicNutzScreen.kt`)
+- **Complete queue** — `playTrack()` now includes ALL tracks in the auto-play queue (not just remaining), with `autoPlayQueueIndex` set to the current track. Enables prev/next navigation and error-based auto-advance.
+- **Grid queue** — playing from the main track grid now uses `uiState.tracks` as the full queue, so auto-advance works from any track, not just album detail.
+
+#### VidNutz — Queue & Auto-Advance (`VidNutzScreen.kt`)
+- **Video queue** — when playing a video, the full `displayVideos` list is set as `autoPlayQueueUrls`/`autoPlayQueueTitles` with the current index. Enables prev/next and auto-advance through the current category or search results.
+
+#### VidNutz Load-More Fix (`VidNutzRepository.kt`)
+- **Engine cache pagination** — `fetchByCategory` caches 96 results per category from `VideoSuggestionEngine` and paginates through them (24/page) before falling through to search/trending API. Added `EngineCache` data class with `hasMore` awareness.
+
+#### Net Smutt (`VidNutzScreen.kt`)
+- **Loading text** — changed from "Scraping videos..." to "Looking for Smutt, hang tight"
+
+#### Full Feature Changelog
+- `MagNutzModels.kt` — MagNutzItem, MagNutzStatus, MagNutzFilter, MagNutzMagnetParser
+- `MagNutzStorage.kt` — expect/actual persistence (SharedPreferences Android, NSUserDefaults iOS)
+- `MagNutzRepository.kt` — expect API surface + Android actual with TorrServer integration
+- `MagNutzScreen.kt` — full UI phone/tablet layouts with search, add magnet, progress, pause/resume, delete
+- `MusicNutzModels.kt` — MusicNutzPlaylist, MusicDownload, savedAlbums in UiState
+- `MusicNutzStore.kt` — MusicNutzPlaylistStore, MusicDownloadStore, MusicNutzSavedAlbumsStore
+- `MusicNutzScreen.kt` — 5 mode chips (Tracks/Albums/Playlists/Downloads/Saved), playlists CRUD, downloads with progress, saved albums, album-to-playlist, auto-play-next queue, error display
+- `MultiWindowLayouts.kt` — 30+ new enum entries, isTablet-aware getValidLayouts, calculateSlots for each
+- `MultiWindowGrid.kt` — onFullscreenCell callback, VideoCell fullscreen button, isTablet passed to layout resolver
+- `MultiWindowCellOptions.kt` — onFullscreen parameter, "Fullscreen" row in options sheet
+- `MultipleWindowStore.kt` — resolveLayout accepts isTablet
+- `PlayerModels.kt` — autoPlayQueueUrls, autoPlayQueueTitles, autoPlayQueueIndex
+- `PlayerScreenArgs.kt` — autoPlayQueue fields + onAutoPlayNext callback
+- `PlayerScreen.kt` — autoPlayQueue + onAutoPlayNext parameters
+- `PlayerScreenRuntimeEffects.kt` — LaunchedEffect for auto-advance on STATE_ENDED with queue
+- `App.kt` — auto-play queue wiring in PlayerScreen call, MagnetLink deep link handling
+- `P2pStreaming.kt` — startTorrServer() added to expect engine
+- `P2pStreamingEngine.android.kt` — startTorrServer() actual (starts binary without stream)
+- `P2pStreamingEngine.ios.kt` — startTorrServer() stub
+- `MagNutzRepository.android.kt` — calls startTorrServer() before adding torrents, default trackers appended to magnets
+- `MainActivity.kt` — MagNutzRepository.initialize(), MusicNutzDownloadStorage.downloadDirPath, magnet intent handling
+- `AndroidManifest.xml` — magnet: scheme intent filter
+- `AppUrlBridge.kt` — MagnetLink deep link type
+- `RobbdeezeNutzHubScreen.kt` — MagNutz in HubSubScreen enum/hubItems/when branch/HubReturnStore
+- `SportsRepository.kt` — leagueCache, 20 leagues, CACHE_TTL_MS, forceRefresh param, clearLeagueCache()
+- `GameToChannelMatcher.kt` — 25+ league mappings with 100+ keywords
+- `EspnClient.kt` — fetchStandings tries ?season= first, falls back to no param
+- `IptvScreen.kt` — persistent search bar (TV mode), 5dp top padding, Color.White → onPrimary fix
+
+### v0.4.0 — PortalNutz, DaddyLive Sports, VideoSuggestionEngine, VidNutz/Sports Enhancements (July 2026)
+- **PortalNutz (Feature 2)** — 4th "PORTAL" tab in AddSourceBottomSheet. Scrapes Xtream credentials from GitHub/Telegram/AMZ, verifies via player_api.php, returns top 5. Sheet stays open for multi-add with reactive ADDED labels. Uses existing Xtream account flow.
+- **DaddyLiveClient (Feature 3)** — fetches live/upcoming sports events from daddylive mirrors (3 parallel, 6s timeout). ET→local time conversion. Integrated into SportsScreen mobile + TV as collapsible "Sports Now/Later" section showing channel names, LIVE/UPCOMING badges, channel picker for multiple matches.
+- **VideoSuggestionEngine (Feature 4)** — query rotation per 12 categories + seen-ID dedup + random affixes. KMP-safe with Mutex. Integrated into VidNutzRepository for first-page category variety.
+- **SportNutz Performance (Feature 5)** — parallel async fetches, withTimeout on all HTTP (6-20s), cached trending videos (reduced 16→4 queries), skip re-fetch if cached.
+- **VidNutz Enhancement (Feature 6)** — fetchByCategory uses VideoSuggestionEngine for first-page results before falling back to Invidious/Piped.
+- **Player Live Games Overlay (Feature 9)** — existing overlay expanded to show both ESPN DaddyLive events with LIVE/UPCOMING badges and channel names. SportsNowStore.daddyLiveEvents auto-populated.
+- **Playlist source selection fix** — clicking any playlist card now selects that source (selectSource instead of toggleSourceSelection). Works in both TV and mobile modes.
+- **Playlist cards clickable** — TvPlaylistCard, PlaylistCard, MobilePlaylistRow all accept onClick to select source and show its channels.
+- **Performance fixes** — refreshXtreamChannels uses User-Agent VLC/3.0.20 + get_live_streams fallback. DaddyLive mirrors probed in parallel. Trending news reduced to 4 parallel queries with 8s timeout per query.
+- **Error display** — uiState.error now visible in IPTV screen TV + mobile modes.
+
 ### v0.3.0 — Backup/Restore, Hub Header Tuning, Multiwindow Fixes (July 2026)
 - **Backup & Restore** — export/import all profiles, library, watched status, progress, collections, IPTV, settings, auth, identity via clipboard or file picker
 - **NuvioSync backup import** — import `.json` backups from the original NuvioSync format (library, watched, progress, addons) with automatic conversion

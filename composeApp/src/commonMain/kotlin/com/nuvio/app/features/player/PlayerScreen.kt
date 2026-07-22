@@ -54,6 +54,10 @@ fun PlayerScreen(
     iptvHistoryUrls: List<String>? = null,
     iptvHistoryLogos: List<String>? = null,
     iptvHistoryIds: List<String>? = null,
+    autoPlayQueueUrls: List<String> = emptyList(),
+    autoPlayQueueTitles: List<String> = emptyList(),
+    autoPlayQueueIndex: Int = 0,
+    onAutoPlayNext: ((Long) -> Unit)? = null,
 ) {
     PlayerScreenContent(
         PlayerScreenArgs(
@@ -106,6 +110,10 @@ fun PlayerScreen(
             iptvHistoryUrls = iptvHistoryUrls,
             iptvHistoryLogos = iptvHistoryLogos,
             iptvHistoryIds = iptvHistoryIds,
+            autoPlayQueueUrls = autoPlayQueueUrls,
+            autoPlayQueueTitles = autoPlayQueueTitles,
+            autoPlayQueueIndex = autoPlayQueueIndex,
+            onAutoPlayNext = onAutoPlayNext,
         )
     )
 }

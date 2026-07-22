@@ -24,6 +24,7 @@ import com.nuvio.app.features.downloads.DownloadsPlatformDownloader
 import com.nuvio.app.features.downloads.DownloadsStorage
 import com.nuvio.app.features.iptv.IptvStorage
 import com.nuvio.app.features.library.LibraryStorage
+import com.nuvio.app.features.magnutz.MagNutzRepository
 import com.nuvio.app.features.details.MetaScreenSettingsStorage
 import com.nuvio.app.features.home.HomeCatalogSettingsStorage
 import com.nuvio.app.features.mdblist.MdbListSettingsStorage
@@ -126,10 +127,15 @@ class MainActivity : AppCompatActivity() {
         EpisodeReleaseNotificationPlatform.bindActivity(this)
         IptvStorage.initialize(applicationContext)
         MultiWindowStorage.initialize(applicationContext)
+        MagNutzRepository.initialize(applicationContext)
+        com.nuvio.app.features.hub.MusicNutzDownloadStorage.downloadDirPath = applicationContext.filesDir.absolutePath
         handleIncomingAppIntent(intent)
 
         setContent {
-            App()
+            androidx.compose.foundation.layout.Box {
+                App()
+                com.nuvio.app.features.magnutz.MagNutzSaveLocationPickerEffect()
+            }
         }
     }
 
@@ -171,6 +177,11 @@ class MainActivity : AppCompatActivity() {
     private fun handleIncomingAppIntent(intent: Intent?) {
         val appUrl = intent?.dataString?.trim().orEmpty()
         if (appUrl.isBlank()) return
+        if (appUrl.startsWith("magnet:", ignoreCase = true)) {
+            MagNutzRepository.pendingMagnetFromExternal = appUrl
+            com.nuvio.app.features.hub.HubReturnStore.subScreen = "MagNutz"
+            return
+        }
         handleAppUrl(appUrl)
     }
 }

@@ -151,11 +151,20 @@ object IptvRepository {
             try {
                 val baseUrl = account.server.trimEnd('/')
                 val creds = "username=${account.username}&password=${account.password}"
+                val headers = mapOf("User-Agent" to "VLC/3.0.20")
 
-                val categoriesJson = httpGetText("$baseUrl/player_api.php?$creds&action=live_categories")
+                var categoriesJson = try {
+                    httpGetTextWithHeaders("$baseUrl/player_api.php?$creds&action=get_live_categories", headers)
+                } catch (_: Exception) {
+                    try { httpGetTextWithHeaders("$baseUrl/player_api.php?$creds&action=live_categories", headers) } catch (_: Exception) { "" }
+                }
                 val categories = XtreamClient.parseCategories(categoriesJson)
 
-                val streamsJson = httpGetText("$baseUrl/player_api.php?$creds&action=live_streams")
+                var streamsJson = try {
+                    httpGetTextWithHeaders("$baseUrl/player_api.php?$creds&action=get_live_streams", headers)
+                } catch (_: Exception) {
+                    try { httpGetTextWithHeaders("$baseUrl/player_api.php?$creds&action=live_streams", headers) } catch (_: Exception) { "" }
+                }
                 val channels = XtreamClient.parseChannels(streamsJson, id, account.server, account.username, account.password)
 
                 val updated = account.copy(categories = categories, channels = channels)
@@ -297,10 +306,17 @@ object IptvRepository {
 
     fun toggleSourceSelection(index: Int) {
         val current = _uiState.value.selectedSourceIds
-        val allSourceIds = settings.m3uPlaylists.map { it.id } + settings.xtreamAccounts.map { it.id }
+        val allSourceIds = getAllSourceIds()
         val sourceId = allSourceIds.getOrNull(index) ?: return
         val newIds = if (sourceId in current) current - sourceId else current + sourceId
         _uiState.value = _uiState.value.copy(selectedSourceIds = newIds)
+        applyFilters()
+    }
+
+    fun selectSource(index: Int) {
+        val allSourceIds = getAllSourceIds()
+        val sourceId = allSourceIds.getOrNull(index) ?: return
+        _uiState.value = _uiState.value.copy(selectedSourceIds = setOf(sourceId))
         applyFilters()
     }
 

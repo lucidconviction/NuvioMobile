@@ -18,6 +18,10 @@ internal sealed interface AppDeepLink {
     ) : AppDeepLink
 
     data object Downloads : AppDeepLink
+
+    data class MagnetLink(
+        val magnetUri: String,
+    ) : AppDeepLink
 }
 
 internal object AppDeepLinkRepository {
@@ -58,6 +62,10 @@ fun buildMetaDeepLinkUrl(
 fun buildDownloadsDeepLinkUrl(): String = "nuvio://downloads"
 
 internal fun parseAppDeepLink(url: String): AppDeepLink? {
+    val trimmed = url.trim()
+    if (trimmed.startsWith("magnet:", ignoreCase = true)) {
+        return AppDeepLink.MagnetLink(trimmed)
+    }
     val parsedUrl = runCatching { Url(url) }.getOrNull() ?: return null
     val scheme = parsedUrl.protocol.name.lowercase()
     if (scheme == "stremio") {

@@ -122,6 +122,7 @@ expect object P2pStreamingEngine {
     suspend fun startStream(request: P2pStreamRequest): String
     fun stopStream()
     fun shutdown()
+    suspend fun startTorrServer()
 }
 
 internal fun formatP2pSpeed(bytesPerSec: Long): String {

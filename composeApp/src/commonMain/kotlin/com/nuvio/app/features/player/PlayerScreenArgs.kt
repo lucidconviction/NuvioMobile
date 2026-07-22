@@ -52,4 +52,8 @@ internal data class PlayerScreenArgs(
     val iptvHistoryUrls: List<String>? = null,
     val iptvHistoryLogos: List<String>? = null,
     val iptvHistoryIds: List<String>? = null,
+    val autoPlayQueueUrls: List<String> = emptyList(),
+    val autoPlayQueueTitles: List<String> = emptyList(),
+    val autoPlayQueueIndex: Int = 0,
+    val onAutoPlayNext: ((Long) -> Unit)? = null,
 )
