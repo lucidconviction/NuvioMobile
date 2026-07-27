@@ -5,22 +5,38 @@ Update `RELEASE_NOTES` in `composeApp/src/commonMain/kotlin/com/nuvio/app/featur
 
 ---
 
-## v0.5.0 — Quick Channels Multi-Window, Channel Overlay Popup
+## v0.7.0 — Text-Only MatchCards, VidNutz NewPipe Trending, YouTube Audio Fix, MultiWindow Audio Fix
 
-**Built:** July 23, 2026
+**Built:** July 26, 2026
 
-### New
-- Quick Channels in Multi-Window: browse ~240 curated channels directly from the multi-window toolbar
-- Quick Channel overlay: tap a quick channel to see all matching IPTV sources with search, source, and group filters
-- "Quick" button in cell options (long-press → ⋮ → Quick) for slot-specific channel picking
-- Channel match overlay with search bar, source filter chips, and group filter chips
+### SportNutz — Text-Only MatchCards, Event Titles, Fighting Sports
+- Text-only MatchCards — removed all team logos/image circles; card body now shows event title prominently then home vs away team names
+- Event titles shown on every card (e.g. "UFC 306: O'Malley vs Dvalishvili" for fighting events)
+- Date labels on upcoming event cards
+- Dead code removed: SportsAsyncImage, isFighting, displayHomeLogo, displayAwayLogo
 
-### Updated
-- Multi-window grid toolbar now includes ⚡ Quick pill button
-- In-app updater APK served from apps.rdnutz.us
+### VidNutz — NewPipe Trending, Search Fix, Live Streams Removed
+- NewPipe primary for trending with "popular"/"trending"/"viral" queries, fallback to Piped/Invidious
+- Search uses NewPipe as primary source instead of unreliable Piped/Invidious
+- platformYouTubeSearch enlarged to 28 results with max 30min duration
+- Per-request 8s timeouts for Piped/Invidious calls
+- LIVE_STREAMS category removed
 
-### Fixed
-- Quick Channels UI lag: no longer pre-loads channel source matches for all 240 channels on open; only loads on tap
+### YouTube Audio — Progressive Format Priority
+- InnerTube picks progressive formats over video-only adaptive + separate audio
+- Priority: HLS → Progressive → Adaptive + separate
+- Piped audio URL fix for HLS streams
+
+### MultiNutz — Audio Fix
+- New streams start at full volume (was 0f, causing silence)
+- Audio focus at creation; subsequent streams start muted
+- Channel changing forces player recreation
+- Play/Pause actually calls engine methods
+- Audio focus save/restore across focus changes
+
+### Other
+- Live Games overlay now filters to only live events
+- Force close fixes: safe channel callback, index bounds check
 
 ### Build
 ```bash

@@ -62,20 +62,31 @@ private const val gitHubApiBase = "https://api.github.com"
 private const val releaseChannelBranch = "cmp-rewrite"
 
 private const val RELEASE_NOTES = """
-v0.5.0 — Quick Channels Multi-Window, Channel Overlay Popup
+v0.7.0 — Text-Only MatchCards, VidNutz NewPipe Trending, YouTube Audio Fix, MultiWindow Audio Fix
 
-New:
-- Quick Channels in Multi-Window: browse ~240 curated channels directly from the multi-window toolbar
-- Quick Channel overlay: tap a quick channel to see all matching IPTV sources with search, source, and group filters
-- "Quick" button in cell options for slot-specific channel picking
-- Channel match overlay with search bar, source filter chips, and group filter chips
+SportNutz:
+- Text-only MatchCards: no team logos, event title + team names
+- Event titles shown on every card (UFC: "O'Malley vs Dvalishvili")
+- Date labels on upcoming event cards
 
-Updated:
-- Multi-window grid toolbar now includes ⚡ Quick pill button
-- In-app updater APK served from apps.rdnutz.us
+VidNutz:
+- NewPipe primary for trending + search (was unreliable Piped/Invidious)
+- 28 results per query with 30min duration cap
+- LIVE_STREAMS category removed
 
-Fixed:
-- Quick Channels UI lag: no longer pre-loads channel source matches for all 240 channels on open; only loads on tap
+YouTube Audio:
+- InnerTube picks progressive formats over adaptive+separate audio
+- HLS priority: HLS → Progressive → Adaptive
+
+MultiNutz Audio Fix:
+- New streams start at full volume (was 0f)
+- Audio focus at creation; subsequent streams start muted
+- Channel changing forces player recreation
+- Play/Pause calls engine methods correctly
+
+Other:
+- Live Games overlay filters to live events only
+- Force close fixes: safe channel callback, bounds check
 """
 
 data class AppUpdate(
