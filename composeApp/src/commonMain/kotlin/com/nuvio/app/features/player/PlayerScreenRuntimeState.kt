@@ -12,6 +12,7 @@ import com.nuvio.app.features.details.MetaDetailsUiState
 import com.nuvio.app.features.details.MetaScreenSettingsUiState
 import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.p2p.P2pSettingsUiState
+import com.nuvio.app.features.sports.YoutubeQuality
 import com.nuvio.app.features.p2p.P2pStreamingState
 import com.nuvio.app.features.player.skip.NextEpisodeInfo
 import com.nuvio.app.features.player.skip.SkipInterval
@@ -34,6 +35,7 @@ internal class PlayerScreenRuntime(
     val profileId: Int get() = args.profileId
     val sourceUrl: String get() = args.sourceUrl
     val sourceAudioUrl: String? get() = args.sourceAudioUrl
+    val qualities: List<YoutubeQuality> get() = args.qualities
     val sourceHeaders: Map<String, String> get() = args.sourceHeaders
     val sourceResponseHeaders: Map<String, String> get() = args.sourceResponseHeaders
     val streamType: String? get() = args.streamType
@@ -182,6 +184,10 @@ internal class PlayerScreenRuntime(
     var credentialRefreshJob by mutableStateOf<Job?>(null)
     var credentialRefreshAttemptedSourceUrl by mutableStateOf<String?>(null)
 
+    var volume by mutableStateOf(1f)
+    var showVolumeSlider by mutableStateOf(false)
+    var showQualitySelector by mutableStateOf(false)
+    var selectedQualityIndex by mutableStateOf(0)
     var showAudioModal by mutableStateOf(false)
     var showSubtitleModal by mutableStateOf(false)
     var showVideoSettingsModal by mutableStateOf(false)

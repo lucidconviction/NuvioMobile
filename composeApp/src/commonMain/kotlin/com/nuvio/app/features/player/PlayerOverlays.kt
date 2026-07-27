@@ -130,7 +130,7 @@ internal fun OpeningOverlay(
 
     Box(
         modifier = modifier
-            .background(Color.Black.copy(alpha = 0.85f)),
+            .background(Color.Black.copy(alpha = 0.75f)),
     ) {
         if (artwork != null) {
             AsyncImage(
@@ -390,8 +390,8 @@ internal fun PauseMetadataOverlay(
             .background(
                 Brush.horizontalGradient(
                     colors = listOf(
-                        Color.Black.copy(alpha = 0.85f),
-                        Color.Black.copy(alpha = 0.45f),
+                        Color.Black.copy(alpha = 0.70f),
+                        Color.Black.copy(alpha = 0.35f),
                         Color.Transparent,
                     ),
                 ),
@@ -509,7 +509,7 @@ internal fun ErrorModal(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.9f)),
+            .background(Color.Black.copy(alpha = 0.75f)),
         contentAlignment = Alignment.Center,
     ) {
         Column(

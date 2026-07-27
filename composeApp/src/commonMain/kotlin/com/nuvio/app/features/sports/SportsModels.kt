@@ -26,6 +26,7 @@ data class SportLeague(
     val name: String,
     val abbreviation: String,
     val slug: String,
+    val logoUrl: String? = null,
 )
 
 data class SportEventVideo(
@@ -84,6 +85,9 @@ data class SportsUiState(
     val activeEventTab: EventTab = EventTab.LIVE,
     val daddyLiveEvents: List<DaddyLiveEvent> = emptyList(),
     val daddyLiveLoading: Boolean = false,
+    val sync2CalEventsByLeague: Map<String, List<Sync2CalEvent>> = emptyMap(),
+    val sync2CalLoading: Boolean = false,
+    val sync2CalTvChannels: Map<Long, List<Sync2CalTvChannel>> = emptyMap(),
 )
 
 sealed class SportsTab {

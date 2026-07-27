@@ -35,4 +35,44 @@ actual object IptvStorage {
         val path = cacheFilePath()
         (data as NSString).writeToFile(path, atomically = true, encoding = NSUTF8StringEncoding, error = null)
     }
+
+    private fun channelCachePath(sourceUrl: String): String {
+        val paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true)
+        val dir = paths.first() as String
+        return "$dir/ch_cache_${sourceUrl.hashCode()}.json"
+    }
+
+    actual fun loadChannelCache(sourceUrl: String): String? {
+        val path = channelCachePath(sourceUrl)
+        return NSString.stringWithContentsOfFile(path, encoding = NSUTF8StringEncoding, error = null) as? String
+    }
+
+    actual fun saveChannelCache(sourceUrl: String, data: String) {
+        val path = channelCachePath(sourceUrl)
+        (data as NSString).writeToFile(path, atomically = true, encoding = NSUTF8StringEncoding, error = null)
+    }
+
+    actual fun invalidateChannelCache(sourceUrl: String) {
+        val path = channelCachePath(sourceUrl)
+        val fileManager = platform.Foundation.NSFileManager.defaultManager
+        if (fileManager.fileExistsAtPath(path)) {
+            fileManager.removeItemAtPath(path, error = null)
+        }
+    }
+
+    private fun deadUrlsPath(): String {
+        val paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true)
+        val dir = paths.first() as String
+        return "$dir/dead_urls.json"
+    }
+
+    actual fun loadDeadUrls(): String? {
+        val path = deadUrlsPath()
+        return NSString.stringWithContentsOfFile(path, encoding = NSUTF8StringEncoding, error = null) as? String
+    }
+
+    actual fun saveDeadUrls(data: String) {
+        val path = deadUrlsPath()
+        (data as NSString).writeToFile(path, atomically = true, encoding = NSUTF8StringEncoding, error = null)
+    }
 }

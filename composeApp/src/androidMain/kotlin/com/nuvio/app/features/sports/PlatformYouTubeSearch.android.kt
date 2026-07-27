@@ -74,7 +74,7 @@ actual suspend fun platformYouTubeSearch(query: String): List<YouTubeVideo>? {
                             durationSeconds = (item.duration ?: 0L).toInt(),
                         )
                     } else null
-                }?.filter { it.durationSeconds in 30..600 }?.take(6)?.ifEmpty { null }
+                }?.filter { it.durationSeconds in 30..1800 }?.take(28)?.ifEmpty { null }
             }
         } catch (_: Exception) { null }
     }

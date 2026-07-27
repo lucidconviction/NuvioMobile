@@ -26,6 +26,7 @@ object SportsRepository {
 
     private var refreshJob: Job? = null
     private var autoRefreshJob: Job? = null
+    private var sync2CalCollectorJob: Job? = null
 
     private data class LeagueCache(
         val events: List<EspnProcessedEvent>,
@@ -36,26 +37,26 @@ object SportsRepository {
     private const val CACHE_TTL_MS = 60_000L
 
     val leagues: List<SportLeague> = listOf(
-        SportLeague("nfl", "NFL Football", "NFL", "football/nfl"),
-        SportLeague("nba", "NBA Basketball", "NBA", "basketball/nba"),
-        SportLeague("mlb", "MLB Baseball", "MLB", "baseball/mlb"),
-        SportLeague("nhl", "NHL Hockey", "NHL", "hockey/nhl"),
-        SportLeague("ufc", "UFC MMA", "UFC", "mma/ufc"),
-        SportLeague("boxing", "Boxing", "BOX", "boxing/boxing"),
-        SportLeague("pfl", "PFL MMA", "PFL", "mma/pfl"),
-        SportLeague("mls", "MLS Soccer", "MLS", "soccer/usa.1"),
-        SportLeague("epl", "Premier League", "EPL", "soccer/eng.1"),
-        SportLeague("laliga", "La Liga", "LALIGA", "soccer/esp.1"),
-        SportLeague("seriea", "Serie A", "SERIEA", "soccer/ita.1"),
-        SportLeague("bundes", "Bundesliga", "BUNDES", "soccer/ger.1"),
-        SportLeague("ligue1", "Ligue 1", "LIGUE1", "soccer/fra.1"),
-        SportLeague("ucl", "Champions League", "UCL", "soccer/uefa.champions"),
-        SportLeague("f1", "Formula 1", "F1", "racing/f1"),
-        SportLeague("tennis", "Tennis", "TEN", "tennis/atp"),
-        SportLeague("golf", "Golf", "GOLF", "golf/pga"),
-        SportLeague("cfb", "College Football", "CFB", "football/college-football"),
-        SportLeague("cbb", "College Basketball", "CBB", "basketball/mens-college-basketball"),
-        SportLeague("wnba", "WNBA", "WNBA", "basketball/wnba"),
+        SportLeague("nfl", "NFL Football", "NFL", "football/nfl", "https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png"),
+        SportLeague("nba", "NBA Basketball", "NBA", "basketball/nba", "https://a.espncdn.com/i/teamlogos/leagues/500/nba.png"),
+        SportLeague("mlb", "MLB Baseball", "MLB", "baseball/mlb", "https://a.espncdn.com/i/teamlogos/leagues/500/mlb.png"),
+        SportLeague("nhl", "NHL Hockey", "NHL", "hockey/nhl", "https://a.espncdn.com/i/teamlogos/leagues/500/nhl.png"),
+        SportLeague("ufc", "UFC MMA", "UFC", "mma/ufc", "https://a.espncdn.com/i/teamlogos/leagues/500/ufc.png"),
+        SportLeague("boxing", "Boxing", "BOX", "boxing/boxing", "https://a.espncdn.com/i/teamlogos/leagues/500/boxing.png"),
+        SportLeague("pfl", "PFL MMA", "PFL", "mma/pfl", "https://a.espncdn.com/i/teamlogos/leagues/500/pfl.png"),
+        SportLeague("mls", "MLS Soccer", "MLS", "soccer/usa.1", "https://a.espncdn.com/i/teamlogos/leagues/500/mls.png"),
+        SportLeague("epl", "Premier League", "EPL", "soccer/eng.1", "https://a.espncdn.com/i/teamlogos/leagues/500/epl.png"),
+        SportLeague("laliga", "La Liga", "LALIGA", "soccer/esp.1", "https://a.espncdn.com/i/teamlogos/leagues/500/laliga.png"),
+        SportLeague("seriea", "Serie A", "SERIEA", "soccer/ita.1", "https://a.espncdn.com/i/teamlogos/leagues/500/seriea.png"),
+        SportLeague("bundes", "Bundesliga", "BUNDES", "soccer/ger.1", "https://a.espncdn.com/i/teamlogos/leagues/500/bundesliga.png"),
+        SportLeague("ligue1", "Ligue 1", "LIGUE1", "soccer/fra.1", "https://a.espncdn.com/i/teamlogos/leagues/500/ligue1.png"),
+        SportLeague("ucl", "Champions League", "UCL", "soccer/uefa.champions", "https://a.espncdn.com/i/teamlogos/leagues/500/ucl.png"),
+        SportLeague("f1", "Formula 1", "F1", "racing/f1", "https://a.espncdn.com/i/teamlogos/leagues/500/f1.png"),
+        SportLeague("tennis", "Tennis", "TEN", "tennis/atp", "https://a.espncdn.com/i/teamlogos/leagues/500/tennis.png"),
+        SportLeague("golf", "Golf", "GOLF", "golf/pga", "https://a.espncdn.com/i/teamlogos/leagues/500/golf.png"),
+        SportLeague("cfb", "College Football", "CFB", "football/college-football", "https://a.espncdn.com/i/teamlogos/leagues/500/cfb.png"),
+        SportLeague("cbb", "College Basketball", "CBB", "basketball/mens-college-basketball", "https://a.espncdn.com/i/teamlogos/leagues/500/cbb.png"),
+        SportLeague("wnba", "WNBA", "WNBA", "basketball/wnba", "https://a.espncdn.com/i/teamlogos/leagues/500/wnba.png"),
     )
 
     fun refresh() {
@@ -72,6 +73,28 @@ object SportsRepository {
                 _uiState.value = _uiState.value.copy(isLoading = false)
             }
         }
+        loadSync2CalEvents()
+    }
+
+    private suspend fun <T> retryWithBackoff(
+        maxRetries: Int = 3,
+        initialDelayMs: Long = 1_000,
+        block: suspend () -> T,
+    ): T {
+        var lastEx: Exception? = null
+        var delayMs = initialDelayMs
+        for (attempt in 1..maxRetries) {
+            try {
+                return block()
+            } catch (e: Exception) {
+                lastEx = e
+                if (attempt < maxRetries) {
+                    delay(delayMs)
+                    delayMs *= 2
+                }
+            }
+        }
+        throw lastEx ?: Exception("Retry failed")
     }
 
     fun loadLeagueEvents(league: SportLeague, date: String? = null, forceRefresh: Boolean = false) {
@@ -97,8 +120,8 @@ object SportsRepository {
         scope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                val eventsDeferred = async { EspnClient.fetchLeague(sport, leagueName, queryDate) }
-                val highlightsDeferred = async { YouTubeHighlightClient.searchHighlights("${league.name} highlights") }
+                val eventsDeferred = async { retryWithBackoff { EspnClient.fetchLeague(sport, leagueName, queryDate) } }
+                val highlightsDeferred = async { retryWithBackoff(maxRetries = 2) { YouTubeHighlightClient.searchHighlights("${league.name} highlights") } }
                 val events = withTimeout(15_000) { eventsDeferred.await() }
                 val highlights = try { withTimeout(10_000) { highlightsDeferred.await() } } catch (_: Exception) { emptyList() }
                 val highlightVideos = if (highlights.isNotEmpty()) {
@@ -122,6 +145,29 @@ object SportsRepository {
         }
     }
 
+    /** Heartbeat: refreshes live events every 30s when no specific league is selected (Live mode). */
+    private var liveHeartbeatJob: Job? = null
+
+    fun startLiveHeartbeat() {
+        liveHeartbeatJob?.cancel()
+        liveHeartbeatJob = scope.launch {
+            while (true) {
+                delay(30_000)
+                _uiState.value.let { state ->
+                    if (state.selectedLeague == null) {
+                        loadAllLiveEvents()
+                        loadDaddyLiveEvents()
+                    }
+                }
+            }
+        }
+    }
+
+    fun stopLiveHeartbeat() {
+        liveHeartbeatJob?.cancel()
+        liveHeartbeatJob = null
+    }
+
     fun loadAllLiveEvents() {
         scope.launch {
             _uiState.value = _uiState.value.copy(allLiveLoading = true)
@@ -129,7 +175,7 @@ object SportsRepository {
                 val today = formatToday()
                 val twoWeeks = addDays(today, 14)
                 val dateRange = "${today.replace("-", "")}${twoWeeks.replace("-", "")}"
-                val allEvents = withTimeout(40_000) { EspnClient.fetchAll(dateRange) }
+                val allEvents = withTimeout(40_000) { retryWithBackoff(maxRetries = 3, initialDelayMs = 2_000) { EspnClient.fetchAll(dateRange) } }
                 SportsNowStore.liveEvents = allEvents
                 _uiState.value = _uiState.value.copy(allLiveEvents = allEvents, allLiveLoading = false)
             } catch (_: Exception) {
@@ -138,10 +184,31 @@ object SportsRepository {
         }
     }
 
+    fun loadSync2CalEvents() {
+        scope.launch {
+            _uiState.value = _uiState.value.copy(sync2CalLoading = true)
+            Sync2CalRepository.loadAllEvents()
+            sync2CalCollectorJob?.cancel()
+            sync2CalCollectorJob = scope.launch {
+                Sync2CalRepository.eventsByLeague.collect { events ->
+                    Sync2CalRepository.tvChannelsByEvent.collect { channels ->
+                        _uiState.value = _uiState.value.copy(
+                            sync2CalEventsByLeague = events,
+                            sync2CalTvChannels = channels,
+                            sync2CalLoading = false,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     fun selectLeague(league: SportLeague?) {
         _uiState.value = _uiState.value.copy(selectedLeague = league)
         if (league == null) {
             loadAllLiveEvents()
+        } else {
+            loadStandings(league)
         }
     }
 
@@ -296,7 +363,7 @@ object SportsRepository {
     fun selectDate(date: String) {
         _uiState.value = _uiState.value.copy(selectedDate = date)
         val league = _uiState.value.selectedLeague
-        if (league != null && league.id != "now") {
+        if (league != null) {
             loadLeagueEvents(league, date)
         }
     }

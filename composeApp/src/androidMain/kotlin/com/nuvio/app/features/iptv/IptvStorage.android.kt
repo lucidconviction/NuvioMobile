@@ -35,4 +35,34 @@ actual object IptvStorage {
         val file = File(dir, EPG_CACHE_FILE)
         file.writeText(data)
     }
+
+    actual fun loadChannelCache(sourceUrl: String): String? {
+        val dir = cacheDir ?: return null
+        val file = File(dir, "ch_cache_${sourceUrl.hashCode()}.json")
+        return if (file.exists()) file.readText() else null
+    }
+
+    actual fun saveChannelCache(sourceUrl: String, data: String) {
+        val dir = cacheDir ?: return
+        val file = File(dir, "ch_cache_${sourceUrl.hashCode()}.json")
+        file.writeText(data)
+    }
+
+    actual fun invalidateChannelCache(sourceUrl: String) {
+        val dir = cacheDir ?: return
+        val file = File(dir, "ch_cache_${sourceUrl.hashCode()}.json")
+        if (file.exists()) file.delete()
+    }
+
+    actual fun loadDeadUrls(): String? {
+        val dir = cacheDir ?: return null
+        val file = File(dir, "dead_urls.json")
+        return if (file.exists()) file.readText() else null
+    }
+
+    actual fun saveDeadUrls(data: String) {
+        val dir = cacheDir ?: return
+        val file = File(dir, "dead_urls.json")
+        file.writeText(data)
+    }
 }

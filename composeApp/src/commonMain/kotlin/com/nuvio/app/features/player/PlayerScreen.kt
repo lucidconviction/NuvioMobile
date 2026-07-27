@@ -2,6 +2,7 @@ package com.nuvio.app.features.player
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.nuvio.app.features.sports.YoutubeQuality
 
 @Composable
 fun PlayerScreen(
@@ -9,6 +10,7 @@ fun PlayerScreen(
     title: String,
     sourceUrl: String,
     sourceAudioUrl: String? = null,
+    qualities: List<YoutubeQuality> = emptyList(),
     sourceHeaders: Map<String, String> = emptyMap(),
     sourceResponseHeaders: Map<String, String> = emptyMap(),
     externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle> = emptyList(),
@@ -65,6 +67,7 @@ fun PlayerScreen(
             title = title,
             sourceUrl = sourceUrl,
             sourceAudioUrl = sourceAudioUrl,
+            qualities = qualities,
             sourceHeaders = sourceHeaders,
             sourceResponseHeaders = sourceResponseHeaders,
             externalSubtitles = externalSubtitles,

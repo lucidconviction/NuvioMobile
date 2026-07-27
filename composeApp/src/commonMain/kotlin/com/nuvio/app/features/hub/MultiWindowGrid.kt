@@ -73,6 +73,7 @@ fun MultiWindowGrid(
     onCellLongPress: (WindowStream) -> Unit,
     onCellVolumeToggle: (WindowStream, Boolean) -> Unit,
     onBookmarksClick: (() -> Unit)? = null,
+    onQuickChannelsClick: (() -> Unit)? = null,
     onMuteAll: (() -> Unit)? = null,
     onCloseAll: (() -> Unit)? = null,
     onPauseAll: (() -> Unit)? = null,
@@ -189,6 +190,17 @@ fun MultiWindowGrid(
                             .padding(horizontal = 10.dp, vertical = 5.dp),
                     ) {
                         Text("★ Bookmarks", color = OnSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    }
+                }
+                // Quick Channels
+                if (onQuickChannelsClick != null) {
+                    Box(
+                        Modifier.clip(RoundedCornerShape(9999.dp)).background(SurfaceContainer)
+                            .border(0.5.dp, OutlineVariant.copy(alpha = 0.3f), RoundedCornerShape(9999.dp))
+                            .clickable(onClick = onQuickChannelsClick)
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    ) {
+                        Text("⚡ Quick", color = Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                     }
                 }
                 // Mute All
@@ -323,7 +335,11 @@ private fun VideoCell(
         MultiWindowPlayerManager.createPlayer(stream.channel.url, emptyMap()).also { MultiWindowStore.storePlayerHandle(stream.id, it.id) }
     }
     DisposableEffect(stream.id) {
-        MultiWindowPlayerManager.setVolume(playerHandle, MultiWindowStore.getVolume(stream.id))
+        val vol = MultiWindowStore.getVolume(stream.id)
+        MultiWindowPlayerManager.setVolume(playerHandle, vol)
+        if (isAudioFocused && vol > 0f) {
+            MultiWindowPlayerManager.setAudioFocus(playerHandle.id)
+        }
         onDispose { MultiWindowPlayerManager.releasePlayer(playerHandle) }
     }
     var isAudioActive by remember { mutableStateOf(MultiWindowStore.getVolume(stream.id) > 0f) }
@@ -405,7 +421,12 @@ private fun VideoCell(
                 Modifier.align(Alignment.Center).size(36.dp).clip(CircleShape)
                     .background(PrimaryContainer.copy(alpha = 0.2f))
                     .border(0.5.dp, Primary.copy(alpha = 0.4f), CircleShape)
-                    .clickable { isPlaying = !isPlaying; onInteraction() },
+                    .clickable {
+                        isPlaying = !isPlaying
+                        if (isPlaying) MultiWindowPlayerManager.resumePlayer(playerHandle)
+                        else MultiWindowPlayerManager.pausePlayer(playerHandle)
+                        onInteraction()
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,

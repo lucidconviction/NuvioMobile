@@ -1,5 +1,9 @@
 package com.nuvio.app.features.player
 
+import com.nuvio.app.features.iptv.EspnClient
+import com.nuvio.app.features.iptv.IptvChannel
+import com.nuvio.app.features.iptv.IptvRepository
+import com.nuvio.app.features.iptv.SportEvent
 import com.nuvio.app.features.sports.DaddyLiveEvent
 import com.nuvio.app.features.trakt.TraktPlatformClock
 
@@ -57,6 +61,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import com.nuvio.app.features.p2p.P2pLoadingStatus
 import com.nuvio.app.features.player.skip.NextEpisodeCard
@@ -69,6 +74,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
     channelOverlayTrigger: Long = 0L,
     historyOverlayTrigger: Long = 0L,
     showLiveGamesOverlay: Boolean = false,
+    onDismissLiveGames: (() -> Unit)? = null,
     playerControlsLocked: Boolean,
     lockedOverlayVisible: Boolean,
     playbackSnapshot: PlayerPlaybackSnapshot,
@@ -119,6 +125,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
     currentChannelIndex: Int = 0,
     onSwitchChannel: ((Int) -> Unit)? = null,
     onToggleFavorite: ((String) -> Unit)? = null,
+    onAddToMultiView: ((name: String, url: String, logo: String?) -> Unit)? = null,
 ) {
     AnimatedVisibility(
         visible = playerControlsLocked && lockedOverlayVisible,
@@ -221,69 +228,157 @@ internal fun BoxScope.PlayerPlaybackOverlays(
 
     // Live Games overlay
     if (showLiveGamesOverlay) {
-        val espnEvents = SportsNowStore.liveEvents
+        val todayPrefix = TraktPlatformClock.nowEpochMs().let { epochMs ->
+            val totalDays = (epochMs / 86400000L).toInt()
+            var y = 1970
+            var rem = totalDays
+            while (true) { val dim = if ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0) 366 else 365; if (rem < dim) break; rem -= dim; y++ }
+            val leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+            val months = if (leap) intArrayOf(31,29,31,30,31,30,31,31,30,31,30,31) else intArrayOf(31,28,31,30,31,30,31,31,30,31,30,31)
+            var m = 0; while (m < 12 && rem >= months[m]) { rem -= months[m]; m++ }
+            "${y}-${(m+1).toString().padStart(2,'0')}-${(rem+1).toString().padStart(2,'0')}"
+        }
+        val espnEvents = SportsNowStore.liveEvents.filter { it.isLive }.filter { it.rawDate?.startsWith(todayPrefix) == true || it.rawDate == null }
         val dlEvents = SportsNowStore.daddyLiveEvents
         val hasAny = espnEvents.isNotEmpty() || dlEvents.isNotEmpty()
+
+        var pickerEvent by remember { mutableStateOf<Pair<String, List<IptvChannel>>?>(null) }
+
+        val listState = rememberLazyListState()
+        var lastScrollTime by remember { mutableStateOf(0L) }
+        LaunchedEffect(showLiveGamesOverlay) {
+            if (showLiveGamesOverlay) lastScrollTime = TraktPlatformClock.nowEpochMs()
+        }
+        LaunchedEffect(showLiveGamesOverlay, listState) {
+            if (!showLiveGamesOverlay) return@LaunchedEffect
+            snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+                .collect { lastScrollTime = TraktPlatformClock.nowEpochMs() }
+        }
+        LaunchedEffect(showLiveGamesOverlay) {
+            if (!showLiveGamesOverlay) return@LaunchedEffect
+            while (true) {
+                delay(500)
+                if (TraktPlatformClock.nowEpochMs() - lastScrollTime >= 10_000L) {
+                    onDismissLiveGames?.invoke()
+                    break
+                }
+            }
+        }
+
         Box(
-            modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)).clickable { /* dismiss handled by parent */ },
+            modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)).clickable { onDismissLiveGames?.invoke() },
             contentAlignment = Alignment.BottomCenter,
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 450.dp).background(Color(0xFF1A1A1A), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                    .padding(top = 16.dp, bottom = 32.dp, start = 16.dp, end = 16.dp),
-            ) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Live Games", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (espnEvents.isNotEmpty()) Text("${espnEvents.size} ESPN", color = Color(0xFF4A90D9), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        if (dlEvents.isNotEmpty()) Text("${dlEvents.size} DADDYLIVE", color = Color(0xFFE8553A), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            if (pickerEvent != null) {
+                val (pickerTitle, channels) = pickerEvent!!
+                Column(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 450.dp).background(Color(0xFF1A1A1A), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                        .padding(top = 16.dp, bottom = 32.dp, start = 16.dp, end = 16.dp),
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Channels: $pickerTitle", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Text("\u2715", color = Color(0xFF888888), fontSize = 22.sp, modifier = Modifier.clickable { pickerEvent = null })
                     }
-                }
-                Spacer(Modifier.height(12.dp))
-                if (!hasAny) {
-                    Text("No live games right now", color = Color(0xFF888888))
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(360.dp)) {
-                        itemsIndexed(espnEvents) { _, event ->
+                    Spacer(Modifier.height(12.dp))
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(360.dp).fillMaxWidth()) {
+                        itemsIndexed(channels) { _, ch ->
                             Row(
                                 modifier = Modifier.fillMaxWidth().background(Color(0xFF111111), RoundedCornerShape(8.dp)).clickable {
-                                    SportsNowStore.onSwitchToEvent?.invoke(event)
+                                    pickerEvent = null
+                                    SportsNowStore.onSwitchToEvent?.invoke(
+                                        espnEvents.firstOrNull { e ->
+                                            ch.name.lowercase().contains(e.channel.lowercase()) || e.channel.lowercase().contains(ch.name.lowercase())
+                                        } ?: return@clickable
+                                    )
                                 }.padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("${event.awayTeam} vs ${event.homeTeam}", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(event.league, color = Color(0xFF4A90D9), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                        Text(event.detail, color = Color(0xFF00FF00), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(ch.name, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
+                                    if (!ch.group.isNullOrBlank()) {
+                                        Text(ch.group, color = Color(0xFF888888), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
-                                Text("${event.awayScore ?: "-"} - ${event.homeScore ?: "-"}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(horizontal = 12.dp))
-                                Text("Switch", color = Color(0xFF4A90D9), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("Play", color = Color(0xFF4A90D9), fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(start = 12.dp))
                             }
                         }
-                        itemsIndexed(dlEvents) { _, dlEvent ->
-                            val isLive = dlEvent.isLive
-                            val chNames = dlEvent.channels.joinToString(", ") { it.name }
-                            Row(
-                                modifier = Modifier.fillMaxWidth().background(Color(0xFF1A0A0A), RoundedCornerShape(8.dp)).padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(dlEvent.eventName, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Text(dlEvent.category, color = Color(0xFFE8553A), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                        if (isLive) {
-                                            Box(Modifier.size(5.dp).clip(CircleShape).background(Color(0xFF00FF00)))
-                                            Text("LIVE", color = Color(0xFF00FF00), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 450.dp).background(Color(0xFF1A1A1A), RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                        .padding(top = 16.dp, bottom = 32.dp, start = 16.dp, end = 16.dp),
+                ) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Live Games", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            if (espnEvents.isNotEmpty()) Text("${espnEvents.size} ESPN", color = Color(0xFF4A90D9), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            if (dlEvents.isNotEmpty()) Text("${dlEvents.size} DADDYLIVE", color = Color(0xFFE8553A), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(8.dp))
+                            Text("\u2715", color = Color(0xFF888888), fontSize = 22.sp, modifier = Modifier.clickable { onDismissLiveGames?.invoke() })
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    if (!hasAny) {
+                        Text("No live games right now", color = Color(0xFF888888))
+                    } else {
+                        LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(360.dp)) {
+                            itemsIndexed(espnEvents) { _, event ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().background(Color(0xFF111111), RoundedCornerShape(8.dp)).clickable {
+                                        val se = EspnClient.toSportEvents(listOf(event))
+                                        if (se.isNotEmpty()) {
+                                            val matches = IptvRepository.getAllChannels().let { allCh ->
+                                                EspnClient.findAllMatchingChannels(se.first(), allCh)
+                                            }
+                                            if (matches.isEmpty()) {
+                                                SportsNowStore.onSwitchToEvent?.invoke(event)
+                                            } else if (matches.size == 1) {
+                                                SportsNowStore.onSwitchToEvent?.invoke(event)
+                                            } else {
+                                                pickerEvent = event.title to matches
+                                            }
+                                        }
+                                    }.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("${event.awayTeam} vs ${event.homeTeam}", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text(event.league, color = Color(0xFF4A90D9), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            Text(event.detail, color = Color(0xFF00FF00), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         }
                                     }
-                                    if (chNames.isNotEmpty()) {
-                                        Text(chNames.take(80), color = Color(0xFF888888), fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                                    Text("${event.awayScore ?: "-"} - ${event.homeScore ?: "-"}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(horizontal = 12.dp))
+                                    if (event.channel.isNotBlank()) {
+                                        Text(event.channel, color = Color(0xFF888888), fontSize = 10.sp, modifier = Modifier.padding(end = 8.dp))
                                     }
+                                    Text("Switch", color = Color(0xFF4A90D9), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 }
-                                Box(Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFFE8553A).copy(alpha = 0.2f)).padding(horizontal = 10.dp, vertical = 5.dp)) {
-                                    Text(if (isLive) "LIVE" else "UPCOMING", color = Color(0xFFE8553A), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                            itemsIndexed(dlEvents) { _, dlEvent ->
+                                val isLive = dlEvent.isLive
+                                val chNames = dlEvent.channels.joinToString(", ") { it.name }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().background(Color(0xFF1A0A0A), RoundedCornerShape(8.dp)).padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(dlEvent.eventName, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text(dlEvent.category, color = Color(0xFFE8553A), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            if (isLive) {
+                                                Box(Modifier.size(5.dp).clip(CircleShape).background(Color(0xFF00FF00)))
+                                                Text("LIVE", color = Color(0xFF00FF00), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                        if (chNames.isNotEmpty()) {
+                                            Text(chNames.take(80), color = Color(0xFF888888), fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                                        }
+                                    }
+                                    Box(Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFFE8553A).copy(alpha = 0.2f)).padding(horizontal = 10.dp, vertical = 5.dp)) {
+                                        Text(if (isLive) "LIVE" else "UPCOMING", color = Color(0xFFE8553A), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
@@ -406,7 +501,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                     modifier = Modifier
                         .fillMaxWidth()
                         .fillMaxSize()
-                        .background(Color(0xFF0B1326).copy(alpha = 0.35f))
+                        .background(Color(0xFF0B1326).copy(alpha = 0.20f))
                         .padding(bottom = overlayBottomPadding),
                 ) {
                     Column(modifier = Modifier.fillMaxSize()) {
@@ -477,10 +572,12 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                             index = idx,
                                             name = entries[idx],
                                             logo = historyLogos?.getOrNull(idx),
+                                            url = historyUrls?.getOrNull(idx),
                                             isCurrent = false,
                                             isFavorite = isFav,
                                             onTap = { overlayMode = null; onSwitchChannel(findChannelIndex(historyIds, channelIds, histId).coerceAtLeast(0)) },
                                             onToggleFav = { histId?.let { onToggleFavorite?.invoke(it) } },
+                                            onAddMultiView = onAddToMultiView,
                                             accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
                                             onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
                                         )
@@ -507,10 +604,12 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                                 index = idx,
                                                 name = entries[idx],
                                                 logo = entryLogos?.getOrNull(idx),
+                                                url = channelUrls?.getOrNull(idx),
                                                 isCurrent = idx == currentChannelIndex && !showingFavorites,
                                                 isFavorite = true,
                                                 onTap = { overlayMode = null; onSwitchChannel(idx) },
                                                 onToggleFav = { chId?.let { onToggleFavorite?.invoke(it) } },
+                                                onAddMultiView = onAddToMultiView,
                                                 accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
                                                 onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
                                             )
@@ -526,9 +625,11 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                                 val chId = channelIds?.getOrNull(idx)
                                                 ChannelListItem(
                                                     index = idx, name = entries[idx], logo = entryLogos?.getOrNull(idx),
+                                                    url = channelUrls?.getOrNull(idx),
                                                     isCurrent = idx == currentChannelIndex, isFavorite = true,
                                                     onTap = { overlayMode = null; onSwitchChannel(idx) },
                                                     onToggleFav = { chId?.let { onToggleFavorite?.invoke(it) } },
+                                                    onAddMultiView = onAddToMultiView,
                                                     accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
                                                     onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
                                                 )
@@ -546,10 +647,12 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                             val chId = channelIds?.getOrNull(idx)
                                             ChannelListItem(
                                                 index = idx, name = entries[idx], logo = entryLogos?.getOrNull(idx),
+                                                url = channelUrls?.getOrNull(idx),
                                                 isCurrent = idx == currentChannelIndex,
                                                 isFavorite = chId?.let { favoriteIds?.contains(it) } == true,
                                                 onTap = { overlayMode = null; onSwitchChannel(idx) },
                                                 onToggleFav = { chId?.let { onToggleFavorite?.invoke(it) } },
+                                                onAddMultiView = onAddToMultiView,
                                                 accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
                                                 onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
                                             )
@@ -593,10 +696,12 @@ private fun ChannelListItem(
     index: Int,
     name: String,
     logo: String?,
+    url: String?,
     isCurrent: Boolean,
     isFavorite: Boolean,
     onTap: () -> Unit,
     onToggleFav: (() -> Unit)?,
+    onAddMultiView: ((name: String, url: String, logo: String?) -> Unit)?,
     accentPurpleLight: Color,
     accentPurple: Color,
     onSurface: Color,
@@ -642,6 +747,20 @@ private fun ChannelListItem(
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        if (onAddMultiView != null && url != null) {
+            Text(
+                "MW",
+                color = accentPurpleLight.copy(alpha = 0.6f),
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(accentPurple.copy(alpha = 0.12f))
+                    .clickable { onAddMultiView(name, url, logo) }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+        }
         if (onToggleFav != null) {
             Text(
                 if (isFavorite) "♥" else "♡",

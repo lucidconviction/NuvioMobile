@@ -6,6 +6,7 @@ import com.nuvio.app.features.details.MetaVideo
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.p2p.P2pConsentDialog
 import com.nuvio.app.features.p2p.P2pSettingsRepository
+import com.nuvio.app.features.sports.YoutubeQuality
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.StreamsUiState
 import com.nuvio.app.features.watchprogress.WatchProgressEntry
@@ -50,6 +51,10 @@ internal fun PlayerScreenModalHosts(
     playerSettings: PlayerSettingsUiState,
     onVideoSettingsChanged: () -> Unit,
     onVideoSettingsModalDismissed: () -> Unit,
+    showQualitySelector: Boolean = false,
+    qualities: List<YoutubeQuality> = emptyList(),
+    selectedQualityIndex: Int = 0,
+    onQualitySelected: (Int) -> Unit = {},
     showSourcesPanel: Boolean,
     sourceStreamsState: StreamsUiState,
     activeSourceUrl: String,
@@ -152,6 +157,14 @@ internal fun PlayerScreenModalHosts(
         settings = playerSettings,
         onSettingsChanged = onVideoSettingsChanged,
         onDismiss = onVideoSettingsModalDismissed,
+    )
+
+    QualitySelectorModal(
+        visible = showQualitySelector,
+        qualities = qualities,
+        selectedIndex = selectedQualityIndex,
+        onQualitySelected = onQualitySelected,
+        onDismiss = { },
     )
 
     PlayerSourcesPanel(

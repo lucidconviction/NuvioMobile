@@ -19,6 +19,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 
 object IptvRepository {
+    private const val CHANNEL_CACHE_TTL_MS = 3_600_000L
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private var idCounter = 0L
@@ -88,18 +89,62 @@ object IptvRepository {
     }
 
     fun removeM3uPlaylist(id: String) {
+        val playlist = settings.m3uPlaylists.find { it.id == id }
         settings = settings.copy(m3uPlaylists = settings.m3uPlaylists.filter { it.id != id })
         saveToStorage()
+        playlist?.let { IptvStorage.invalidateChannelCache(it.url) }
         refreshUi()
+    }
+
+    fun invalidateChannelCache(url: String) {
+        IptvStorage.invalidateChannelCache(url)
+    }
+
+    private fun loadChannelsFromCache(url: String): Pair<List<IptvChannel>, Boolean>? {
+        return try {
+            val cached = IptvStorage.loadChannelCache(url) ?: return null
+            val data = json.decodeFromString<StoredChannelCache>(cached)
+            val age = System.currentTimeMillis() - data.timestamp
+            if (age in 0..CHANNEL_CACHE_TTL_MS) {
+                data.channels.map { it.toChannel() } to true
+            } else {
+                null
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private fun saveChannelsToCache(url: String, channels: List<IptvChannel>) {
+        try {
+            val data = json.encodeToString(StoredChannelCache(
+                channels = channels.map { StoredIptvChannel.fromChannel(it) },
+                timestamp = System.currentTimeMillis(),
+            ))
+            IptvStorage.saveChannelCache(url, data)
+        } catch (_: Exception) { }
     }
 
     fun refreshM3uChannels(id: String) {
         scope.launch {
             val playlist = settings.m3uPlaylists.find { it.id == id } ?: return@launch
             _uiState.value = _uiState.value.copy(isLoading = true, error = null, refreshingSourceIds = _uiState.value.refreshingSourceIds + id)
+
+            val cached = loadChannelsFromCache(playlist.url)
+            if (cached != null) {
+                val (channels, _) = cached
+                val updated = playlist.copy(channels = channels)
+                settings = settings.copy(
+                    m3uPlaylists = settings.m3uPlaylists.map { if (it.id == id) updated else it }
+                )
+                saveToStorage()
+                _uiState.value = _uiState.value.copy(refreshingSourceIds = _uiState.value.refreshingSourceIds - id)
+                refreshUi()
+                return@launch
+            }
+
             try {
                 val m3uContent = httpGetText(playlist.url)
                 val channels = M3uParser.parse(m3uContent, id)
+                saveChannelsToCache(playlist.url, channels)
                 val updated = playlist.copy(channels = channels)
                 settings = settings.copy(
                     m3uPlaylists = settings.m3uPlaylists.map { if (it.id == id) updated else it }
@@ -599,12 +644,13 @@ private data class StoredEpgSource(val id: String, val name: String, val url: St
 @Serializable
 private data class StoredIptvChannel(
     val id: String, val name: String, val logo: String? = null,
-    val group: String? = null, val url: String, val epgChannelId: String? = null,
+    val group: String? = null, val url: String, val audioUrl: String? = null,
+    val epgChannelId: String? = null,
     val sourceType: String, val sourceId: String,
 ) {
     fun toChannel() = IptvChannel(
         id = id, name = name, logo = logo, group = group, url = url,
-        epgChannelId = epgChannelId,
+        audioUrl = audioUrl, epgChannelId = epgChannelId,
         sourceType = if (sourceType == "M3U") SourceType.M3U else SourceType.Xtream,
         sourceId = sourceId,
     )
@@ -612,7 +658,14 @@ private data class StoredIptvChannel(
     companion object {
         fun fromChannel(c: IptvChannel) = StoredIptvChannel(
             id = c.id, name = c.name, logo = c.logo, group = c.group, url = c.url,
-            epgChannelId = c.epgChannelId, sourceType = c.sourceType.name, sourceId = c.sourceId,
+            audioUrl = c.audioUrl, epgChannelId = c.epgChannelId,
+            sourceType = c.sourceType.name, sourceId = c.sourceId,
         )
     }
 }
+
+@Serializable
+private data class StoredChannelCache(
+    val channels: List<StoredIptvChannel>,
+    val timestamp: Long,
+)

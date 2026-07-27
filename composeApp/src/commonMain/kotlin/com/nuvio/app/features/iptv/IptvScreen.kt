@@ -103,9 +103,11 @@ import com.nuvio.app.features.hub.MultiWindowStore
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.player.PlayerLaunchStore
 import com.nuvio.app.features.trakt.TraktPlatformClock
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.withContext
 
 // ─── Obsidian Media Hub Design Tokens ────────────────────────────────────
 private val ObsidianBg = Color(0xFF131313)
@@ -316,6 +318,13 @@ private fun IptvTvMode(
                 )
                 Spacer(Modifier.height(32.dp))
             }
+
+            // Quick Channels
+            QuickChannelsSection(
+                allChannels = allChannels,
+                onPlayChannel = onPlayChannel,
+            )
+            Spacer(Modifier.height(32.dp))
 
             // Recommended Channels Grid
             val displayChannels = if (uiState.searchQuery.isNotBlank()) {
@@ -943,6 +952,13 @@ private fun IptvMobileMode(
             item { QuickAccessSection(uiState = uiState, onPlayChannel = onPlayChannel) }
 
             item { HistorySection(uiState = uiState, onPlayChannel = onPlayChannel) }
+
+            item {
+                val allCh = uiState.m3uPlaylists.flatMap { it.channels } +
+                    uiState.xtreamAccounts.flatMap { it.channels } +
+                    uiState.stalkerAccounts.flatMap { it.channels }
+                QuickChannelsSection(allChannels = allCh, onPlayChannel = onPlayChannel)
+            }
 
             item { PlaylistsSection(uiState = uiState, onAddClick = onAddSource) }
 
@@ -2042,4 +2058,201 @@ private fun formatTime(epochMs: Long): String {
     val hours = ((totalSeconds / 3600) % 24).toInt()
     val minutes = ((totalSeconds / 60) % 60).toInt()
     return "${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}"
+}
+
+@Composable
+private fun QuickChannelsSection(
+    allChannels: List<IptvChannel>,
+    onPlayChannel: ((PlayerLaunch) -> Unit)?,
+) {
+    var qcRegion by remember { mutableStateOf("All") }
+    var selectedQc by remember { mutableStateOf<QuickChannel?>(null) }
+    val qcTabs = listOf("All", "US", "UK", "CA", "Bay Area", "Premium", "Sports", "News")
+
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Quick Channels", color = onSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+        }
+        Spacer(Modifier.height(8.dp))
+
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(qcTabs) { tab ->
+                val isActive = qcRegion == tab
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(if (isActive) primary else surfaceContainer)
+                        .clickable { qcRegion = tab }
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        tab,
+                        color = if (isActive) onPrimary else onSurface,
+                        fontSize = 13.sp,
+                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        val filtered = QuickChannelList.all.filter { qc ->
+            when (qcRegion) {
+                "All" -> true; "US" -> "US" in qc.regions; "UK" -> "UK" in qc.regions
+                "CA" -> "CA" in qc.regions; "Bay Area" -> "bay-area" in qc.regions
+                "Premium" -> "premium" in qc.tags
+                "Sports" -> "sports" in qc.tags; "News" -> "news" in qc.tags
+                else -> true
+            }
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(filtered, key = { it.displayName }) { qc ->
+                Card(
+                    onClick = { selectedQc = qc },
+                    modifier = Modifier.width(140.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = surfaceContainerLow),
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth().height(64.dp), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                qc.displayName,
+                                color = onSurface,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 8.dp),
+                            )
+                            Text("▸ select", color = primary.copy(alpha = 0.7f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    selectedQc?.let { qc ->
+        QuickChannelSourcesSheet(
+            quickChannel = qc,
+            allChannels = allChannels,
+            onPlayChannel = onPlayChannel,
+            onDismiss = { selectedQc = null },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun QuickChannelSourcesSheet(
+    quickChannel: QuickChannel,
+    allChannels: List<IptvChannel>,
+    onPlayChannel: ((PlayerLaunch) -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sourceNames = remember { IptvRepository.getAllSourceNames() }
+    val sourceIds = remember { IptvRepository.getAllSourceIds() }
+    var loadState by remember { mutableStateOf<QcSheetState>(QcSheetState.Loading) }
+
+    val sourceNameForId = remember(sourceNames, sourceIds) {
+        sourceIds.zip(sourceNames).toMap()
+    }
+
+    LaunchedEffect(quickChannel) {
+        loadState = QcSheetState.Loading
+        loadState = try {
+            val matches = withContext(Dispatchers.Default) {
+                allChannels.filter { ch ->
+                    ch.name.contains(quickChannel.displayName, ignoreCase = true) ||
+                    quickChannel.aliases.any { ch.name.contains(it, ignoreCase = true) }
+                }
+            }
+            if (matches.isEmpty()) {
+                QcSheetState.Error("No sources found for \"${quickChannel.displayName}\"")
+            } else {
+                QcSheetState.Success(matches)
+            }
+        } catch (e: Exception) {
+            QcSheetState.Error(e.message ?: "Failed to load sources")
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = surfaceContainerLowest,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+    ) {
+        when (val state = loadState) {
+            is QcSheetState.Loading -> {
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = primary, modifier = Modifier.size(36.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text("Resolving ${quickChannel.displayName}...", color = onSurface, fontSize = 14.sp)
+                    Text("Scanning IPTV playlists", color = onsurfaceContainerHigh.copy(alpha = 0.6f), fontSize = 12.sp)
+                    Spacer(Modifier.height(48.dp))
+                }
+            }
+            is QcSheetState.Error -> {
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("⚠", color = errorColor, fontSize = 36.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Text(state.message, color = onSurface, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 24.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Box(Modifier.clip(RoundedCornerShape(50)).background(primary).clickable {
+                        loadState = QcSheetState.Loading
+                    }.padding(horizontal = 24.dp, vertical = 10.dp)) {
+                        Text("Retry", color = onPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(48.dp))
+                }
+            }
+            is QcSheetState.Success -> {
+                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth().height(440.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text(quickChannel.displayName, color = onSurface, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Spacer(Modifier.weight(1f))
+                        Text("${state.channels.size} source${if (state.channels.size != 1) "s" else ""}", color = onsurfaceContainerHigh, fontSize = 12.sp)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(state.channels) { ch ->
+                            val provider = sourceNameForId[ch.sourceId] ?: "Unknown"
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(surfaceContainer).clickable { playChannel(ch, onPlayChannel); onDismiss() }.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                if (!ch.logo.isNullOrBlank()) {
+                                    AsyncImage(model = ch.logo, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size(28.dp).clip(RoundedCornerShape(4.dp)).background(surfaceContainerLow))
+                                    Spacer(Modifier.width(10.dp))
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(ch.name, color = onSurface, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(provider, color = primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        if (ch.group != null) {
+                                            Text(ch.group, color = onsurfaceContainerHigh.copy(alpha = 0.6f), fontSize = 10.sp, maxLines = 1)
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text("Play", color = primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private sealed class QcSheetState {
+    data object Loading : QcSheetState()
+    data class Success(val channels: List<IptvChannel>) : QcSheetState()
+    data class Error(val message: String) : QcSheetState()
 }

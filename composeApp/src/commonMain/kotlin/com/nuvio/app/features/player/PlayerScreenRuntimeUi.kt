@@ -23,7 +23,10 @@ import androidx.compose.ui.zIndex
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 
@@ -388,7 +391,16 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             onSourcesClick = if (activeVideoId != null) { { openSourcesPanel() } } else null,
             onChannelsClick = if (args.parentMetaId == "iptv") { { channelOverlayTrigger++ } } else null,
             onEpisodesClick = if (isSeries) { { openEpisodesPanel() } } else null,
+            onVolumeClick = { showVolumeSlider = !showVolumeSlider },
+            onQualityClick = if (qualities.isNotEmpty()) { { showQualitySelector = !showQualitySelector } } else null,
             onMultiViewClick = { showMultiViewPicker = true },
+            showVolumeSlider = showVolumeSlider,
+            volume = volume,
+            onVolumeChanged = { v ->
+                volume = v
+                playerController?.setVolume(v)
+            },
+            qualityLabel = qualities.getOrNull(selectedQualityIndex)?.let { "${it.height}p" },
             onOpenInExternalPlayer = args.onOpenInExternalPlayer?.let { openExternal ->
                 {
                     val loadedSubtitles = addonSubtitles
@@ -457,6 +469,11 @@ private fun BoxScope.RenderPlaybackOverlays(
     p2pRebufferMessage: String?,
     p2pRebufferProgress: Float?,
 ) {
+    var showChannelMultiViewPicker by remember { mutableStateOf(false) }
+    var channelPickerName by remember { mutableStateOf("") }
+    var channelPickerUrl by remember { mutableStateOf("") }
+    var channelPickerLogo by remember { mutableStateOf<String?>(null) }
+
     runtime.run {
         val iptvLaunch = remember(args.launchId) { PlayerLaunchStore.get(args.launchId) }
         val iptvChannelNames = iptvLaunch?.channelNames
@@ -474,6 +491,7 @@ private fun BoxScope.RenderPlaybackOverlays(
             channelOverlayTrigger = channelOverlayTrigger,
             historyOverlayTrigger = historyOverlayTrigger,
             showLiveGamesOverlay = showLiveGamesOverlay,
+            onDismissLiveGames = { showLiveGamesOverlay = false },
             playerControlsLocked = playerControlsLocked,
             lockedOverlayVisible = lockedOverlayVisible,
             playbackSnapshot = playbackSnapshot,
@@ -542,8 +560,14 @@ private fun BoxScope.RenderPlaybackOverlays(
             historyIds = iptvHistoryIds,
             currentChannelIndex = iptvCurrentChannelIndex,
             onToggleFavorite = args.onToggleIptvFavorite,
+            onAddToMultiView = { chName, chUrl, chLogo ->
+                channelPickerName = chName
+                channelPickerUrl = chUrl
+                channelPickerLogo = chLogo
+                showChannelMultiViewPicker = true
+            },
             onSwitchChannel = { index ->
-                if (iptvChannelUrls != null && iptvChannelNames != null && index < iptvChannelUrls.size) {
+                if (iptvChannelUrls != null && iptvChannelNames != null && index < iptvChannelUrls.size && index < iptvChannelNames.size) {
                     val newLogo = iptvChannelLogos?.getOrNull(index).takeIf { !it.isNullOrBlank() }
                     val newLaunch = iptvLaunch?.copy(
                         title = iptvChannelNames[index],
@@ -570,6 +594,29 @@ private fun BoxScope.RenderPlaybackOverlays(
                 }
             },
         )
+        if (showChannelMultiViewPicker && channelPickerUrl.isNotBlank()) {
+            val mvName = channelPickerName
+            val mvUrl = channelPickerUrl
+            val mvLogo = channelPickerLogo
+            MultiWindowPositionPicker(
+                streamTitle = mvName,
+                streamUrl = mvUrl,
+                streamPoster = mvLogo,
+                onDismiss = {
+                    showChannelMultiViewPicker = false
+                    channelPickerName = ""
+                    channelPickerUrl = ""
+                    channelPickerLogo = null
+                },
+                onSlotSelected = { slotIndex ->
+                    MultiWindowStore.addStream(mvUrl, mvName, mvLogo, slotIndex)
+                    showChannelMultiViewPicker = false
+                    channelPickerName = ""
+                    channelPickerUrl = ""
+                    channelPickerLogo = null
+                },
+            )
+        }
     }
 }
 
@@ -643,6 +690,10 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
             playerController?.configureIosVideoOutput(PlayerSettingsRepository.uiState.value)
         },
         onVideoSettingsModalDismissed = { showVideoSettingsModal = false },
+        showQualitySelector = showQualitySelector,
+        qualities = qualities,
+        selectedQualityIndex = selectedQualityIndex,
+        onQualitySelected = { index -> selectQuality(index) },
         showSourcesPanel = showSourcesPanel,
         sourceStreamsState = sourceStreamsState,
         activeSourceUrl = activeSourceUrl,

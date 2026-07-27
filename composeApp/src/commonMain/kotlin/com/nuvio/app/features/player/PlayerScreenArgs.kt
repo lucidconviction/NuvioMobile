@@ -1,12 +1,14 @@
 package com.nuvio.app.features.player
 
 import androidx.compose.ui.Modifier
+import com.nuvio.app.features.sports.YoutubeQuality
 
 internal data class PlayerScreenArgs(
     val profileId: Int,
     val title: String,
     val sourceUrl: String,
     val sourceAudioUrl: String?,
+    val qualities: List<YoutubeQuality> = emptyList(),
     val sourceHeaders: Map<String, String>,
     val sourceResponseHeaders: Map<String, String>,
     val streamType: String?,

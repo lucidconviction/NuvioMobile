@@ -34,43 +34,41 @@ object MultiWindowStore {
     val allStreams: List<WindowStream> get() = streams
 
     fun addToSlot(channel: IptvChannel, slotIndex: Int) {
-        // Replace in-place to avoid list size changes that trigger layout recalculation
+        val id = "mw_${++idCounter}"
+        val hasFocus = _audioFocusId == null
+        volumes[id] = if (hasFocus) 1f else 0f
+        if (hasFocus) _audioFocusId = id
         val existingAtSlot = streams.indexOfFirst { it.slotIndex == slotIndex }
         val existingChannel = streams.indexOfFirst { it.channel.id == channel.id && it.channel.sourceId == channel.sourceId }
-        // Remove duplicate channel entry if exists at a different slot
         if (existingChannel >= 0 && existingChannel != existingAtSlot) {
             streams.removeAt(existingChannel)
-            // Adjust index if removal shifted our target
             val adjustedExistingAtSlot = streams.indexOfFirst { it.slotIndex == slotIndex }
             if (adjustedExistingAtSlot >= 0) {
-                streams[adjustedExistingAtSlot] = WindowStream(
-                    id = streams[adjustedExistingAtSlot].id,
-                    channel = channel,
-                    slotIndex = slotIndex,
-                )
+                val oldId = streams[adjustedExistingAtSlot].id
+                streams[adjustedExistingAtSlot] = WindowStream(id = id, channel = channel, slotIndex = slotIndex)
+                volumes.remove(oldId); playerHandleIds.remove(oldId); paused.remove(oldId); resizeModes.remove(oldId)
             } else {
-                streams.add(WindowStream(id = "mw_${++idCounter}", channel = channel, slotIndex = slotIndex))
+                streams.add(WindowStream(id = id, channel = channel, slotIndex = slotIndex))
             }
         } else if (existingAtSlot >= 0) {
-            // Replace existing at slot in-place — preserves player key
-            streams[existingAtSlot] = WindowStream(
-                id = streams[existingAtSlot].id,
-                channel = channel,
-                slotIndex = slotIndex,
-            )
+            val oldId = streams[existingAtSlot].id
+            streams[existingAtSlot] = WindowStream(id = id, channel = channel, slotIndex = slotIndex)
+            volumes.remove(oldId); playerHandleIds.remove(oldId); paused.remove(oldId); resizeModes.remove(oldId)
         } else {
-            streams.add(WindowStream(id = "mw_${++idCounter}", channel = channel, slotIndex = slotIndex))
+            streams.add(WindowStream(id = id, channel = channel, slotIndex = slotIndex))
         }
-        // Stay auto by default — don't lock layout when adding streams
         if (_currentLayout.value == null) {
             _layoutLocked.value = false
         }
     }
 
-    /** Add any video stream (movie, show, sports, etc.) to a slot. */
     fun addStream(url: String, title: String, poster: String? = null, slotIndex: Int) {
+        val id = "mw_${++idCounter}"
+        val hasFocus = _audioFocusId == null
+        volumes[id] = if (hasFocus) 1f else 0f
+        if (hasFocus) _audioFocusId = id
         val dummyChannel = IptvChannel(
-            id = "generic_${idCounter}",
+            id = "generic_$id",
             name = title,
             url = url,
             logo = poster,
@@ -78,28 +76,14 @@ object MultiWindowStore {
             sourceType = SourceType.M3U,
             sourceId = "multiview",
         )
-        // Replace in-place to avoid list size changes
         val existingAtSlot = streams.indexOfFirst { it.slotIndex == slotIndex }
         if (existingAtSlot >= 0) {
-            streams[existingAtSlot] = WindowStream(
-                id = streams[existingAtSlot].id,
-                channel = dummyChannel,
-                slotIndex = slotIndex,
-                playerUrl = url,
-                playerTitle = title,
-                playerPoster = poster,
-            )
+            val oldId = streams[existingAtSlot].id
+            streams[existingAtSlot] = WindowStream(id = id, channel = dummyChannel, slotIndex = slotIndex, playerUrl = url, playerTitle = title, playerPoster = poster)
+            volumes.remove(oldId); playerHandleIds.remove(oldId); paused.remove(oldId); resizeModes.remove(oldId)
         } else {
-            streams.add(WindowStream(
-                id = "mw_${++idCounter}",
-                channel = dummyChannel,
-                slotIndex = slotIndex,
-                playerUrl = url,
-                playerTitle = title,
-                playerPoster = poster,
-            ))
+            streams.add(WindowStream(id = id, channel = dummyChannel, slotIndex = slotIndex, playerUrl = url, playerTitle = title, playerPoster = poster))
         }
-        // Stay auto by default — don't lock layout when adding streams
         if (_currentLayout.value == null) {
             _layoutLocked.value = false
         }

@@ -4,12 +4,14 @@ import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.sports.YouTubeStreamResolver
 import com.nuvio.app.features.sports.StreamResult
 import com.nuvio.app.features.sports.platformYouTubeSearch
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 object VidNutzRepository {
 
-    // Per-category engine cache for pagination
+    private const val REQUEST_TIMEOUT_MS = 8_000L
+
     private data class EngineCache(
         val videos: List<VidNutzVideo>,
         val pageSize: Int = 28,
@@ -60,51 +62,40 @@ object VidNutzRepository {
     }
 
     suspend fun fetchTrending(page: Int = 1): List<VidNutzVideo> {
-        val offset = (page - 1) * 3
+        if (page == 1) {
+            try {
+                val qs = listOf("popular", "trending", "viral")
+                val results = mutableSetOf<VidNutzVideo>()
+                for (q in qs) {
+                    val r = platformYouTubeSearch(q)?.map { fromYouTubeVideo(it) } ?: emptyList()
+                    results.addAll(r)
+                    if (results.size >= 28) break
+                }
+                if (results.isNotEmpty()) return results.take(28).toList()
+            } catch (_: Exception) { }
+        }
 
-        // Piped API first
+        val offset = (page - 1) * 3
         for (instance in rotatedPiped()) {
             try {
                 val url = "$instance/feed/trending"
-                val response = httpGetText(url)
+                val response = withTimeout(REQUEST_TIMEOUT_MS) { httpGetText(url) }
                 val parsed = json.decodeFromString<PipedTrendingResponse>(response)
                 if (parsed.items.isNotEmpty()) {
-                    return parsed.items
-                        .filter { it.duration in 30..1800 }
-                        .take(28)
-                        .map { it.toVidNutz() }
+                    return parsed.items.filter { it.duration in 30..1800 }.take(28).map { it.toVidNutz() }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            } catch (_: Exception) { }
         }
 
-        // Invidious fallback
         for (instance in rotatedInvidious()) {
             try {
                 val url = "$instance/api/v1/trending?type=video&page=${page + offset}"
-                val response = httpGetText(url)
+                val response = withTimeout(REQUEST_TIMEOUT_MS) { httpGetText(url) }
                 val raw = json.decodeFromString<List<InvidiousVideo>>(response)
                 if (raw.isNotEmpty()) {
-                    return raw.filter { it.lengthSeconds in 30..1800 }
-                        .take(28)
-                        .map { it.toVidNutz() }
+                    return raw.filter { it.lengthSeconds in 30..1800 }.take(28).map { it.toVidNutz() }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-        // Platform (NewPipe) last resort
-        if (page == 1) {
-            try {
-                val platformResult = platformYouTubeSearch("trending")
-                if (platformResult != null) {
-                    return platformResult.map { fromYouTubeVideo(it) }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            } catch (_: Exception) { }
         }
 
         return emptyList()
@@ -113,52 +104,36 @@ object VidNutzRepository {
     suspend fun search(query: String, page: Int = 1): List<VidNutzVideo> {
         if (query.isBlank()) return emptyList()
 
+        if (page == 1) {
+            try {
+                val r = platformYouTubeSearch(query)
+                if (r != null) return r.map { fromYouTubeVideo(it) }
+            } catch (_: Exception) { }
+        }
+
         val encodedQuery = encodeUrl(query)
         val offset = (page - 1) * 3
 
-        // Piped API first (fastest, most reliable)
         for (instance in rotatedPiped()) {
             try {
                 val url = "$instance/search?q=${encodedQuery}&filter=videos&page=${page + offset}"
-                val response = httpGetText(url)
+                val response = withTimeout(REQUEST_TIMEOUT_MS) { httpGetText(url) }
                 val parsed = json.decodeFromString<PipedSearchResponse>(response)
                 if (parsed.items.isNotEmpty()) {
-                    return parsed.items
-                        .filter { it.duration in 30..1800 }
-                        .take(28)
-                        .map { it.toVidNutz() }
+                    return parsed.items.filter { it.duration in 30..1800 }.take(28).map { it.toVidNutz() }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            } catch (_: Exception) { }
         }
 
-        // Invidious fallback
         for (instance in rotatedInvidious()) {
             try {
                 val url = "$instance/api/v1/search?q=${encodedQuery}&type=video&sort=relevance&page=${page + offset}"
-                val response = httpGetText(url)
+                val response = withTimeout(REQUEST_TIMEOUT_MS) { httpGetText(url) }
                 val raw = json.decodeFromString<List<InvidiousVideo>>(response)
                 if (raw.isNotEmpty()) {
-                    return raw.filter { it.lengthSeconds in 30..1800 }
-                        .take(28)
-                        .map { it.toVidNutz() }
+                    return raw.filter { it.lengthSeconds in 30..1800 }.take(28).map { it.toVidNutz() }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-        // Platform (NewPipe) last resort
-        if (page == 1) {
-            try {
-                val platformResult = platformYouTubeSearch(query)
-                if (platformResult != null) {
-                    return platformResult.map { fromYouTubeVideo(it) }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            } catch (_: Exception) { }
         }
 
         return emptyList()
@@ -191,7 +166,7 @@ object VidNutzRepository {
             if (cached.isNotEmpty()) return cached
         }
 
-        if (page == 1 || cache == null) {
+        if (category != VidNutzCategory.TRENDING && (page == 1 || cache == null)) {
             try {
                 val engineKey = categoryToEngineKey[category] ?: "Trending"
                 val engineResults = VideoSuggestionEngine.suggest("", engineKey, 96)

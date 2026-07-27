@@ -125,18 +125,6 @@ private val tvMargin = 48.dp
 // ── Page Navigation ──────────────────────────────────────────────────────
 private enum class SportNutzPage { LIVE, EVENT, STANDINGS }
 
-private val pageLabels = mapOf(
-    SportNutzPage.LIVE to "Live",
-    SportNutzPage.EVENT to "Event",
-    SportNutzPage.STANDINGS to "Standings",
-)
-
-private val pageIcons = mapOf(
-    SportNutzPage.LIVE to "\u26a1",
-    SportNutzPage.EVENT to "\ud83c\udfaf",
-    SportNutzPage.STANDINGS to "\ud83c\udfc6",
-)
-
 // ── Main Screen ───────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -163,7 +151,6 @@ fun SportsScreen(
     LaunchedEffect(uiState.selectedLeague) {
         val league = uiState.selectedLeague
         when (league?.id) {
-            "now" -> SportsRepository.loadAllLiveEvents()
             null -> {
                 if (uiState.allLiveEvents.isEmpty()) {
                     SportsRepository.loadAllLiveEvents()
@@ -238,7 +225,8 @@ fun SportsScreen(
             onSelect = { channel ->
                 showChannelPicker = false
                 val allChannels = IptvRepository.getAllChannels()
-                launchChannel(channel, allChannels, onPlayChannel!!)
+                val launch = buildPlayerLaunch(channel, allChannels)
+                onPlayChannel?.invoke(launch)
             },
         )
     }
@@ -253,16 +241,12 @@ fun SportsScreen(
         if (isTvMode) {
             SportsTvMode(
                 uiState = uiState,
-                currentPage = currentPage,
-                onPageChange = { currentPage = it },
                 scope = scope,
                 onPlayChannel = onPlayChannel,
                 onTeamClick = onTeamClick,
                 onEventClick = onEventClick,
                 playOrShowPicker = playOrShowPicker,
                 playDaddyLiveEvent = playDaddyLiveEvent,
-                goToLive = goToLive,
-                goToStandings = goToStandings,
             )
         } else {
             // ── Mobile Layout ──
@@ -296,32 +280,12 @@ fun SportsScreen(
                         )
                     }
                 }
-                // ── Bottom Navigation Pills (mobile only) ──
-                Row(
-                    modifier = Modifier.fillMaxWidth().background(SurfaceBg).padding(horizontal = 8.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                ) {
-                    SportNutzPage.entries.forEach { page ->
-                        val isActive = currentPage == page
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(if (isActive) PrimaryContainer else SurfaceContainerHigh)
-                                .clickable { currentPage = page }
-                                .padding(horizontal = 16.dp, vertical = 7.dp),
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text(pageIcons[page] ?: "", fontSize = 12.sp)
-                                Text(
-                                    pageLabels[page] ?: "",
-                                    color = if (isActive) Color(0xFF00363A) else OnSurfaceVariant,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                                )
-                            }
-                        }
-                    }
-                }
+                // ── Category Chip Bar (mobile) ──
+                CategoryChipsBar(
+                    leagues = SportsRepository.leagues,
+                    selectedLeague = uiState.selectedLeague,
+                    onLeagueSelected = { SportsRepository.selectLeague(it) },
+                )
             }
         }
     }
@@ -332,16 +296,12 @@ fun SportsScreen(
 @Composable
 private fun SportsTvMode(
     uiState: SportsUiState,
-    currentPage: SportNutzPage,
-    onPageChange: (SportNutzPage) -> Unit,
     scope: kotlinx.coroutines.CoroutineScope,
     onPlayChannel: ((PlayerLaunch) -> Unit)?,
     onTeamClick: ((teamName: String, teamLogo: String?, sport: String) -> Unit)?,
     onEventClick: (EspnProcessedEvent) -> Unit,
     playOrShowPicker: (EspnProcessedEvent) -> Unit,
     playDaddyLiveEvent: (DaddyLiveEvent) -> Unit,
-    goToLive: () -> Unit,
-    goToStandings: () -> Unit,
 ) {
     val scrollState = rememberScrollState()
     var tvSearchJob by remember { mutableStateOf<Job?>(null) }
@@ -400,72 +360,12 @@ private fun SportsTvMode(
             }
             Spacer(Modifier.height(16.dp))
 
-            // ── Tab Group ──
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                Row(
-                    modifier = Modifier.clip(RoundedCornerShape(50)).background(SurfaceContainer).border(0.5.dp, OutlineVariant.copy(alpha = 0.5f), RoundedCornerShape(50)).padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    SportNutzPage.entries.forEach { page ->
-                        val isActive = currentPage == page
-                        Box(
-                            modifier = Modifier.clip(RoundedCornerShape(50))
-                                .background(if (isActive) Primary else Color.Transparent)
-                                .clickable { onPageChange(page) }
-                                .padding(horizontal = 28.dp, vertical = 8.dp),
-                        ) {
-                            Text(
-                                pageLabels[page] ?: "",
-                                color = if (isActive) Color(0xFF000000) else OnSurfaceVariant,
-                                fontSize = 16.sp,
-                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                            )
-                        }
-                    }
-                }
-            }
-            // League Chips Row
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                // SPORTS NOW chip
-                val isNowMode = uiState.selectedLeague?.id == "now"
-                Box(
-                    modifier = Modifier.clip(RoundedCornerShape(50))
-                        .background(if (isNowMode) Primary else SurfaceContainer)
-                        .clickable {
-                            if (isNowMode) SportsRepository.selectLeague(null)
-                            else SportsRepository.selectLeague(SportLeague("now", "All Sports", "NOW", "all"))
-                        }
-                        .padding(horizontal = 20.dp, vertical = 8.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (isNowMode) {
-                            Box(Modifier.size(8.dp).clip(CircleShape).background(ErrorRed))
-                        }
-                        Text("SPORTS NOW", color = if (isNowMode) Color.Black else OnSurfaceVariant,
-                            fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                    }
-                }
-                leagueChips.forEach { league ->
-                    val isSelected = uiState.selectedLeague?.id == league.id
-                    Box(
-                        modifier = Modifier.clip(RoundedCornerShape(50))
-                            .background(if (isSelected) SurfaceContainerHigh else SurfaceContainer)
-                            .border(if (!isSelected) 0.5.dp else 0.dp, OutlineVariant.copy(alpha = 0.3f), RoundedCornerShape(50))
-                            .clickable { SportsRepository.selectLeague(league) }
-                            .padding(horizontal = 18.dp, vertical = 8.dp),
-                    ) {
-                        Text(league.abbreviation.uppercase(),
-                            color = if (isSelected) Primary else OnSurfaceVariant,
-                            fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                    }
-                }
-            }
+            // ── Category Chip Bar (TV) ──
+            CategoryChipsBar(
+                leagues = SportsRepository.leagues,
+                selectedLeague = uiState.selectedLeague,
+                onLeagueSelected = { SportsRepository.selectLeague(it) },
+            )
 
             Spacer(Modifier.height(24.dp))
 
@@ -481,7 +381,7 @@ private fun SportsTvMode(
             }
             Spacer(Modifier.height(16.dp))
 
-            val displayEvents = if (uiState.selectedLeague?.id == "now") uiState.allLiveEvents
+            val displayEvents = if (uiState.selectedLeague == null) uiState.allLiveEvents
                 else liveEvents.take(6)
 
             if (displayEvents.isNotEmpty()) {
@@ -556,6 +456,7 @@ private fun SportsTvMode(
                                                                 sourceHeaders = result.headers, streamTitle = ytVideo.title,
                                                                 providerName = "YouTube", parentMetaId = "youtube",
                                                                 parentMetaType = "youtube",
+                                                                sourceAudioUrl = result.audioUrl, qualities = result.qualities,
                                                             ))
                                                         }
                                                     }
@@ -613,6 +514,25 @@ private fun SportsTvMode(
                 ) {
                     itemsIndexed(upcomingEvents.take(8), key = { i, e -> "tv_up_${i}_${e.id}" }) { _, event ->
                         TvUpcomingCard(event = event, onClick = { onEventClick(event) })
+                    }
+                }
+            }
+
+            // ── Sync2Cal Upcoming Schedule ──
+            val sync2CalAllEvents = uiState.sync2CalEventsByLeague.values.flatten().sortedBy { it.startTime }.take(20)
+            if (sync2CalAllEvents.isNotEmpty()) {
+                Spacer(Modifier.height(32.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Upcoming Schedule", color = Primary, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+                    Text("${sync2CalAllEvents.size} EVENTS", color = OnSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                }
+                Spacer(Modifier.height(16.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+                    itemsIndexed(sync2CalAllEvents.take(12), key = { i, e -> "sync2cal_${i}_${e.id}" }) { _, event ->
+                        Sync2CalEventCard(
+                            event = event,
+                            tvChannels = uiState.sync2CalTvChannels[event.id] ?: emptyList(),
+                        )
                     }
                 }
             }
@@ -931,6 +851,7 @@ private fun CoroutineScope.playYouTubeVideo(video: YouTubeVideo, onPlayChannel: 
                     sourceHeaders = result.headers, streamTitle = video.title,
                     providerName = "YouTube", parentMetaId = "youtube",
                     parentMetaType = "youtube",
+                    sourceAudioUrl = result.audioUrl, qualities = result.qualities,
                 )
                 onPlayChannel(launch)
             }
@@ -975,11 +896,11 @@ private fun Page1Live(
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                val isAllLiveMode = uiState.selectedLeague == null || uiState.selectedLeague?.id == "now"
+                val isAllLiveMode = uiState.selectedLeague == null
 
                 // ── League pills bar (always open) ──
                 item {
-                    LeagueChipsRow(
+                    CategoryChipsBar(
                         leagues = SportsRepository.leagues,
                         selectedLeague = uiState.selectedLeague,
                         onLeagueSelected = { SportsRepository.selectLeague(it) },
@@ -1181,6 +1102,27 @@ private fun Page1Live(
                         )
                     }
 
+                    val s2cEvents = uiState.sync2CalEventsByLeague.values.flatten().sortedBy { it.startTime }.take(15)
+                    if (s2cEvents.isNotEmpty()) {
+                        item {
+                            Column(Modifier.fillMaxWidth()) {
+                                Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("SCHEDULE", color = OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                    Text("${s2cEvents.size} EVENTS", color = OnSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                    itemsIndexed(s2cEvents.subList(0, minOf(10, s2cEvents.size)), key = { i, e -> "s2c_${i}_${e.id}" }) { _, event ->
+                                        Sync2CalEventCard(
+                                            event = event,
+                                            tvChannels = uiState.sync2CalTvChannels[event.id] ?: emptyList(),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     if (uiState.standings.isNotEmpty()) {
                         item {
                             Column {
@@ -1309,7 +1251,8 @@ private fun Page2Event(
                 },
                 onPlayChannel = { channel ->
                     val allChannels = IptvRepository.getAllChannels()
-                    launchChannel(channel, allChannels, onPlayChannel!!)
+                    val launch = buildPlayerLaunch(channel, allChannels)
+                    onPlayChannel?.invoke(launch)
                 },
                 onPlayPlayerLaunch = onPlayChannel,
                 onSetRegion = { SportsRepository.setRegionFilter(it) },
@@ -1327,6 +1270,7 @@ private fun Page2Event(
                                     sourceHeaders = sr.headers, streamTitle = ytVideo.title,
                                     providerName = "YouTube", parentMetaId = "youtube",
                                     parentMetaType = "youtube",
+                                    sourceAudioUrl = sr.audioUrl, qualities = sr.qualities,
                                 )
                                 onPlayChannel?.invoke(launch)
                             }
@@ -1830,6 +1774,77 @@ private fun LiveScoresSection(
     }
 }
 
+// ── Sync2Cal Event Card (shared TV + mobile) ──────────────────────────────
+
+@Composable
+private fun Sync2CalEventCard(
+    event: Sync2CalEvent,
+    tvChannels: List<Sync2CalTvChannel>,
+) {
+    val dateStr = remember(event.startTime) {
+        try {
+            val parts = event.startTime.substringBefore("T").split("-")
+            if (parts.size == 3) "${parts[1]}/${parts[2]}" else event.startTime.take(10)
+        } catch (_: Exception) { event.startTime.take(10) }
+    }
+    val timeStr = remember(event.startTime) {
+        try {
+            val t = event.startTime.substringAfter("T").substringBefore("Z").substringBefore("+").substringBefore("-")
+            val hms = t.split(":")
+            if (hms.size >= 2) "${hms[0]}:${hms[1]}" else event.startTime.take(5)
+        } catch (_: Exception) { event.startTime.take(5) }
+    }
+
+    Box(
+        modifier = Modifier.width(200.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(SurfaceContainerLow)
+            .border(0.5.dp, OutlineVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+            .padding(12.dp),
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(dateStr, color = Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                if (event.leagueName.isNotBlank()) {
+                    Text(event.leagueName, color = OnSurfaceVariant.copy(alpha = 0.7f), fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(timeStr, color = OnSurfaceVariant, fontSize = 10.sp)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                event.title.removePrefix("\u26bd ").removePrefix("\ud83c\udfc0").removePrefix("\ud83c\udfc8").removePrefix("\u26be").removePrefix("\ud83c\udfd2").removePrefix("\ud83c\udfb3").removePrefix("\ud83c\udfaf").trim(),
+                color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
+            if (event.location != null) {
+                Spacer(Modifier.height(2.dp))
+                Text(event.location, color = OnSurfaceVariant.copy(alpha = 0.6f), fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (tvChannels.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    tvChannels.take(3).forEach { ch ->
+                        Box(
+                            Modifier.clip(RoundedCornerShape(4.dp)).background(PrimaryContainer.copy(alpha = 0.3f))
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                        ) {
+                            Text(ch.name, color = Primary, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (tvChannels.size > 3) {
+                        Text("+${tvChannels.size - 3}", color = OnSurfaceVariant, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ── Upcoming Match Card (mobile) ─────────────────────────────────────────
 @Composable
 private fun UpcomingCard(event: EspnProcessedEvent, onClick: () -> Unit) {
@@ -1845,8 +1860,19 @@ private fun UpcomingCard(event: EspnProcessedEvent, onClick: () -> Unit) {
             val timeLabel = if (event.timeStr.isNullOrBlank()) "TBD" else event.timeStr
             Text(timeLabel, color = Primary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
             Spacer(Modifier.height(6.dp))
-            Text(event.awayTeam, color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(event.homeTeam, color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (!event.awayLogo.isNullOrBlank()) {
+                    AsyncImage(model = event.awayLogo, contentDescription = event.awayTeam, modifier = Modifier.size(16.dp), contentScale = ContentScale.Fit)
+                }
+                Text(event.awayTeam, color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (!event.homeLogo.isNullOrBlank()) {
+                    AsyncImage(model = event.homeLogo, contentDescription = event.homeTeam, modifier = Modifier.size(16.dp), contentScale = ContentScale.Fit)
+                }
+                Text(event.homeTeam, color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             val leagueName = event.league.takeIf { it.isNotBlank() }
             if (leagueName != null) {
                 Spacer(Modifier.height(4.dp))
@@ -2128,15 +2154,19 @@ private fun TextScoreCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    event.homeTeam,
-                    color = OnSurface,
-                    fontSize = 13.sp,
-                    fontWeight = if (homeWinning) FontWeight.Bold else FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+                    if (!event.homeLogo.isNullOrBlank()) {
+                        AsyncImage(model = event.homeLogo, contentDescription = event.homeTeam, modifier = Modifier.size(18.dp), contentScale = ContentScale.Fit)
+                    }
+                    Text(
+                        event.homeTeam,
+                        color = OnSurface,
+                        fontSize = 13.sp,
+                        fontWeight = if (homeWinning) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Spacer(Modifier.width(6.dp))
                 Text(
                     event.homeScore ?: "-",
@@ -2155,15 +2185,19 @@ private fun TextScoreCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    event.awayTeam,
-                    color = OnSurface,
-                    fontSize = 13.sp,
-                    fontWeight = if (awayWinning) FontWeight.Bold else FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+                    if (!event.awayLogo.isNullOrBlank()) {
+                        AsyncImage(model = event.awayLogo, contentDescription = event.awayTeam, modifier = Modifier.size(18.dp), contentScale = ContentScale.Fit)
+                    }
+                    Text(
+                        event.awayTeam,
+                        color = OnSurface,
+                        fontSize = 13.sp,
+                        fontWeight = if (awayWinning) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Spacer(Modifier.width(6.dp))
                 Text(
                     event.awayScore ?: "-",
@@ -2376,10 +2410,10 @@ private fun TrendingNewsVideosSection(
 }
 
 // ── IPTV Playback Helpers ─────────────────────────────────────────────────
-private fun launchChannel(channel: IptvChannel, allChannels: List<IptvChannel>, onPlayChannel: (PlayerLaunch) -> Unit) {
+private fun buildPlayerLaunch(channel: IptvChannel, allChannels: List<IptvChannel>): PlayerLaunch {
     val channelIndex = allChannels.indexOfFirst { it.id == channel.id && it.sourceId == channel.sourceId }
     val history = IptvRepository.getHistoryChannels()
-    val launch = PlayerLaunch(
+    return PlayerLaunch(
         profileId = 0, title = channel.name, sourceUrl = channel.url, streamTitle = channel.name,
         providerName = "Sports", parentMetaId = "iptv", parentMetaType = "tv", logo = channel.logo,
         channelNames = allChannels.map { it.name }, channelUrls = allChannels.map { it.url },
@@ -2388,8 +2422,12 @@ private fun launchChannel(channel: IptvChannel, allChannels: List<IptvChannel>, 
         historyChannelNames = history.map { it.name }, historyChannelUrls = history.map { it.url },
         historyChannelLogos = history.map { it.logo ?: "" }, historyChannelIds = history.map { it.id },
     )
+}
+
+private fun launchChannel(channel: IptvChannel, allChannels: List<IptvChannel>, onPlayChannel: ((PlayerLaunch) -> Unit)?) {
+    val launch = buildPlayerLaunch(channel, allChannels)
     val id = PlayerLaunchStore.put(launch)
-    PlayerLaunchStore.get(id)?.let { onPlayChannel(it) }
+    PlayerLaunchStore.get(id)?.let { onPlayChannel?.invoke(it) }
 }
 
 @Composable
@@ -2416,44 +2454,103 @@ private fun ChannelPickerDialog(title: String, channels: List<IptvChannel>, onDi
     )
 }
 
-// ── League Chips Row (mobile) ──────────────────────────────────────────────
+// ── Category Chips Bar (Live, NFL, NBA, MLB, NHL, UFC, More...) ──────────
 @Composable
-private fun LeagueChipsRow(
+private fun CategoryChipsBar(
     leagues: List<SportLeague>,
     selectedLeague: SportLeague?,
     onLeagueSelected: (SportLeague?) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        val allSelected = selectedLeague == null
-        Box(
-            modifier = Modifier.clip(RoundedCornerShape(9999.dp))
-                .background(if (allSelected) Color.White else SurfaceContainer)
-                .border(if (allSelected) 0.dp else 0.5.dp, OutlineVariant.copy(alpha = 0.3f), RoundedCornerShape(9999.dp))
-                .clickable { if (!allSelected) onLeagueSelected(null) }
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+    val quickLeagues = listOf("nfl", "nba", "mlb", "nhl", "ufc", "mls")
+    val quickList = leagues.filter { it.id.lowercase() in quickLeagues }
+    val orderedQuick = quickLeagues.mapNotNull { abbr -> quickList.find { it.id.lowercase() == abbr } }
+    var showMore by remember { mutableStateOf(false) }
+
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("\u2605", color = if (allSelected) Color.Black else OnSurfaceVariant, fontSize = 11.sp)
-                Text("ALL LEAGUES", color = if (allSelected) Color.Black else OnSurfaceVariant,
-                    fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+            // LIVE chip (default, selected when selectedLeague == null)
+            val isLive = selectedLeague == null
+            Box(
+                modifier = Modifier.clip(RoundedCornerShape(9999.dp))
+                    .background(if (isLive) Primary else SurfaceContainer)
+                    .border(if (!isLive) 0.5.dp else 0.dp, OutlineVariant.copy(alpha = 0.3f), RoundedCornerShape(9999.dp))
+                    .clickable { onLeagueSelected(null) }
+                    .padding(horizontal = 16.dp, vertical = 7.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(Modifier.size(7.dp).clip(CircleShape).background(if (isLive) Color.Black else OnSurfaceVariant))
+                    Text("LIVE",
+                        color = if (isLive) Color.Black else OnSurfaceVariant,
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                }
+            }
+
+            orderedQuick.forEach { league ->
+                val isSelected = selectedLeague?.id == league.id
+                Box(
+                    modifier = Modifier.clip(RoundedCornerShape(9999.dp))
+                        .background(if (isSelected) Primary else SurfaceContainer)
+                        .border(if (!isSelected) 0.5.dp else 0.dp, OutlineVariant.copy(alpha = 0.3f), RoundedCornerShape(9999.dp))
+                        .clickable { onLeagueSelected(if (isSelected) null else league) }
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        league.logoUrl?.let {
+                            AsyncImage(model = it, contentDescription = league.abbreviation,
+                                modifier = Modifier.size(14.dp), contentScale = ContentScale.Fit)
+                        }
+                        Text(league.abbreviation.uppercase(),
+                            color = if (isSelected) Color.Black else OnSurfaceVariant,
+                            fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    }
+                }
+            }
+
+            // MORE chip
+            Box(
+                modifier = Modifier.clip(RoundedCornerShape(9999.dp))
+                    .background(SurfaceContainerHigh)
+                    .clickable { showMore = !showMore }
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(if (showMore) "\u25B2" else "\u25BC", fontSize = 9.sp, color = OnSurfaceVariant)
+                    Text("MORE", color = OnSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                }
             }
         }
 
-        leagues.forEach { league ->
-            val isSelected = selectedLeague?.id == league.id
-            Box(
-                modifier = Modifier.clip(RoundedCornerShape(9999.dp))
-                    .background(if (isSelected) Primary else SurfaceContainer)
-                    .border(if (isSelected) 0.dp else 0.5.dp, OutlineVariant.copy(alpha = 0.3f), RoundedCornerShape(9999.dp))
-                    .clickable { onLeagueSelected(if (isSelected) null else league) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+        // Expanded more leagues
+        if (showMore) {
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(league.abbreviation.uppercase(),
-                    color = if (isSelected) Color.White else OnSurfaceVariant,
-                    fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                val moreLeagues = leagues.filter { it.id.lowercase() !in quickLeagues }
+                moreLeagues.forEach { league ->
+                    val isSelected = selectedLeague?.id == league.id
+                    Box(
+                        modifier = Modifier.clip(RoundedCornerShape(9999.dp))
+                            .background(if (isSelected) Primary else SurfaceContainer)
+                            .border(if (!isSelected) 0.5.dp else 0.dp, OutlineVariant.copy(alpha = 0.3f), RoundedCornerShape(9999.dp))
+                            .clickable { onLeagueSelected(if (isSelected) null else league) }
+                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            league.logoUrl?.let {
+                                AsyncImage(model = it, contentDescription = league.abbreviation,
+                                    modifier = Modifier.size(14.dp), contentScale = ContentScale.Fit)
+                            }
+                            Text(league.abbreviation.uppercase(),
+                                color = if (isSelected) Color.Black else OnSurfaceVariant,
+                                fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                        }
+                    }
+                }
             }
         }
     }
@@ -2577,6 +2674,7 @@ private fun SportEventDetailPanel(
                                             sourceHeaders = sr.headers, streamTitle = video.title,
                                             providerName = "YouTube", parentMetaId = "youtube",
                                             parentMetaType = "youtube",
+                                            sourceAudioUrl = sr.audioUrl, qualities = sr.qualities,
                                         )
                                         onPlayPlayerLaunch?.invoke(launch)
                                     }
@@ -2684,7 +2782,7 @@ private fun SportsAsyncImage(model: String?, contentDescription: String?, modifi
     }
 }
 
-// ── REDESIGN: Match Card (card-based layout) ────────────────────────────────
+// ── REDESIGN: Match Card (text-only, card-based layout) ─────────────────────
 @Composable
 private fun MatchCard(
     modifier: Modifier = Modifier,
@@ -2697,6 +2795,7 @@ private fun MatchCard(
     val awayScore = event.awayScore?.toIntOrNull()
     val homeWinning = homeScore != null && awayScore != null && homeScore > awayScore
     val awayWinning = homeScore != null && awayScore != null && awayScore > homeScore
+    val dateLabel = event.rawDate?.take(10) ?: event.date.ifBlank { "" }
 
     Box(
         modifier = modifier
@@ -2708,7 +2807,6 @@ private fun MatchCard(
             .padding(12.dp),
     ) {
         Column {
-            // ── Card Header ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -2716,234 +2814,63 @@ private fun MatchCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val timeLabel = event.timeStr ?: event.detail.ifBlank { "TBD" }
-                    Text(
-                        timeLabel,
-                        color = OnSurface,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    Text(timeLabel, color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     if (event.isLive) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier
-                                .background(ErrorRed.copy(alpha = 0.12f), RoundedCornerShape(9999.dp))
-                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                            modifier = Modifier.background(ErrorRed.copy(alpha = 0.12f), RoundedCornerShape(9999.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
                         ) {
                             LivePulseDotSmall()
-                            Text(
-                                "LIVE",
-                                color = ErrorRed,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 0.5.sp,
-                            )
+                            Text("LIVE", color = ErrorRed, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.5.sp)
                         }
                     } else {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier
-                                .background(ErrorRed.copy(alpha = 0.12f), RoundedCornerShape(9999.dp))
-                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                            modifier = Modifier.background(ErrorRed.copy(alpha = 0.12f), RoundedCornerShape(9999.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
                         ) {
-                            Text(
-                                "UPCOMING",
-                                color = ErrorRed,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 0.5.sp,
-                            )
+                            Text("UPCOMING", color = ErrorRed, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.5.sp)
                         }
                     }
                 }
-                Text(
-                    event.league.uppercase().take(8),
-                    color = OnSurfaceVariant,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 0.3.sp,
-                )
+                Text(event.league.uppercase().take(8), color = OnSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp)
+            }
+            if (dateLabel.isNotBlank() && !event.isLive) {
+                Spacer(Modifier.height(2.dp))
+                Text(dateLabel, color = OnSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Medium)
             }
 
-            // ── Card Body: Team 1 | Score/VS | Team 2 ──
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(event.title, color = OnSurface, fontSize = if (isPhone) 15.sp else 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Team 1 (Home)
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(if (isPhone) 40.dp else 48.dp)
-                            .clip(CircleShape)
-                            .background(SurfaceContainerHigh),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (!event.homeLogo.isNullOrBlank()) {
-                            SportsAsyncImage(
-                                model = event.homeLogo,
-                                contentDescription = event.homeTeam,
-                                modifier = Modifier.size(if (isPhone) 36.dp else 44.dp),
-                                contentScale = ContentScale.Fit,
-                            )
-                        } else {
-                            Text(
-                                event.homeTeam.take(2).uppercase(),
-                                color = OnSurfaceVariant,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        event.homeTeam,
-                        color = if (homeWinning) OnSurface else OnSurface.copy(alpha = 0.85f),
-                        fontSize = if (isPhone) 13.sp else 14.sp,
-                        fontWeight = if (homeWinning) FontWeight.Bold else FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                        modifier = if (onTeamClick != null) Modifier.clickable { onTeamClick(event.homeTeam, event.homeLogo, event.sport) } else Modifier,
-                    )
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(event.homeTeam, color = if (homeWinning) OnSurface else OnSurface.copy(alpha = 0.85f), fontSize = if (isPhone) 13.sp else 14.sp, fontWeight = if (homeWinning) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                 }
 
-                // Score / Center
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 12.dp)) {
                     if (event.isLive) {
-                        Text(
-                            "${event.homeScore ?: "0"} - ${event.awayScore ?: "0"}",
-                            color = if (homeScore != null && awayScore != null) AccentGreen else OnSurface,
-                            fontSize = if (isPhone) 22.sp else 26.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = (-1).sp,
-                        )
+                        Text("${event.homeScore ?: "0"} - ${event.awayScore ?: "0"}", color = if (homeScore != null && awayScore != null) AccentGreen else OnSurface, fontSize = if (isPhone) 22.sp else 26.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp)
                         val timeRemaining = event.detail.ifBlank { event.status }
-                        Text(
-                            if (timeRemaining.contains("'")) timeRemaining else event.status.take(6).uppercase(),
-                            color = OnSurfaceVariant,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.3.sp,
-                        )
+                        Text(if (timeRemaining.contains("'")) timeRemaining else event.status.take(6).uppercase(), color = OnSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp)
                     } else {
                         val isFinal = event.status.contains("FINAL", ignoreCase = true)
                         if (isFinal) {
-                            Text(
-                                "${event.homeScore ?: "0"} - ${event.awayScore ?: "0"}",
-                                color = OnSurface,
-                                fontSize = if (isPhone) 22.sp else 26.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                            )
+                            Text("${event.homeScore ?: "0"} - ${event.awayScore ?: "0"}", color = OnSurface, fontSize = if (isPhone) 22.sp else 26.sp, fontWeight = FontWeight.ExtraBold)
                         } else {
-                            Box(
-                                modifier = Modifier
-                                    .background(SurfaceContainerHigh, RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                            ) {
-                                Text(
-                                    "VS",
-                                    color = OnSurfaceVariant,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    letterSpacing = 1.sp,
-                                )
+                            Box(modifier = Modifier.background(SurfaceContainerHigh, RoundedCornerShape(8.dp)).padding(horizontal = 14.dp, vertical = 6.dp)) {
+                                Text("VS", color = OnSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
                             }
                         }
                     }
                 }
 
-                // Team 2 (Away)
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(if (isPhone) 40.dp else 48.dp)
-                            .clip(CircleShape)
-                            .background(SurfaceContainerHigh),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (!event.awayLogo.isNullOrBlank()) {
-                            SportsAsyncImage(
-                                model = event.awayLogo,
-                                contentDescription = event.awayTeam,
-                                modifier = Modifier.size(if (isPhone) 36.dp else 44.dp),
-                                contentScale = ContentScale.Fit,
-                            )
-                        } else {
-                            Text(
-                                event.awayTeam.take(2).uppercase(),
-                                color = OnSurfaceVariant,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        event.awayTeam,
-                        color = if (awayWinning) OnSurface else OnSurface.copy(alpha = 0.85f),
-                        fontSize = if (isPhone) 13.sp else 14.sp,
-                        fontWeight = if (awayWinning) FontWeight.Bold else FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                        modifier = if (onTeamClick != null) Modifier.clickable { onTeamClick(event.awayTeam, event.awayLogo, event.sport) } else Modifier,
-                    )
-                }
-            }
-
-            // ── Card Footer: Icons + Odds ──
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .border(0.5.dp, OutlineVariant.copy(alpha = 0.1f), RoundedCornerShape(9999.dp))
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                // Metadata icons
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(
-                        onClick = onClick,
-                        modifier = Modifier.size(28.dp),
-                    ) {
-                        Text("\uD83D\uDCCA", fontSize = 13.sp)
-                    }
-                    IconButton(
-                        onClick = onClick,
-                        modifier = Modifier.size(28.dp),
-                    ) {
-                        Text("\u2194\uFE0F", fontSize = 13.sp)
-                    }
-                    IconButton(
-                        onClick = onClick,
-                        modifier = Modifier.size(28.dp),
-                    ) {
-                        Text("\uD83D\uDC65", fontSize = 13.sp)
-                    }
-                }
-
-                // Odds row (1 / X / 2)
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    MatchOddsChip(label = "1", odds = "2.10")
-                    MatchOddsChip(label = "X", odds = "3.40")
-                    MatchOddsChip(label = "2", odds = "3.20")
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(event.awayTeam, color = if (awayWinning) OnSurface else OnSurface.copy(alpha = 0.85f), fontSize = if (isPhone) 13.sp else 14.sp, fontWeight = if (awayWinning) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                 }
             }
         }

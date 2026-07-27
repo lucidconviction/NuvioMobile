@@ -6,6 +6,95 @@
 ```
 APK: `androidApp/build/outputs/apk/full/debug/androidApp-full-debug.apk`
 
+### v0.7.0 — Text-Only MatchCards, VidNutz NewPipe Trending, YouTube Audio Fix, MultiWindow Audio Fix (July 26, 2026)
+
+#### SportNutz — Text-Only MatchCards, Event Titles, Fighting Sports
+- **Text-only MatchCards** — removed all team logos/image circles; card body now shows event title prominently then home vs away team names
+- **Event titles shown** — `event.title` displayed on every card (e.g. "UFC 306: O'Malley vs Dvalishvili" for fighting events, "Giants at Eagles" for NFL)
+- **Date labels** — formatted date shown on upcoming event cards
+- **Dead code removed** — `SportsAsyncImage`, `isFighting`, `displayHomeLogo`, `displayAwayLogo` removed from MatchCard
+
+#### VidNutz — NewPipe Trending, Search Fix, Live Streams Removed
+- **NewPipe primary for trending** — `fetchTrending()` now tries `platformYouTubeSearch` first with "popular"/"trending"/"viral" queries, then falls back to Piped/Invidious (was Piped-only, which was unreliable)
+- **Search fixed** — `search()` uses NewPipe as primary source instead of unreliable Piped/Invidious
+- **platformYouTubeSearch enlarged** — now returns 28 results (was 6) with max 30min duration (was 10min)
+- **Per-request timeouts** — all Piped/Invidious calls in `fetchTrending` and `search` wrapped with `withTimeout(8s)` (was using OkHttp's 60s default)
+- **LIVE_STREAMS category removed** — `VidNutzCategory.LIVE_STREAMS("Live Streams")` removed; its entry removed from `categoryToEngineKey` and `fetchByCategory`
+- **Trending skips VideoSuggestionEngine** — TRENDING category no longer tries local `VideoSuggestionEngine` first; goes straight to `fetchTrending()` for fresh YouTube results
+
+#### YouTube Audio — Progressive Format Priority
+- **InnerTube prefers progressive** — `resolveInnerTube` now picks progressive formats (has embedded audio) over video-only adaptive + separate audio; priority: HLS → Progressive → Adaptive + separate
+- **Piped audio URL fix** — `resolvePiped` no longer returns separate `audioUrl` when using HLS (which has embedded audio)
+- **Per-video source tracking** — tracks which formats are progressive vs adaptive per URL; only passes separate audio URL for video-only adaptive streams
+
+#### MultiNutz — Audio Fix
+- **Default volume 1f** — new streams in `addToSlot`/`addStream` now start at full volume (was 0f, causing silence)
+- **Audio focus at creation** — first stream gets audio focus by default with volume 1f; subsequent streams start muted (0f)
+- **Audio focus applied on player init** — `DisposableEffect` in `VideoCell` now calls `MultiWindowPlayerManager.setAudioFocus` when the stream has audio focus at creation time
+- **Channel changing fixed** — `addToSlot` assigns a new `id` when channel changes, forcing player recreation (was preserving old ID so `remember(stream.id)` never re-created the player)
+- **Play/Pause works** — actually calls `pausePlayer()`/`resumePlayer()` instead of just toggling local state
+- **Audio focus save/restore** — `setAudioFocus` saves per-player volumes before muting non-focused players, restores them on focus gain
+- **Dispose no longer mutes** — removed `DisposableEffect` that set volume to 0f when video surface left composition
+
+#### Live Games Overlay — Active Only
+- **Filtered to live events** — player overlay now filters `SportsNowStore.liveEvents` to only `it.isLive`; was showing all today's events regardless of live status
+
+#### Force Close Fixes
+- **Safe channel callback** — replaced `onPlayChannel!!` with `?.invoke()` in `ChannelPickerDialog` and `Page2Event` play handler
+- **Bounds check** — added index bounds check for `iptvChannelNames[index]` in channel switching
+
+### v0.6.2 — Sync2Cal Schedule Integration, YouTube InnerTube Rewrite, Stream Validation, Quality Selector (July 25, 2026)
+
+#### SportNutz — Sync2Cal Upcoming Schedule (`Sync2CalModels.kt`, `Sync2CalClient.kt`, `Sync2CalMappings.kt`, `Sync2CalRepository.kt`, `SportsScreen.kt`, `SportsRepository.kt`, `SportsModels.kt`)
+- **Sync2Cal API integration** — fetches structured sports/TV/movie schedules from `www.sync2cal.com/api/v2/` with search, lookup, and filtered-events endpoints
+- **20 league mappings** — all 19 Nuvio sport leagues mapped to Sync2Cal slugs (NFL, NBA, MLB, NHL, UFC, boxing, PFL, MLS, EPL, LaLiga, SerieA, Bundesliga, Ligue1, UCL, F1, tennis, golf, CFB, CBB, WNBA)
+- **Batch parallel loading** — all 20 leagues fetched in parallel with 10s timeout per league; 5-min in-memory cache
+- **TV channel extraction** — parses `TV: ESPN, FOX, USA Net` from Sync2Cal event descriptions and displays as channel badges on event cards
+- **Schedule card UI** — text-only cards showing date, time, event title, location, and TV channel badges; integrated in TV mode (after Upcoming Today) and mobile mode (after DaddyLive section)
+- **`SportsUiState`** — added `sync2CalEventsByLeague`, `sync2CalTvChannels`, `sync2CalLoading` fields
+
+#### YouTube — InnerTube Stream Resolution (`YouTubeStreamResolver.kt`, `YoutubeStreamResult.kt`)
+- **InnerTube API** — multi-client resolution (ANDROID_VR, ANDROID, IOS) with `INNERTUBE_API_KEY` + `VISITOR_DATA` auto-fetch from YouTube HTML
+- **3-tier fallback** — InnerTube → Piped API → NewPipe platform resolve; 20s timeout per tier
+- **Result caching** — 5-min in-memory cache per videoId; 3-hour config TTL for API key
+- **Quality extraction** — parses HLS playlists and adaptive format streams; returns `YoutubeStreamResult` with `videoUrl`, `audioUrl`, and sorted `qualities` list
+- **`YoutubeQuality` model** — `@Serializable` data class for quality-aware playback
+
+#### IPTV — Channel Cache & Stream Validation (`IptvRepository.kt`, `IptvStorage.kt`, `StreamValidator.kt`, `StreamValidationStore.kt`)
+- **Channel cache** — file-based cache per source URL (1hr TTL); `refreshM3uChannels` checks cache before fetching; cache invalidated on playlist removal
+- **Stream batch validator** — `StreamValidator.validateUrls()` checks 20 URLs at a time in parallel with 5s timeout; tracks dead URLs
+- **Stream validation store** — `StreamValidationStore` persists dead URL sets via `IptvStorage` (file-based on Android/iOS)
+- **`IptvChannel` fields** — added `audioUrl: String?`, `qualities: List<YoutubeQuality>`
+
+#### Player — Quality Selector Support (`PlayerModels.kt`, `PlayerScreenArgs.kt`, `PlayerScreen.kt`, `PlayerScreenRuntimeState.kt`, `PlayerScreenRuntimeSourceActions.kt`, `App.kt`)
+- **`qualities` field** — added `List<YoutubeQuality>` to `PlayerLaunch`, `PlayerScreenArgs`, and `PlayerScreen` parameters
+- **Quality selector state** — `showQualitySelector`, `selectedQualityIndex` in `PlayerScreenRuntime`
+- **`selectQuality(index)`** — updates `activeSourceUrl` and `activeSourceAudioUrl` when user picks a quality tier
+
+#### VidNutz — Live Streams Category (`VidNutzModels.kt`, `VidNutzRepository.kt`)
+- **`LIVE_STREAMS("Live Streams")`** — new category in `VidNutzCategory` enum; searches "live streams now" on YouTube
+- **Reduced trending page size** — from 28 to 15 results per page
+
+#### Hub State Manager (`RobbdeezeNutzHubState.kt`)
+- **`RobbdeezeNutzHubState`** — composable-friendly state holder with `playerLoadingMessage`, `validationProgress`, `deadUrls`, `showDeadStreams`; `playVideo()` resolves YouTube via InnerTube; `runPendingValidation()` batch-checks stream URLs
+
+### v0.5.0 — Quick Channels Lazy-Load, Source Overlay Popup, Multi-Window Integration (July 23, 2026)
+
+#### Added
+- **QuickChannelSourcesSheet** — `IptvScreen.kt`: new `ModalBottomSheet` popup that lazy-loads channel sources on tap; shows loading spinner, then lists matched sources with provider/playlist name, group, and logo; error state with retry button
+- **Quick Channels in Multi-Window** — `MultiWindowGrid.kt` now has a ⚡ Quick pill button in the toolbar that opens a `QuickChannelsSheet` bottom sheet with ~240 curated channels
+- **QuickChannelOverlay** — `MultiWindowCellOptions.kt`: two-level composable showing QuickChannels list with region/tag filter chips (All/US/UK/CA/Premium/Sports/News); tapping a QuickChannel shows a match overlay with all matching IPTV sources, search bar, source filter chips, and group filter chips
+- **Quick button in cell options** — long-press → ⋮ → Quick opens QuickChannelOverlay for slot-specific channel picking alongside CH/History/Fav
+- **QuickChannelsSheet** — public `ModalBottomSheet` wrapper for standalone multi-window use; adds selected channel to next available slot
+- **QcLoadState / QcSheetState** — sealed class state machines for async loading (Idle/Loading/Success/Error) in both overlays
+
+#### Changed
+- **QuickChannelsSection** (`IptvScreen.kt`) — removed inline `allChannels.filter { ... }` pre-computation for every card (was causing UI lag with 172 QCs × thousands of channels); cards now show just the name with "▸ select"; on tap opens `QuickChannelSourcesSheet` overlay with async match resolution
+- **QuickChannelOverlay** (`MultiWindowCellOptions.kt`) — replaced synchronous `derivedStateOf` with `LaunchedEffect` + `Dispatchers.Default` async loading; shows `CircularProgressIndicator` + "Resolving..." during load; error state with ⚠ + Retry button; provider name per source row
+- **QuickChannelMatchOverlay** — now accepts `sourceNames`/`sourceIds` directly; shows provider name as accent-colored label per channel; shows "Select" instead of "Slot N" when used standalone
+
+---
+
 ### v0.3.0 — TeleNutz Streaming, MagNutz Torrents, MusicNutz Playlists, MultiWindow Expansion, SportNutz League Drawers, ProGuard/R8 Fix (July 2026)
 
 #### Build Fixes

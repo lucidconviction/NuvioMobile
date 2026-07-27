@@ -1,7 +1,12 @@
 package com.nuvio.app.features.player
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,10 +39,14 @@ import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.List
 import androidx.compose.material.icons.rounded.Replay10
+import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.VideoLibrary
-import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.VolumeDown
+import androidx.compose.material.icons.rounded.VolumeOff
+import androidx.compose.material.icons.rounded.VolumeUp
 import com.nuvio.app.core.ui.NuvioLoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -96,6 +105,8 @@ internal fun PlayerControlsShell(
     onHistoryClick: (() -> Unit)? = null,
     onInfinitePlayClick: (() -> Unit)? = null,
     onVideoSettingsClick: (() -> Unit)? = null,
+    onVolumeClick: (() -> Unit)? = null,
+    onQualityClick: (() -> Unit)? = null,
     onSourcesClick: (() -> Unit)? = null,
     onChannelsClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
@@ -108,6 +119,10 @@ internal fun PlayerControlsShell(
     onParentalGuideAnimationComplete: () -> Unit = {},
     onScrubChange: (Long) -> Unit,
     onScrubFinished: (Long) -> Unit,
+    showVolumeSlider: Boolean = false,
+    volume: Float = 1f,
+    onVolumeChanged: (Float) -> Unit = {},
+    qualityLabel: String? = null,
     horizontalSafePadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
 ) {
@@ -206,7 +221,13 @@ internal fun PlayerControlsShell(
                     onSourcesClick = onSourcesClick,
                     onChannelsClick = onChannelsClick,
                     onEpisodesClick = onEpisodesClick,
+                    onVolumeClick = onVolumeClick,
+                    onQualityClick = onQualityClick,
                     onMultiViewClick = onMultiViewClick,
+                    showVolumeSlider = showVolumeSlider,
+                    volume = volume,
+                    onVolumeChanged = onVolumeChanged,
+                    qualityLabel = qualityLabel,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
@@ -517,7 +538,13 @@ private fun ProgressControls(
     onChannelsClick: (() -> Unit)? = null,
     onEpisodesClick: (() -> Unit)? = null,
     onLiveGamesClick: (() -> Unit)? = null,
+    onVolumeClick: (() -> Unit)? = null,
+    onQualityClick: (() -> Unit)? = null,
     onMultiViewClick: (() -> Unit)? = null,
+    showVolumeSlider: Boolean = false,
+    volume: Float = 1f,
+    onVolumeChanged: (Float) -> Unit = {},
+    qualityLabel: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val durationMs = playbackSnapshot.durationMs.coerceAtLeast(1L)
@@ -629,6 +656,41 @@ private fun ProgressControls(
                             onClick = onMultiViewClick,
                         )
                     }
+                    if (onVolumeClick != null) {
+                        PlayerActionPillButton(
+                            label = if (volume <= 0f) "MUT" else "VOL",
+                            icon = if (volume <= 0f) Icons.Rounded.VolumeOff else Icons.Rounded.VolumeUp,
+                            onClick = onVolumeClick,
+                        )
+                    }
+                    if (onQualityClick != null) {
+                        PlayerActionPillButton(
+                            label = qualityLabel ?: "HQ",
+                            icon = Icons.Rounded.Settings,
+                            onClick = onQualityClick,
+                        )
+                    }
+                }
+            }
+            AnimatedVisibility(visible = showVolumeSlider, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(Icons.Rounded.VolumeDown, "Vol", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
+                    Slider(
+                        value = volume,
+                        onValueChange = onVolumeChanged,
+                        valueRange = 0f..1f,
+                        modifier = Modifier.weight(1f).height(24.dp),
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color.White,
+                            activeTrackColor = Color.White,
+                            inactiveTrackColor = Color.White.copy(alpha = 0.28f),
+                        ),
+                    )
+                    Icon(Icons.Rounded.VolumeUp, "Vol", tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
                 }
             }
         }

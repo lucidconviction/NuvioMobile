@@ -10,6 +10,7 @@ import com.nuvio.app.features.downloads.DownloadItem
 import com.nuvio.app.features.downloads.DownloadsRepository
 import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.p2p.P2pStreamingEngine
+import com.nuvio.app.features.sports.YoutubeQuality
 import com.nuvio.app.features.streams.StreamItem
 import com.nuvio.app.features.streams.StreamLinkCacheRepository
 import com.nuvio.app.features.watchprogress.WatchProgressRepository
@@ -508,4 +509,16 @@ private fun PlayerScreenRuntime.saveDirectStreamForReuse(
             country = metaUiState.meta?.country,
         ),
     )
+}
+
+internal fun PlayerScreenRuntime.selectQuality(qualityIndex: Int) {
+    val q = qualities.getOrNull(qualityIndex) ?: return
+    selectedQualityIndex = qualityIndex
+    activeSourceUrl = q.videoUrl
+    if (q.audioUrl != null) {
+        activeSourceAudioUrl = q.audioUrl
+    }
+    activeSourceIdentityKey = null
+    errorMessage = null
+    showQualitySelector = false
 }

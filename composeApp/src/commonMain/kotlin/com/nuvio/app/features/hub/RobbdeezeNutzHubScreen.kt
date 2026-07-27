@@ -377,11 +377,13 @@ private fun MultiWindowContent(
 ) {
         var selectedCell by remember { mutableStateOf<WindowStream?>(null) }
         var showBookmarks by remember { mutableStateOf(false) }
+        var showQuickChannels by remember { mutableStateOf(false) }
         Box(Modifier.fillMaxSize()) {
             MultiWindowGrid(
                 streams = MultiWindowStore.allStreams,
                 onRemoveStream = { MultiWindowStore.remove(it) },
                 onAddMore = { onSubScreenChange(HubSubScreen.Iptv) },
+                onQuickChannelsClick = { showQuickChannels = true },
                 onCellLongPress = { selectedCell = it },
                 onFullscreenCell = onPlayChannel?.let { cb -> { stream ->
                     val url = stream.playerUrl ?: stream.channel.url
@@ -506,6 +508,14 @@ private fun MultiWindowContent(
                     selectedCell = null
                 },
                 onDismiss = { selectedCell = null },
+            )
+        }
+        if (showQuickChannels) {
+            QuickChannelsSheet(
+                onAddToSlot = { channel, slot ->
+                    MultiWindowStore.addToSlot(channel, slot)
+                },
+                onDismiss = { showQuickChannels = false },
             )
         }
     }

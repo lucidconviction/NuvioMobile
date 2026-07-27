@@ -55,10 +55,28 @@ import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 
+private const val APK_URL = "https://apps.rdnutz.us/"
 private const val gitHubOwner = "Robbdeeze"
 private const val gitHubRepo = "NuvioMobile"
 private const val gitHubApiBase = "https://api.github.com"
 private const val releaseChannelBranch = "cmp-rewrite"
+
+private const val RELEASE_NOTES = """
+v0.5.0 — Quick Channels Multi-Window, Channel Overlay Popup
+
+New:
+- Quick Channels in Multi-Window: browse ~240 curated channels directly from the multi-window toolbar
+- Quick Channel overlay: tap a quick channel to see all matching IPTV sources with search, source, and group filters
+- "Quick" button in cell options for slot-specific channel picking
+- Channel match overlay with search bar, source filter chips, and group filter chips
+
+Updated:
+- Multi-window grid toolbar now includes ⚡ Quick pill button
+- In-app updater APK served from apps.rdnutz.us
+
+Fixed:
+- Quick Channels UI lag: no longer pre-loads channel source matches for all 240 channels on open; only loads on tap
+"""
 
 data class AppUpdate(
     val tag: String,
@@ -153,72 +171,30 @@ private object VersionUtils {
     suspend fun getLatestChannelUpdate(): Result<AppUpdate> = runCatching {
         val response = httpRequestRaw(
             method = "GET",
-            url = "$gitHubApiBase/repos/$gitHubOwner/$gitHubRepo/releases?per_page=20",
-            headers = mapOf(
-                "Accept" to "application/vnd.github+json",
-                "User-Agent" to "NuvioMobile",
-            ),
+            url = APK_URL,
+            headers = mapOf("User-Agent" to "NuvioMobile"),
             body = "",
         )
         if (response.status !in 200..299) {
-            error(getString(Res.string.updates_github_api_error, response.status))
+            error("Server returned ${response.status}")
         }
 
-        val releases = appUpdaterJson.decodeFromString<List<GitHubReleaseDto>>(response.body)
-        val release = releases
-            .filter { it.matchesRequestedChannel() && !it.draft && !it.prerelease }
-            .maxByOrNull { it.createdAt ?: "" }
-            ?: throw NoChannelReleaseException()
+        val apkRegex = Regex("""href="(Nuvio-Mobile[^"]*\.apk)"""", RegexOption.IGNORE_CASE)
+        val match = apkRegex.find(response.body)
+        val apkFileName = match?.groupValues?.getOrNull(1)
+            ?: error("No Mobile APK found on server")
 
-        val tag = release.tagName?.takeIf { it.isNotBlank() }
-            ?: release.name?.takeIf { it.isNotBlank() }
-            ?: error(getString(Res.string.updates_release_missing_title))
-
-        val asset = chooseBestApkAsset(release.assets)
-            ?: error(getString(Res.string.updates_apk_asset_missing))
+        val apkUrl = APK_URL.trimEnd('/') + "/" + apkFileName
 
         AppUpdate(
-            tag = tag,
-            title = release.name?.takeIf { it.isNotBlank() } ?: tag,
-            notes = release.body.orEmpty(),
-            releaseUrl = release.htmlUrl,
-            assetName = asset.name,
-            assetUrl = asset.browserDownloadUrl,
-            assetSizeBytes = asset.size,
+            tag = "latest",
+            title = "Nuvio Mobile Update",
+            notes = RELEASE_NOTES,
+            releaseUrl = apkUrl,
+            assetName = apkFileName,
+            assetUrl = apkUrl,
+            assetSizeBytes = 0L,
         )
-    }
-
-    private fun GitHubReleaseDto.matchesRequestedChannel(): Boolean {
-        val channel = releaseChannelBranch
-        if (targetCommitish?.trim()?.equals(channel, ignoreCase = true) == true) {
-            return true
-        }
-
-        return listOf(tagName, name)
-            .filterNotNull()
-            .any { value -> value.contains(channel, ignoreCase = true) }
-    }
-
-    private fun chooseBestApkAsset(assets: List<GitHubAssetDto>): GitHubAssetDto? {
-        val apkAssets = assets.filter { asset ->
-            asset.name.endsWith(".apk", ignoreCase = true) ||
-                asset.contentType == "application/vnd.android.package-archive"
-        }
-        if (apkAssets.isEmpty()) return null
-        if (apkAssets.size == 1) return apkAssets.first()
-
-        val supportedAbis = AppUpdaterPlatform.getSupportedAbis()
-        for (abi in supportedAbis) {
-            val candidate = apkAssets.firstOrNull { asset ->
-                asset.name.contains(abi, ignoreCase = true)
-            }
-            if (candidate != null) return candidate
-        }
-
-        return apkAssets.firstOrNull { asset ->
-            val name = asset.name.lowercase()
-            name.contains("universal") || name.contains("all")
-        } ?: apkAssets.first()
     }
 }
 

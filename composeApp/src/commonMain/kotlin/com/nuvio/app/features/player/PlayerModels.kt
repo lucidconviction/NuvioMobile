@@ -1,6 +1,7 @@
 package com.nuvio.app.features.player
 
 import androidx.compose.runtime.Composable
+import com.nuvio.app.features.sports.YoutubeQuality
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.player_ios_hardware_decoder_off
 import nuvio.composeapp.generated.resources.player_ios_preset_compatibility_desc
@@ -18,6 +19,7 @@ data class PlayerLaunch(
     val title: String,
     val sourceUrl: String,
     val sourceAudioUrl: String? = null,
+    val qualities: List<YoutubeQuality> = emptyList(),
     val sourceHeaders: Map<String, String> = emptyMap(),
     val sourceResponseHeaders: Map<String, String> = emptyMap(),
     val externalSubtitles: List<com.nuvio.app.features.streams.StreamSubtitle> = emptyList(),

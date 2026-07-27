@@ -603,6 +603,12 @@ private fun ExoPlayerSurface(
                     exoPlayer.playWhenReady = true
                 }
 
+                override fun setVolume(volume: Float) {
+                    exoPlayer.volume = volume.coerceIn(0f, 1f)
+                }
+
+                override fun getVolume(): Float = exoPlayer.volume
+
                 override fun setPlaybackSpeed(speed: Float) {
                     exoPlayer.setPlaybackSpeed(speed)
                 }
@@ -1126,6 +1132,10 @@ private class NuvioLibmpvView(
 
             override fun setPlaybackSpeed(speed: Float) {
                 mpv.setPropertyDouble("speed", speed.coerceIn(0.25f, 4f).toDouble())
+            }
+
+            override fun setVolume(volume: Float) {
+                mpv.setPropertyDouble("volume", (volume * 100.0).coerceIn(0.0, 100.0))
             }
 
             override fun setMuted(muted: Boolean) {

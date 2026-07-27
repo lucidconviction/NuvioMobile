@@ -170,6 +170,7 @@ import com.nuvio.app.features.discord.DiscordPromptDialog
 import com.nuvio.app.features.discord.DiscordPromptStorage
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.player.PlayerLaunchStore
+import com.nuvio.app.features.player.SportsNowStore
 import com.nuvio.app.features.player.PlayerScreen
 import com.nuvio.app.features.player.PlayerPlaybackSnapshot
 import com.nuvio.app.features.player.ExternalPlayerIntentResult
@@ -2883,11 +2884,18 @@ private fun MainAppContent(
                     LaunchedEffect(launch.videoId) {
                         launch.videoId?.let { ResumePromptRepository.markPlayerEntered(it) }
                     }
+                    LaunchedEffect(Unit) {
+                        SportsNowStore.onSwitchToEvent = { event ->
+                            SportsRepository.selectEvent(event)
+                            onBack()
+                        }
+                    }
                     PlayerScreen(
                         profileId = launch.profileId,
                         title = launch.title,
                         sourceUrl = launch.sourceUrl,
                         sourceAudioUrl = launch.sourceAudioUrl,
+                        qualities = launch.qualities,
                         sourceHeaders = launch.sourceHeaders,
                         sourceResponseHeaders = launch.sourceResponseHeaders,
                         externalSubtitles = launch.externalSubtitles,

@@ -1,5 +1,6 @@
 package com.nuvio.app.features.iptv
 
+import com.nuvio.app.features.sports.YoutubeQuality
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -43,6 +44,8 @@ data class IptvChannel(
     val logo: String? = null,
     val group: String? = null,
     val url: String,
+    val audioUrl: String? = null,
+    val qualities: List<YoutubeQuality> = emptyList(),
     val epgChannelId: String? = null,
     val sourceType: SourceType,
     val sourceId: String,

@@ -27,7 +27,7 @@ object M3uParser {
                     val url = lines[i].trim()
                     if (url.isNotBlank() && !url.startsWith("#")) {
                         channelIdCounter++
-                        val id = tvgId.ifBlank { "ch_$channelIdCounter" }
+                        val id = tvgId.ifBlank { url }
                         channels.add(
                             IptvChannel(
                                 id = id,

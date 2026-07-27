@@ -10,6 +10,8 @@ interface PlayerEngineController {
     fun seekBy(offsetMs: Long)
     fun retry()
     fun setPlaybackSpeed(speed: Float)
+    fun setVolume(volume: Float) {}
+    fun getVolume(): Float = 1f
     fun setMuted(muted: Boolean) {}
     fun getAudioTracks(): List<AudioTrack>
     fun getSubtitleTracks(): List<SubtitleTrack>

@@ -148,6 +148,7 @@ fun MusicNutzScreen(onPlayChannel: ((PlayerLaunch) -> Unit)? = null) {
                 }
                 onPlayChannel(PlayerLaunch(
                     profileId = 0, title = track.title, sourceUrl = result.url,
+                    sourceAudioUrl = result.audioUrl, qualities = result.qualities,
                     sourceHeaders = result.headers, poster = track.albumCover,
                     streamTitle = track.title, streamSubtitle = "${track.artistName} · ${track.albumName}",
                     providerName = "MusicNutz", parentMetaId = "music", parentMetaType = "music",

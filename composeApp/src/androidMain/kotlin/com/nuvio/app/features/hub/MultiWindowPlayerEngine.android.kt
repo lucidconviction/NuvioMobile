@@ -43,9 +43,16 @@ actual object MultiWindowPlayerManager {
         players[handle.id]?.volume = volume.coerceIn(0f, 1f)
     }
 
+    private val savedVolumes = mutableMapOf<Int, Float>()
+
     actual fun setAudioFocus(handleId: Int) {
         players.forEach { (pid, player) ->
-            player.volume = if (pid == handleId) 1f else 0f
+            if (pid == handleId) {
+                player.volume = savedVolumes.remove(pid) ?: 1f
+            } else {
+                savedVolumes.putIfAbsent(pid, player.volume)
+                player.volume = 0f
+            }
         }
     }
 
@@ -80,9 +87,6 @@ private fun mapResizeMode(mode: Int): Int {
 @Composable
 actual fun MultiWindowVideoSurface(handle: PlayerHandle?, modifier: Modifier, resizeMode: Int) {
     val rm = mapResizeMode(resizeMode)
-    DisposableEffect(handle?.id) {
-        onDispose { handle?.let { MultiWindowPlayerManager.setVolume(it, 0f) } }
-    }
     if (handle == null) return
     val player = remember(handle.id) { MultiWindowPlayerManager.players[handle.id] }
     key(handle.id) {
