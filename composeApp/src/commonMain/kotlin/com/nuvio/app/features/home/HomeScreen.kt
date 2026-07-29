@@ -923,6 +923,28 @@ fun HomeScreen(
                 }
 
                 else -> {
+                    // IPTV Channel History (row 1)
+                    if (iptvHistoryChannels.isNotEmpty()) {
+                        item(key = "iptv_history") {
+                            HomeIptvHistorySection(
+                                channels = iptvHistoryChannels,
+                                sectionPadding = homeSectionPadding,
+                                onChannelClick = onIptvChannelClick,
+                            )
+                        }
+                    }
+
+                    // IPTV Favorite Channels (row 2)
+                    if (iptvFavoriteChannels.isNotEmpty()) {
+                        item(key = "iptv_favorites") {
+                            HomeIptvFavoritesSection(
+                                channels = iptvFavoriteChannels,
+                                sectionPadding = homeSectionPadding,
+                                onChannelClick = onIptvChannelClick,
+                            )
+                        }
+                    }
+
                     if (continueWatchingPreferences.isVisible && continueWatchingItems.isNotEmpty()) {
                         item(key = HOME_CONTINUE_WATCHING_SECTION_KEY) {
                             HomeContinueWatchingSection(
@@ -935,28 +957,6 @@ fun HomeScreen(
                                 layout = continueWatchingLayout,
                                 onItemClick = onContinueWatchingClick,
                                 onItemLongPress = onContinueWatchingLongPress,
-                            )
-                        }
-                    }
-
-                    // IPTV Channel History (row 2)
-                    if (iptvHistoryChannels.isNotEmpty()) {
-                        item(key = "iptv_history") {
-                            HomeIptvHistorySection(
-                                channels = iptvHistoryChannels,
-                                sectionPadding = homeSectionPadding,
-                                onChannelClick = onIptvChannelClick,
-                            )
-                        }
-                    }
-
-                    // IPTV Favorite Channels (row 3)
-                    if (iptvFavoriteChannels.isNotEmpty()) {
-                        item(key = "iptv_favorites") {
-                            HomeIptvFavoritesSection(
-                                channels = iptvFavoriteChannels,
-                                sectionPadding = homeSectionPadding,
-                                onChannelClick = onIptvChannelClick,
                             )
                         }
                     }
