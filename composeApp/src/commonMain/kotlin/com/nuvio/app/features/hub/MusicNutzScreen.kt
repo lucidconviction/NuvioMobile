@@ -46,6 +46,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -99,6 +100,9 @@ fun MusicNutzScreen(onPlayChannel: ((PlayerLaunch) -> Unit)? = null) {
     val swipeThresholdPx = with(density) { 80.dp.toPx() }
 
     LaunchedEffect(Unit) {
+        MusicNutzPlaylistStore.loadFromDisk()
+        MusicDownloadStore.loadFromDisk()
+        MusicNutzSavedAlbumsStore.loadFromDisk()
         uiState = uiState.copy(
             playlists = MusicNutzPlaylistStore.loadPlaylists(),
             downloads = MusicDownloadStore.loadDownloads(),
@@ -165,36 +169,63 @@ fun MusicNutzScreen(onPlayChannel: ((PlayerLaunch) -> Unit)? = null) {
 
     fun downloadTrack(track: MusicTrack) {
         if (uiState.downloads.any { it.trackId == track.id }) return
-        uiState = uiState.copy(downloads = uiState.downloads + MusicDownload(trackId = track.id, title = track.title, artistName = track.artistName, albumCover = track.albumCover, isDownloading = true))
+        val dl = MusicDownload(trackId = track.id, title = track.title, artistName = track.artistName, albumCover = track.albumCover, isDownloading = true, progress = 0f)
+        uiState = uiState.copy(downloads = uiState.downloads + dl)
         MusicDownloadStore.saveDownloads(uiState.downloads)
         scope.launch {
-            val result = MusicNutzRepository.resolveStream(track)
-            if (result != null) {
-                try {
-                    val client = okhttp3.OkHttpClient.Builder().build()
-                    val request = okhttp3.Request.Builder().url(result.url).build()
-                    val response = client.newCall(request).execute()
-                    val body = response.body ?: throw Exception("No response body")
-                    val bytes = body.bytes()
-                    val fileName = "${track.id}_${track.title.take(30).replace(Regex("[^a-zA-Z0-9 ]"), "_")}.mp3"
-                    val dir = java.io.File(MusicNutzDownloadStorage.downloadDirPath, "music")
-                    dir.mkdirs()
-                    val file = java.io.File(dir, fileName)
-                    file.writeBytes(bytes)
-                    val updated = uiState.downloads.toMutableList()
-                    val idx = updated.indexOfFirst { it.trackId == track.id }
-                    if (idx >= 0) updated[idx] = updated[idx].copy(isDownloading = false, progress = 1f, localFilePath = file.absolutePath)
-                    uiState = uiState.copy(downloads = updated)
-                    MusicDownloadStore.saveDownloads(updated)
-                } catch (e: Exception) {
-                    val updated = uiState.downloads.toMutableList()
-                    val idx = updated.indexOfFirst { it.trackId == track.id }
-                    if (idx >= 0) updated[idx] = updated[idx].copy(isDownloading = false, error = e.message)
-                    uiState = uiState.copy(downloads = updated)
-                    MusicDownloadStore.saveDownloads(updated)
+            try {
+                val result = MusicNutzRepository.resolveStream(track) ?: throw Exception("Could not resolve stream")
+                val client = okhttp3.OkHttpClient.Builder().build()
+                val request = okhttp3.Request.Builder().url(result.url).build()
+                val response = client.newCall(request).execute()
+                val body = response.body ?: throw Exception("No response body")
+                val contentLength = body.contentLength()
+                val buffer = java.io.ByteArrayOutputStream()
+                val sink = body.source()
+                val buf = okio.Buffer()
+                var totalRead = 0L
+                while (sink.read(buf, 8192L) != -1L) {
+                    buf.copyTo(buffer)
+                    totalRead += buf.size
+                    buf.clear()
+                    if (contentLength > 0) {
+                        val p = (totalRead.toFloat() / contentLength).coerceIn(0f, 1f)
+                        val updated = uiState.downloads.toMutableList()
+                        val idx = updated.indexOfFirst { it.trackId == track.id }
+                        if (idx >= 0) updated[idx] = updated[idx].copy(progress = p)
+                        uiState = uiState.copy(downloads = updated)
+                    }
                 }
+                val bytes = buffer.toByteArray()
+                val fileName = "${track.id}_${track.title.take(30).replace(Regex("[^a-zA-Z0-9 ]"), "_")}.mp3"
+                val dir = java.io.File(MusicNutzDownloadStorage.downloadDirPath, "music")
+                dir.mkdirs()
+                val file = java.io.File(dir, fileName)
+                file.writeBytes(bytes)
+                val updated = uiState.downloads.toMutableList()
+                val idx = updated.indexOfFirst { it.trackId == track.id }
+                if (idx >= 0) updated[idx] = updated[idx].copy(isDownloading = false, progress = 1f, localFilePath = file.absolutePath)
+                uiState = uiState.copy(downloads = updated)
+                MusicDownloadStore.saveDownloads(updated)
+            } catch (e: Exception) {
+                val updated = uiState.downloads.toMutableList()
+                val idx = updated.indexOfFirst { it.trackId == track.id }
+                if (idx >= 0) updated[idx] = updated[idx].copy(isDownloading = false, error = e.message)
+                uiState = uiState.copy(downloads = updated)
+                MusicDownloadStore.saveDownloads(updated)
             }
         }
+    }
+
+    fun downloadAlbum(album: MusicAlbum) {
+        scope.launch {
+            val tracks = MusicNutzRepository.fetchAlbumTracks(album.id)
+            tracks.forEach { track -> downloadTrack(track) }
+        }
+    }
+
+    fun downloadPlaylist(playlist: MusicNutzPlaylist) {
+        playlist.tracks.forEach { track -> downloadTrack(track) }
     }
 
     fun createPlaylist(name: String) {
@@ -252,19 +283,23 @@ fun MusicNutzScreen(onPlayChannel: ((PlayerLaunch) -> Unit)? = null) {
     }
 
     if (uiState.currentPlaylist != null) {
+        val pl = uiState.currentPlaylist!!
         PlaylistDetailView(
-            playlist = uiState.currentPlaylist!!,
+            playlist = pl,
             onBack = { uiState = uiState.copy(currentPlaylist = null) },
             onPlayTrack = { playTrack(it) },
             onRemoveTrack = { trackId ->
-                val updated = uiState.playlists.map { pl ->
-                    if (pl.id == uiState.currentPlaylist?.id) pl.copy(tracks = pl.tracks.filter { it.id != trackId }) else pl
+                val updated = uiState.playlists.map { p ->
+                    if (p.id == pl.id) p.copy(tracks = p.tracks.filter { it.id != trackId }) else p
                 }
                 uiState = uiState.copy(playlists = updated)
                 MusicNutzPlaylistStore.savePlaylists(updated)
-                uiState = uiState.copy(currentPlaylist = updated.find { it.id == uiState.currentPlaylist?.id })
+                uiState = uiState.copy(currentPlaylist = updated.find { it.id == pl.id })
             },
-            onDeletePlaylist = { deletePlaylist(uiState.currentPlaylist!!.id); uiState = uiState.copy(currentPlaylist = null) },
+            onDeletePlaylist = { deletePlaylist(pl.id); uiState = uiState.copy(currentPlaylist = null) },
+            onDownloadPlaylist = { downloadPlaylist(pl) },
+            onDownloadTrack = { track -> downloadTrack(track) },
+            onAddToPlaylistTrack = { track -> uiState = uiState.copy(showAddToPlaylist = track) },
         )
         return
     }
@@ -276,6 +311,11 @@ fun MusicNutzScreen(onPlayChannel: ((PlayerLaunch) -> Unit)? = null) {
             isLoading = uiState.isLoadingAlbumTracks,
             onBack = { uiState = uiState.copy(selectedAlbum = null, albumTracks = emptyList()) },
             onPlayTrack = { playTrack(it, uiState.albumTracks) },
+            onPlaylistsChanged = {
+                uiState = uiState.copy(playlists = MusicNutzPlaylistStore.loadPlaylists())
+            },
+            onDownloadTrack = { downloadTrack(it) },
+            onAddToPlaylistTrack = { uiState = uiState.copy(showAddToPlaylist = it) },
         )
         return
     }
@@ -478,10 +518,18 @@ fun MusicNutzScreen(onPlayChannel: ((PlayerLaunch) -> Unit)? = null) {
                         Text(dl.title, color = OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(dl.artistName, color = TertiaryText, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (dl.error != null) Text(dl.error, color = Color(0xFFFF4444), fontSize = 10.sp, maxLines = 1)
+                        if (dl.isDownloading && dl.progress > 0f) {
+                            Spacer(Modifier.height(4.dp))
+                            LinearProgressIndicator(progress = { dl.progress }, modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)), color = Accent, trackColor = SurfaceCard)
+                        }
                     }
                     Spacer(Modifier.width(8.dp))
-                    if (dl.isDownloading) { CircularProgressIndicator(color = Accent, strokeWidth = 2.dp, modifier = Modifier.size(20.dp)) }
-                    else if (dl.localFilePath != null) { IconButton(onClick = { onPlay(dl) }) { Icon(Icons.Filled.PlayArrow, "Play", tint = AccentGreen, modifier = Modifier.size(24.dp)) } }
+                    if (dl.isDownloading) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = Accent, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                            if (dl.progress > 0f) Text("${(dl.progress * 100).toInt()}%", color = Accent, fontSize = 9.sp)
+                        }
+                    } else if (dl.localFilePath != null) { IconButton(onClick = { onPlay(dl) }) { Icon(Icons.Filled.PlayArrow, "Play", tint = AccentGreen, modifier = Modifier.size(24.dp)) } }
                     IconButton(onClick = { onRemove(dl.trackId) }) { Icon(Icons.Filled.Delete, "Remove", tint = Color(0xFFFF4444).copy(alpha = 0.7f), modifier = Modifier.size(16.dp)) }
                 }
             }
@@ -489,22 +537,37 @@ fun MusicNutzScreen(onPlayChannel: ((PlayerLaunch) -> Unit)? = null) {
     }
 }
 
-@Composable private fun PlaylistDetailView(playlist: MusicNutzPlaylist, onBack: () -> Unit, onPlayTrack: (MusicTrack) -> Unit, onRemoveTrack: (Long) -> Unit, onDeletePlaylist: () -> Unit) {
+@Composable private fun PlaylistDetailView(playlist: MusicNutzPlaylist, onBack: () -> Unit, onPlayTrack: (MusicTrack) -> Unit, onRemoveTrack: (Long) -> Unit, onDeletePlaylist: () -> Unit, onDownloadPlaylist: (() -> Unit)? = null, onDownloadTrack: ((MusicTrack) -> Unit)? = null, onAddToPlaylistTrack: ((MusicTrack) -> Unit)? = null) {
     Column(modifier = Modifier.fillMaxSize().background(ObsidianBg)) {
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, top = 8.dp, end = 16.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = OnSurface) }
             Column(Modifier.weight(1f)) { Text(playlist.name, color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("${playlist.trackCount} tracks · ${playlist.durationSeconds / 60} min", color = TertiaryText, fontSize = 12.sp) }
+            if (onDownloadPlaylist != null) {
+                IconButton(onClick = onDownloadPlaylist) { Icon(Icons.Filled.Download, "Download All", tint = AccentGreen, modifier = Modifier.size(20.dp)) }
+            }
             IconButton(onClick = onDeletePlaylist) { Icon(Icons.Filled.Delete, "Delete", tint = Color(0xFFFF4444)) }
         }
         LazyColumn(state = rememberLazyListState(), modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
             if (playlist.tracks.isEmpty()) { item { Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { Text("No tracks in this playlist", color = TertiaryText, fontSize = 14.sp) } } }
             items(playlist.tracks, key = { "plt_${it.id}" }) { track ->
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onPlayTrack(track) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onPlayTrack(track) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.PlayArrow, "Play", tint = OnSurfaceVariant, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Column(Modifier.weight(1f)) { Text(track.title, color = OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(track.artistName, color = TertiaryText, fontSize = 11.sp) }
                     Text(musicDuration(track.durationSeconds), color = TertiaryText, fontSize = 11.sp)
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(4.dp))
+                    if (onDownloadTrack != null) {
+                        Box(Modifier.clip(RoundedCornerShape(6.dp)).background(AccentGreen.copy(alpha = 0.2f)).clickable { onDownloadTrack(track) }.padding(horizontal = 6.dp, vertical = 3.dp)) {
+                            Text("DL", color = AccentGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    if (onAddToPlaylistTrack != null) {
+                        Box(Modifier.clip(RoundedCornerShape(6.dp)).background(SurfaceCard).clickable { onAddToPlaylistTrack(track) }.padding(horizontal = 6.dp, vertical = 3.dp)) {
+                            Text("+PL", color = Accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.width(4.dp))
+                    }
                     IconButton(onClick = { onRemoveTrack(track.id) }) { Icon(Icons.Filled.Clear, "Remove", tint = Color(0xFFFF4444).copy(alpha = 0.6f), modifier = Modifier.size(16.dp)) }
                 }
             }
@@ -512,14 +575,14 @@ fun MusicNutzScreen(onPlayChannel: ((PlayerLaunch) -> Unit)? = null) {
     }
 }
 
-@Composable private fun AlbumDetailView(album: MusicAlbum, tracks: List<MusicTrack>, isLoading: Boolean, onBack: () -> Unit, onPlayTrack: (MusicTrack) -> Unit) {
+@Composable private fun AlbumDetailView(album: MusicAlbum, tracks: List<MusicTrack>, isLoading: Boolean, onBack: () -> Unit, onPlayTrack: (MusicTrack) -> Unit, onPlaylistsChanged: () -> Unit = {}, onDownloadTrack: ((MusicTrack) -> Unit)? = null, onAddToPlaylistTrack: ((MusicTrack) -> Unit)? = null) {
     var showPlaylistPicker by remember { mutableStateOf(false) }
     var playlistPickerAlbum by remember { mutableStateOf<MusicAlbum?>(null) }
     val scope = rememberCoroutineScope()
 
     if (showPlaylistPicker && playlistPickerAlbum != null) {
         val albumRef = playlistPickerAlbum!!
-        val plState = remember { MusicNutzPlaylistStore.loadPlaylists() }
+        val plState = MusicNutzPlaylistStore.loadPlaylists()
         AlertDialog(
             onDismissRequest = { showPlaylistPicker = false; playlistPickerAlbum = null },
             title = { Text("Add album tracks to...", color = OnSurface) },
@@ -537,6 +600,7 @@ fun MusicNutzScreen(onPlayChannel: ((PlayerLaunch) -> Unit)? = null) {
                                     } else p
                                 }
                                 MusicNutzPlaylistStore.savePlaylists(updatedPl)
+                                onPlaylistsChanged()
                             }
                             showPlaylistPicker = false; playlistPickerAlbum = null
                         }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -570,26 +634,51 @@ fun MusicNutzScreen(onPlayChannel: ((PlayerLaunch) -> Unit)? = null) {
                     if (album.releaseDate.isNotBlank()) Text(album.releaseDate.take(4), color = TertiaryText, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
                     if (tracks.isNotEmpty()) Text("${tracks.size} tracks", color = TertiaryText, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
                     Spacer(Modifier.height(8.dp))
-                    Box(Modifier.clip(RoundedCornerShape(8.dp)).background(SurfaceCard).clickable { playlistPickerAlbum = album; showPlaylistPicker = true }.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Text("Add All to Playlist", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(AccentGreen.copy(alpha = 0.2f)).clickable {
+                            scope.launch {
+                                val albumTracks = MusicNutzRepository.fetchAlbumTracks(album.id)
+                                albumTracks.forEach { track -> onDownloadTrack?.invoke(track) }
+                            }
+                        }.padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                            Text("Download All", color = AccentGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Box(Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(SurfaceCard).clickable { playlistPickerAlbum = album; showPlaylistPicker = true }.padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                            Text("Add All to Playlist", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
             if (isLoading) { item { Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Color.White.copy(alpha = 0.5f), strokeWidth = 2.dp, modifier = Modifier.size(24.dp)) } } }
-            items(tracks, key = { "at_${it.id}" }) { track -> AlbumTrackRow(track) { onPlayTrack(track) } }
+            items(tracks, key = { "at_${it.id}" }) { track ->
+                AlbumTrackRow(
+                    track = track,
+                    onPlay = { onPlayTrack(track) },
+                    onDownload = { onDownloadTrack?.invoke(track) },
+                    onAddToPlaylist = { onAddToPlaylistTrack?.invoke(track) },
+                )
+            }
         }
     }
 }
 
-@Composable private fun AlbumTrackRow(track: MusicTrack, onPlay: () -> Unit) {
+@Composable private fun AlbumTrackRow(track: MusicTrack, onPlay: () -> Unit, onDownload: () -> Unit = {}, onAddToPlaylist: () -> Unit = {}) {
     var focused by remember { mutableStateOf(false) }
     Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (focused) SurfaceCard else Color.Transparent)
-        .then(if (focused) Modifier.border(1.5.dp, FocusRing, RoundedCornerShape(8.dp)) else Modifier).focusable().onFocusChanged { focused = it.isFocused }.clickable(onClick = onPlay).padding(horizontal = 8.dp, vertical = 10.dp),
+        .then(if (focused) Modifier.border(1.5.dp, FocusRing, RoundedCornerShape(8.dp)) else Modifier).focusable().onFocusChanged { focused = it.isFocused }.clickable(onClick = onPlay).padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Filled.PlayArrow, "Play", tint = if (focused) Color.White else OnSurfaceVariant, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) { Text(track.title, color = OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(track.artistName, color = TertiaryText, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         Text(musicDuration(track.durationSeconds), color = TertiaryText, fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+        Spacer(Modifier.width(4.dp))
+        Box(Modifier.clip(RoundedCornerShape(6.dp)).background(AccentGreen.copy(alpha = 0.2f)).clickable(onClick = onDownload).padding(horizontal = 6.dp, vertical = 3.dp)) {
+            Text("DL", color = AccentGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.width(4.dp))
+        Box(Modifier.clip(RoundedCornerShape(6.dp)).background(SurfaceCard).clickable(onClick = onAddToPlaylist).padding(horizontal = 6.dp, vertical = 3.dp)) {
+            Text("+PL", color = Accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }
 

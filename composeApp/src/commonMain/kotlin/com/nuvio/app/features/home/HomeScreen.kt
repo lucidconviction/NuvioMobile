@@ -77,6 +77,9 @@ import com.nuvio.app.features.watching.domain.isReleasedBy
 import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.home.components.HomeCollectionRowSection
+import com.nuvio.app.features.home.components.HomeIptvHistorySection
+import com.nuvio.app.features.home.components.HomeIptvFavoritesSection
+import com.nuvio.app.features.iptv.IptvRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -107,6 +110,7 @@ fun HomeScreen(
     onContinueWatchingLongPress: ((ContinueWatchingItem) -> Unit)? = null,
     onFolderClick: ((collectionId: String, folderId: String) -> Unit)? = null,
     onFirstCatalogRendered: (() -> Unit)? = null,
+    onIptvChannelClick: ((com.nuvio.app.features.iptv.IptvChannel) -> Unit)? = null,
 ) {
     LaunchedEffect(Unit) {
         AddonRepository.initialize()
@@ -139,6 +143,9 @@ fun HomeScreen(
         TraktSettingsRepository.ensureLoaded()
         TraktSettingsRepository.uiState
     }.collectAsStateWithLifecycle()
+    val iptvUiState by IptvRepository.uiState.collectAsStateWithLifecycle()
+    val iptvHistoryChannels = remember(iptvUiState) { IptvRepository.getHistoryChannels() }
+    val iptvFavoriteChannels = remember(iptvUiState) { IptvRepository.getFavoriteChannels() }
     var observedOfflineState by remember { mutableStateOf(false) }
 
     LaunchedEffect(scrollToTopRequests) {
@@ -928,6 +935,28 @@ fun HomeScreen(
                                 layout = continueWatchingLayout,
                                 onItemClick = onContinueWatchingClick,
                                 onItemLongPress = onContinueWatchingLongPress,
+                            )
+                        }
+                    }
+
+                    // IPTV Channel History (row 2)
+                    if (iptvHistoryChannels.isNotEmpty()) {
+                        item(key = "iptv_history") {
+                            HomeIptvHistorySection(
+                                channels = iptvHistoryChannels,
+                                sectionPadding = homeSectionPadding,
+                                onChannelClick = onIptvChannelClick,
+                            )
+                        }
+                    }
+
+                    // IPTV Favorite Channels (row 3)
+                    if (iptvFavoriteChannels.isNotEmpty()) {
+                        item(key = "iptv_favorites") {
+                            HomeIptvFavoritesSection(
+                                channels = iptvFavoriteChannels,
+                                sectionPadding = homeSectionPadding,
+                                onChannelClick = onIptvChannelClick,
                             )
                         }
                     }

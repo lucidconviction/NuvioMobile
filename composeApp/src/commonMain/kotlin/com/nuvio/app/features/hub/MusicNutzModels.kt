@@ -1,5 +1,8 @@
 package com.nuvio.app.features.hub
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class MusicTrack(
     val id: Long,
     val title: String,
@@ -7,9 +10,10 @@ data class MusicTrack(
     val albumName: String,
     val albumCover: String,
     val durationSeconds: Int,
-    val previewUrl: String?,
+    val previewUrl: String? = null,
 )
 
+@Serializable
 data class MusicAlbum(
     val id: Long,
     val title: String,
@@ -19,6 +23,7 @@ data class MusicAlbum(
     val trackCount: Int,
 )
 
+@Serializable
 data class MusicNutzPlaylist(
     val id: String,
     val name: String,
@@ -29,11 +34,12 @@ data class MusicNutzPlaylist(
     val durationSeconds: Int get() = tracks.sumOf { it.durationSeconds }
 }
 
+@Serializable
 data class MusicDownload(
     val trackId: Long,
     val title: String,
     val artistName: String,
-    val albumCover: String,
+    val albumCover: String = "",
     val localFilePath: String? = null,
     val isDownloading: Boolean = false,
     val progress: Float = 0f,

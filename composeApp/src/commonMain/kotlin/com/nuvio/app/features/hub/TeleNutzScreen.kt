@@ -58,6 +58,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.features.player.PlayerLaunch
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -136,8 +138,18 @@ fun TeleNutzScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Text("TeleNutz", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text("TeleNutz", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Spacer(Modifier.weight(1f))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF444444))
+                            .clickable { scope.launch { TeleNutzRepository.close(); TeleNutzRepository.start() } }
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    ) {
+                        Text("Sign Out", color = Color(0xFFFF4444), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
+                }  // closes the title+signout Row
 
                     // Navigation Pills
                     Row(
@@ -378,6 +390,14 @@ private fun TeleNutzVideoCard(
                     .clickable(onClick = onPlay),
                 contentAlignment = Alignment.Center,
             ) {
+                if (!video.thumbnailUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = video.thumbnailUrl,
+                        contentDescription = video.text,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                    )
+                }
                 Box(
                     modifier = Modifier.size(44.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.6f)),
                     contentAlignment = Alignment.Center,

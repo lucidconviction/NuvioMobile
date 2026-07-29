@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -346,6 +347,8 @@ private fun VideoCell(
     var isPlaying by remember { mutableStateOf(true) }
     var controlsVisible by remember { mutableStateOf(true) }
     var controlsInteractionTrigger by remember { mutableStateOf(0) }
+    var elapsedSeconds by remember { mutableStateOf(0) }
+    var seekProgress by remember { mutableStateOf(0f) }
 
     // Audio focus gets 2dp primary border + glow
     val borderModifier = if (isAudioFocused) {
@@ -364,9 +367,19 @@ private fun VideoCell(
         }
     }
 
+    // Track elapsed time for progress bar
+    LaunchedEffect(isPlaying) {
+        while (isPlaying) {
+            delay(1000)
+            elapsedSeconds++
+            seekProgress = (elapsedSeconds % 3600).toFloat() / 3600f
+        }
+    }
+
     fun onInteraction() {
         controlsInteractionTrigger++
         controlsVisible = true
+        MultiWindowStore.setAudioFocus(stream.id)
     }
 
     val controlsAlpha by animateFloatAsState(
@@ -469,6 +482,23 @@ private fun VideoCell(
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
                 Text("⋮", color = OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            }
+
+            // Progress bar at very bottom
+            Box(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp)
+                    .background(SurfaceContainerHighest.copy(alpha = 0.6f)),
+            ) {
+                Box(
+                    Modifier.fillMaxHeight().fillMaxWidth(seekProgress.coerceIn(0f, 1f))
+                        .background(PrimaryContainer),
+                )
+                if (isPlaying) {
+                    Box(
+                        Modifier.align(Alignment.CenterEnd).size(6.dp).clip(CircleShape)
+                            .background(PrimaryContainer),
+                    )
+                }
             }
         }
     }

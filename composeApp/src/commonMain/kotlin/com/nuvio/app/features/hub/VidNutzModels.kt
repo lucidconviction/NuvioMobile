@@ -8,10 +8,12 @@ data class VidNutzVideo(
     val durationSeconds: Int,
     val viewCount: Long = 0,
     val uploadDate: String = "",
+    val isLive: Boolean = false,
 )
 
 enum class VidNutzCategory(val displayName: String) {
     TRENDING("Trending"),
+    LIVE("Live"),
     POLITICS("Politics"),
     NEWS("News"),
     MUSIC("Music"),
@@ -36,4 +38,6 @@ data class VidNutzUiState(
     val searchResults: List<VidNutzVideo>? = null,
     val searchCurrentPage: Int = 1,
     val searchHasMore: Boolean = true,
+    val resolvingVideoId: String? = null,
+    val recentSearches: List<String> = emptyList(),
 )

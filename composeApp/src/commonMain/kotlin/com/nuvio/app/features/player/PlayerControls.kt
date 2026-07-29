@@ -10,6 +10,8 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -588,7 +590,7 @@ private fun ProgressControls(
                 ),
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp).horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -654,13 +656,6 @@ private fun ProgressControls(
                             label = "MV",
                             icon = Icons.Rounded.Dashboard,
                             onClick = onMultiViewClick,
-                        )
-                    }
-                    if (onVolumeClick != null) {
-                        PlayerActionPillButton(
-                            label = if (volume <= 0f) "MUT" else "VOL",
-                            icon = if (volume <= 0f) Icons.Rounded.VolumeOff else Icons.Rounded.VolumeUp,
-                            onClick = onVolumeClick,
                         )
                     }
                     if (onQualityClick != null) {

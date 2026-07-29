@@ -329,6 +329,21 @@ private fun ExoPlayerSurface(
             .setEnableDecoderFallback(true)
             .setMapDV7ToHevc(playerSettings.mapDV7ToHevc)
 
+        val isLiveStream = sourceUrl.endsWith(".ts", ignoreCase = true) ||
+            sourceUrl.endsWith(".m3u8", ignoreCase = true) ||
+            sourceUrl.contains("/live/") ||
+            sourceUrl.contains("output=ts") ||
+            sourceUrl.contains("output=m3u8")
+
+        val isIptvStream = isLiveStream && (
+            sourceUrl.contains("get.php") ||
+            sourceUrl.contains("playlist.m3u8") ||
+            sourceUrl.contains("chunklist") ||
+            sourceUrl.matches(Regex(".*:\\d{4,5}/.*")) ||
+            sourceUrl.contains("live.ts") ||
+            sourceUrl.contains("stream.ts")
+        )
+
         val trackSelector = DefaultTrackSelector(context).apply {
             setParameters(
                 buildUponParameters()
@@ -339,24 +354,27 @@ private fun ExoPlayerSurface(
             }
         }
 
-        val isLiveStream = sourceUrl.endsWith(".ts", ignoreCase = true) ||
-                sourceUrl.endsWith(".m3u8", ignoreCase = true) ||
-                sourceUrl.contains("/live/") ||
-                sourceUrl.contains("output=ts") ||
-                sourceUrl.contains("output=m3u8")
-
-        val loadControl = if (isLiveStream) {
-            DefaultLoadControl.Builder()
-                .setTargetBufferBytes(8 * 1024 * 1024) // 8 MB instead of 100 MB
+        val loadControl = when {
+            isIptvStream -> DefaultLoadControl.Builder()
+                .setTargetBufferBytes(50 * 1024 * 1024)
                 .setBufferDurationsMs(
-                    1_500, // minBufferMs
-                    5_000, // maxBufferMs
-                    1_000, // bufferForPlaybackMs
-                    1_500 // bufferForPlaybackAfterRebufferMs
+                    10_000,
+                    60_000,
+                    3_000,
+                    5_000
+                )
+                .setPrioritizeTimeOverSizeThresholds(false)
+                .build()
+            isLiveStream -> DefaultLoadControl.Builder()
+                .setTargetBufferBytes(8 * 1024 * 1024)
+                .setBufferDurationsMs(
+                    1_500,
+                    5_000,
+                    1_000,
+                    1_500
                 )
                 .build()
-        } else {
-            DefaultLoadControl.Builder()
+            else -> DefaultLoadControl.Builder()
                 .setTargetBufferBytes(100 * 1024 * 1024)
                 .setBufferDurationsMs(
                     15_000,

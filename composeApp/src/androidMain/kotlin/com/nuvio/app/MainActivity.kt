@@ -175,7 +175,53 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIncomingAppIntent(intent: Intent?) {
-        val appUrl = intent?.dataString?.trim().orEmpty()
+        if (intent == null) return
+
+        // Handle ACTION_SEND (share sheet from browsers, torrent clients, etc.)
+        if (intent.action == Intent.ACTION_SEND) {
+            val text = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim().orEmpty()
+            if (text.isNotBlank()) {
+                // Extract magnet link from shared text (may be wrapped in other text)
+                val magnetRegex = Regex("magnet:\\?xt=urn:btih:[a-fA-F0-9]{40}[^\\s]*")
+                val magnetMatch = magnetRegex.find(text)
+                if (magnetMatch != null) {
+                    MagNutzRepository.pendingMagnetFromExternal = magnetMatch.value
+                    com.nuvio.app.features.hub.HubReturnStore.subScreen = "MagNutz"
+                    return
+                }
+            }
+            val uri = intent.data
+            if (uri?.scheme == "magnet") {
+                MagNutzRepository.pendingMagnetFromExternal = uri.toString()
+                com.nuvio.app.features.hub.HubReturnStore.subScreen = "MagNutz"
+                return
+            }
+            return
+        }
+
+        // Handle .torrent file shared via content URI
+        if (intent.action == Intent.ACTION_VIEW && intent.type == "application/x-bittorrent") {
+            val uri = intent.data
+            if (uri != null) {
+                try {
+                    val inputStream = contentResolver.openInputStream(uri)
+                    val bytes = inputStream?.readBytes()
+                    inputStream?.close()
+                    if (bytes != null) {
+                        // Create a temp .torrent file and handle it
+                        val tempFile = java.io.File(cacheDir, "shared_${System.currentTimeMillis()}.torrent")
+                        tempFile.writeBytes(bytes)
+                        // For now, just log it — full .torrent parsing needs bencode decoder
+                        MagNutzRepository.pendingMagnetFromExternal = "file://${tempFile.absolutePath}"
+                        com.nuvio.app.features.hub.HubReturnStore.subScreen = "MagNutz"
+                    }
+                } catch (_: Exception) {}
+            }
+            return
+        }
+
+        // Handle VIEW intents with URL data
+        val appUrl = intent.dataString?.trim().orEmpty()
         if (appUrl.isBlank()) return
         if (appUrl.startsWith("magnet:", ignoreCase = true)) {
             MagNutzRepository.pendingMagnetFromExternal = appUrl

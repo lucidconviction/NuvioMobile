@@ -118,6 +118,34 @@ fun MultiWindowCellOptions(
                 },
                 onBack = { overlayMode = null },
             )
+            "episodes" -> {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp).fillMaxWidth().height(320.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(Modifier.clip(RoundedCornerShape(8.dp)).background(SurfaceCard).clickable(onClick = { overlayMode = null }).padding(horizontal = 10.dp, vertical = 5.dp)) {
+                        Text("← Back", color = OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Text("Episodes for ${stream.playerTitle ?: stream.channel.name}", color = OnSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Episode selection is available in full-screen player via the Episodes panel.", color = OnSurfaceVariant, fontSize = 13.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Tip: Tap Fullscreen, then use the Episodes button in the player controls.", color = Accent, fontSize = 12.sp)
+                }
+            }
+            "sources" -> {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp).fillMaxWidth().height(320.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(Modifier.clip(RoundedCornerShape(8.dp)).background(SurfaceCard).clickable(onClick = { overlayMode = null }).padding(horizontal = 10.dp, vertical = 5.dp)) {
+                        Text("← Back", color = OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Text("Sources for ${stream.playerTitle ?: stream.channel.name}", color = OnSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Source switching is available in full-screen player via the Sources panel.", color = OnSurfaceVariant, fontSize = 13.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Tip: Tap Fullscreen, then use the Sources button in the player controls.", color = Accent, fontSize = 12.sp)
+                }
+            }
             else -> {
                 Column(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp).fillMaxWidth(),
@@ -134,6 +162,14 @@ fun MultiWindowCellOptions(
                         listOf("CH" to "channels", "History" to "history", "Fav" to "favorites", "Quick" to "quick").forEach { (label, mode) ->
                             Box(Modifier.clip(RoundedCornerShape(16.dp)).background(SurfaceCard).clickable { overlayMode = mode }.padding(horizontal = 14.dp, vertical = 7.dp)) {
                                 Text(label, color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        if (stream.playerUrl != null) {
+                            Box(Modifier.clip(RoundedCornerShape(16.dp)).background(SurfaceCard).clickable { overlayMode = "sources" }.padding(horizontal = 10.dp, vertical = 7.dp)) {
+                                Text("Sources", color = OnSurface, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Box(Modifier.clip(RoundedCornerShape(16.dp)).background(SurfaceCard).clickable { overlayMode = "episodes" }.padding(horizontal = 10.dp, vertical = 7.dp)) {
+                                Text("Episodes", color = OnSurface, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                         if (onSwap != null) {
@@ -398,7 +434,7 @@ private fun ChannelOverlay(mode: String, currentSlotIndex: Int, onSelect: (IptvC
     }
 }
 
-private val qcTabs = listOf("All", "US", "UK", "CA", "Premium", "Sports", "News")
+private val qcTabs = listOf("All", "Bay Area", "US", "UK", "CA", "Premium", "Sports", "News")
 
 private sealed class QcLoadState {
     data object Idle : QcLoadState()
@@ -426,6 +462,7 @@ private fun QuickChannelOverlay(
                 "All" -> true; "US" -> "US" in qc.regions; "UK" -> "UK" in qc.regions
                 "CA" -> "CA" in qc.regions; "Premium" -> "premium" in qc.tags
                 "Sports" -> "sports" in qc.tags; "News" -> "news" in qc.tags
+                "Bay Area" -> "bay-area" in qc.regions
                 else -> true
             }
         }

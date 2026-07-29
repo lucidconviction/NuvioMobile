@@ -144,8 +144,39 @@ object VidNutzRepository {
         VideoSuggestionEngine.resetCategory(categoryToEngineKey[category] ?: "Trending")
     }
 
+    suspend fun fetchLive(page: Int = 1): List<VidNutzVideo> {
+        if (page > 1) return emptyList()
+        val queries = listOf("live stream", "livestream", "live now")
+        for (instance in rotatedInvidious()) {
+            try {
+                for (q in queries) {
+                    val url = "$instance/api/v1/search?q=${encodeUrl(q)}&type=video&sort=relevance&date=all"
+                    val response = withTimeout(REQUEST_TIMEOUT_MS) { httpGetText(url) }
+                    val raw = json.decodeFromString<List<InvidiousVideo>>(response)
+                    val filtered = raw.filter {
+                        it.lengthSeconds in 0..60 || it.publishedText.contains("streaming", ignoreCase = true)
+                    }.take(28).map { it.toVidNutz(isLive = true) }
+                    if (filtered.isNotEmpty()) return filtered
+                }
+            } catch (_: Exception) { }
+        }
+        // Fallback: search "live" via Piped
+        for (instance in rotatedPiped()) {
+            try {
+                val url = "$instance/search?q=${encodeUrl("live stream")}&filter=videos&page=1"
+                val response = withTimeout(REQUEST_TIMEOUT_MS) { httpGetText(url) }
+                val parsed = json.decodeFromString<PipedSearchResponse>(response)
+                if (parsed.items.isNotEmpty()) {
+                    return parsed.items.filter { it.duration in 0..300 }.take(28).map { it.toVidNutz(isLive = true) }
+                }
+            } catch (_: Exception) { }
+        }
+        return emptyList()
+    }
+
     private val categoryToEngineKey = mapOf(
         VidNutzCategory.TRENDING to "Trending",
+        VidNutzCategory.LIVE to "Live",
         VidNutzCategory.POLITICS to "Politics",
         VidNutzCategory.NEWS to "News",
         VidNutzCategory.MUSIC to "Music",
@@ -181,6 +212,10 @@ object VidNutzRepository {
 
         if (category == VidNutzCategory.TRENDING) {
             return fetchTrending(page)
+        }
+
+        if (category == VidNutzCategory.LIVE) {
+            return fetchLive(page)
         }
 
         val query = category.displayName
@@ -227,7 +262,7 @@ object VidNutzRepository {
         val publishedText: String = "",
     )
 
-    private fun InvidiousVideo.toVidNutz() = VidNutzVideo(
+    private fun InvidiousVideo.toVidNutz(isLive: Boolean = false) = VidNutzVideo(
         videoId = videoId,
         title = title,
         thumbnail = "https://img.youtube.com/vi/$videoId/mqdefault.jpg",
@@ -235,6 +270,7 @@ object VidNutzRepository {
         durationSeconds = lengthSeconds,
         viewCount = viewCount,
         uploadDate = publishedText,
+        isLive = isLive || (lengthSeconds in 0..5) || publishedText.contains("streaming", ignoreCase = true),
     )
 
     @Serializable
@@ -257,7 +293,7 @@ object VidNutzRepository {
         val items: List<PipedSearchItem> = emptyList(),
     )
 
-    private fun PipedSearchItem.toVidNutz(): VidNutzVideo {
+    private fun PipedSearchItem.toVidNutz(isLive: Boolean = false): VidNutzVideo {
         val videoId = url.removePrefix("/watch?v=")
         return VidNutzVideo(
             videoId = videoId,
@@ -267,6 +303,7 @@ object VidNutzRepository {
             durationSeconds = duration.toInt(),
             viewCount = views,
             uploadDate = uploadedDate,
+            isLive = isLive || (duration in 0..5) || uploadedDate.contains("streaming", ignoreCase = true),
         )
     }
 

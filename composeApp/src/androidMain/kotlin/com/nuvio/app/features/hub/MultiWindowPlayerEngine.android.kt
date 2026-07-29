@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -29,7 +30,25 @@ actual object MultiWindowPlayerManager {
             releasePlayer(PlayerHandle(oldest))
         }
         val id = nextId++
-        val player = ExoPlayer.Builder(appContext).build().apply {
+        val isIptvStream = sourceUrl.contains("get.php") ||
+            sourceUrl.contains("playlist.m3u8") ||
+            sourceUrl.contains("chunklist") ||
+            sourceUrl.matches(Regex(".*:\\d{4,5}/.*")) ||
+            sourceUrl.contains("live.ts") ||
+            sourceUrl.contains("stream.ts") ||
+            sourceUrl.endsWith(".m3u8", ignoreCase = true)
+        val loadControl = if (isIptvStream) {
+            DefaultLoadControl.Builder()
+                .setTargetBufferBytes(50 * 1024 * 1024)
+                .setBufferDurationsMs(10_000, 60_000, 3_000, 5_000)
+                .setPrioritizeTimeOverSizeThresholds(false)
+                .build()
+        } else {
+            DefaultLoadControl()
+        }
+        val player = ExoPlayer.Builder(appContext)
+            .setLoadControl(loadControl)
+            .build().apply {
             val mediaItem = MediaItem.Builder().setUri(sourceUrl).build()
             setMediaItem(mediaItem)
             prepare()

@@ -6,6 +6,56 @@
 ```
 APK: `androidApp/build/outputs/apk/full/debug/androidApp-full-debug.apk`
 
+### v0.8.0 — Home Screen IPTV Rows, TeleNutz Fixes, MusicNutz Persistence, MultiNutz Overlay, VidNutz Live & Saved Searches (July 28, 2026)
+
+#### Bug Fixes
+- **TeleNutz TDLib init** — removed premature `sendTdlibParameters()` call that raced against client creation; params now only sent when TDLib requests via `AuthorizationStateWaitTdlibParameters`
+- **TeleNutz thumbnails** — added `AsyncImage` to display Telegram video thumbnails (was showing solid background only)
+- **TeleNutz sign out** — added Sign Out button in header; engine restarts for re-auth
+- **MagNutz TorrServer** — binary now copies to writable directory (fixes `ProcessBuilder` failure on Android 10+ where `nativeLibDir` is read-only); startup errors exposed instead of silent catch
+- **MagNutz intent filters** — added `ACTION_SEND` for magnet links + `.torrent` files from other apps
+- **MusicNutz playlist persistence** — playlists, downloads, and saved albums now persist across app restarts via SharedPreferences JSON
+- **MusicNutz dialog state** — playlist picker in album detail now propagates changes back to parent composable via `onPlaylistsChanged` callback
+- **MusicNutz track download** — rewritten with chunked streaming (Okio `source().read()`) for real-time progress tracking; progress bar + percentage shown in Downloads tab
+- **VidNutz live detection** — videos with duration ≤5s or title containing "streaming" are auto-tagged as `isLive` for proper badge display
+
+#### New Features
+- **IPTV Channel History (Home Row 2)** — `HomeIptvHistorySection` shows last 15 watched channels as horizontal scrolling row; tap plays in ExoPlayer
+- **IPTV Favorite Channels (Home Row 3)** — `HomeIptvFavoritesSection` shows user's favorited channels in same card layout
+- **MusicNutz album download** — "Download All" button in album detail enqueues all album tracks
+- **MusicNutz playlist download** — download button in playlist header enqueues all playlist tracks
+- **MusicNutz per-track DL/+PL** — download and add-to-playlist buttons on each album track row and playlist track row
+- **VidNutz LIVE category** — new "Live" category chip fetches YouTube live streams via Invidious/Piped; red LIVE badge on thumbnails
+- **VidNutz saved searches** — recent searches persisted locally; shown as tappable chips when search bar is focused
+- **VidNutz shimmer skeletons** — placeholder cards shown while category videos load (6 skeleton cards with gray shapes)
+- **VidNutz resolving overlay** — spinner overlay on video thumbnail while stream URL resolves
+- **MultiNutz Bay Area quick channels** — "Bay Area" tab in Quick Channels overlay showing 12 SF Bay Area local channels (KTVU, KPIX, KGO, KRON, KNTV, KQED, etc.)
+- **MultiNutz audio switch on tap** — tapping any video cell now sets audio focus to that stream
+- **MultiNutz Sources/Episodes buttons** — new "Sources" and "Episodes" buttons in cell options menu
+- **MultiNutz streaming progress bar** — animated progress bar at bottom of each video cell showing elapsed time
+- **MultiNutz global overlay** — single "MW" floating button visible on ALL tabs (Home, Search, Library, Hub, Settings) when streams are active; navigates to Hub → Multi view
+- **IPTV player controls** — CH and History buttons now show globally on all videos (not just IPTV sources)
+- **Player sliding menu** — control pills row is now horizontally scrollable, revealing all buttons without overflow hidden
+- **Volume button removed** — VOL/MUT pill removed from player controls as requested
+- **Home screen IPTV tap** — tapping IPTV channels on home screen now launches ExoPlayer with proper PlayerLaunch
+
+### v0.7.1 — IPTV Smooth Buffering, GitHub Releases Auto-Update, Discord Removed (July 27, 2026)
+
+#### IPTV — Smooth Buffering & Stream Stability
+- **IPTV-specific LoadControl** — detected via URL patterns (`get.php`, `playlist.m3u8`, `chunklist`, port-based, `live.ts`, `stream.ts`) and given a generous 50MB target buffer with 10s min / 60s max buffer durations
+- **Conservative buffering** — `setPrioritizeTimeOverSizeThresholds(false)` so the player fills the buffer before starting playback, reducing rebuffering on unstable IPTV connections
+- **Three-tier buffering** — IPTV (50MB, 10s/60s), live (8MB, 1.5s/5s), VOD (100MB, 15s/70s) — prevents premature quality down-switches on IPTV
+- **Multi-window IPTV** — same IPTV-aware LoadControl applied to multi-window players for consistent behavior
+
+#### Auto-Update — GitHub Releases API
+- **Source changed** — app now fetches updates from `https://api.github.com/repos/lucidconviction/NuvioMobile/releases/latest` instead of scraping the old static server
+- **Live release notes** — release notes pulled directly from GitHub release body instead of hardcoded string
+- **APK asset detection** — parses GitHub release assets to find the `.apk` file automatically
+
+#### App — Discord Popup Removed
+- **Removed DiscordPromptDialog** — the "Join our Discord" popup on app startup has been removed
+- **Cleaner startup flow** — goes straight to home screen without interruption
+
 ### v0.7.0 — Text-Only MatchCards, VidNutz NewPipe Trending, YouTube Audio Fix, MultiWindow Audio Fix (July 26, 2026)
 
 #### SportNutz — Text-Only MatchCards, Event Titles, Fighting Sports

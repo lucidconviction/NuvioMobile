@@ -253,22 +253,6 @@ fun RobbdeezeNutzHubScreen(
             }
             }
 
-            // Floating MW quick-nav button — appears when streams active and not on Multi sub-screen
-            if (MultiWindowStore.allStreams.isNotEmpty() && subScreen != HubSubScreen.Multi) {
-                Box(
-                    Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 24.dp)
-                        .size(52.dp).clip(CircleShape)
-                        .background(GlassBg)
-                        .border(1.dp, Primary.copy(alpha = 0.4f), CircleShape)
-                        .clickable {
-                            HubReturnStore.subScreen = "Multi"
-                            subScreen = HubSubScreen.Multi
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("MW", color = Primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                }
-            }
         }
     }
 }

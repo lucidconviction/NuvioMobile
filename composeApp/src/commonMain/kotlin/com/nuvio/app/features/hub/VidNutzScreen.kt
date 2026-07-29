@@ -83,8 +83,21 @@ fun VidNutzScreen(
     val gridState = rememberLazyGridState()
     var searchJob by remember { mutableStateOf<Job?>(null) }
     var swipeAccumulator by remember { mutableStateOf(0f) }
+    var showRecentSearches by remember { mutableStateOf(false) }
+    var recentSearches by remember { mutableStateOf<List<String>>(emptyList()) }
     val density = LocalDensity.current
     val swipeThresholdPx = with(density) { 80.dp.toPx() }
+
+    LaunchedEffect(Unit) {
+        recentSearches = VidNutzRecentSearchesStore.load()
+    }
+
+    fun saveSearch(query: String) {
+        if (query.isBlank()) return
+        val updated = (listOf(query) + recentSearches).distinct().take(10)
+        recentSearches = updated
+        VidNutzRecentSearchesStore.save(updated)
+    }
 
     fun swipeToCategory(direction: Int) {
         searchJob?.cancel()
@@ -196,6 +209,7 @@ fun VidNutzScreen(
                             onValueChange = { q ->
                                 uiState = uiState.copy(searchQuery = q, searchCurrentPage = 1, searchHasMore = true)
                                 searchJob?.cancel()
+                                showRecentSearches = q.isBlank()
                                 if (q.isNotBlank()) {
                                     searchJob = scope.launch {
                                         delay(400)
@@ -236,6 +250,7 @@ fun VidNutzScreen(
                         onValueChange = { q ->
                             uiState = uiState.copy(searchQuery = q, searchCurrentPage = 1, searchHasMore = true)
                             searchJob?.cancel()
+                            showRecentSearches = q.isBlank()
                             if (q.isNotBlank()) {
                                 searchJob = scope.launch {
                                     delay(400)
@@ -250,7 +265,7 @@ fun VidNutzScreen(
                         leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = TertiaryText, modifier = Modifier.size(18.dp)) },
                         trailingIcon = {
                             if (uiState.searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { uiState = uiState.copy(searchQuery = "", searchResults = null) }) {
+                                IconButton(onClick = { uiState = uiState.copy(searchQuery = "", searchResults = null); showRecentSearches = false }) {
                                     Icon(Icons.Filled.Clear, contentDescription = "Clear", tint = OnSurfaceVariant)
                                 }
                             }
@@ -311,18 +326,37 @@ fun VidNutzScreen(
                 }
             }
 
-            // ── Content ──
-            if (uiState.isLoading && uiState.searchResults == null) {
+            // ── Recent Searches ──
+            if (showRecentSearches && uiState.searchQuery.isBlank() && recentSearches.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = OnSurfaceVariant.copy(alpha = 0.5f), strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
-                            Spacer(Modifier.height(8.dp))
-                            Text("Loading...", color = OnSurfaceVariant, fontSize = 13.sp)
+                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Text("Recent Searches", color = OnSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 6.dp))
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            recentSearches.forEach { search ->
+                                Box(Modifier.clip(RoundedCornerShape(50)).background(SurfaceCard).clickable {
+                                    showRecentSearches = false
+                                    uiState = uiState.copy(searchQuery = search, searchCurrentPage = 1, searchHasMore = true, isLoading = true)
+                                    scope.launch {
+                                        val results = VidNutzRepository.search(search)
+                                        uiState = uiState.copy(searchResults = results, searchHasMore = results.isNotEmpty(), isLoading = false)
+                                    }
+                                }.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                                    Text(search, color = OnSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
                         }
                     }
                 }
-            } else if (displayVideos.isEmpty()) {
+            }
+
+            // ── Content ──
+            if (uiState.isLoading && uiState.searchResults == null) {
+                // Shimmer skeleton cards
+                val skeletonCount = 6
+                items(skeletonCount) {
+                    ShimmerVideoCard(isTvMode = isTvMode)
+                }
+            } else if (displayVideos.isEmpty() && !uiState.isLoading) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                         Text("No videos found", color = OnSurfaceVariant, fontSize = 14.sp)
@@ -330,36 +364,45 @@ fun VidNutzScreen(
                 }
             } else {
                 items(displayVideos, key = { it.videoId }) { video ->
+                    val isResolving = uiState.resolvingVideoId == video.videoId
                     VidNutzVideoCard(
                         video = video,
                         isTvMode = isTvMode,
+                        isLoading = isResolving,
                         onPlay = {
+                            if (isResolving || onPlayChannel == null) return@VidNutzVideoCard
+                            uiState = uiState.copy(resolvingVideoId = video.videoId)
+                            if (uiState.searchQuery.isNotBlank()) saveSearch(uiState.searchQuery)
                             scope.launch {
-                                val result = VidNutzRepository.resolveStream(video.videoId)
-                                if (result != null && onPlayChannel != null) {
-                                    val videoIdx = displayVideos.indexOfFirst { it.videoId == video.videoId }.coerceAtLeast(0)
-                                    val queueUrls = mutableListOf<String>()
-                                    val queueTitles = mutableListOf<String>()
-                                    for (v in displayVideos) {
-                                        if (v.videoId == video.videoId) {
-                                            queueUrls.add(result.url)
-                                            queueTitles.add(video.title)
-                                        } else {
-                                            val r = VidNutzRepository.resolveStream(v.videoId)
-                                            queueUrls.add(r?.url ?: "")
-                                            queueTitles.add(v.title)
+                                try {
+                                    val result = VidNutzRepository.resolveStream(video.videoId)
+                                    if (result != null) {
+                                        val videoIdx = displayVideos.indexOfFirst { it.videoId == video.videoId }.coerceAtLeast(0)
+                                        val queueUrls = mutableListOf<String>()
+                                        val queueTitles = mutableListOf<String>()
+                                        for (v in displayVideos) {
+                                            if (v.videoId == video.videoId) {
+                                                queueUrls.add(result.url)
+                                                queueTitles.add(video.title)
+                                            } else {
+                                                val r = VidNutzRepository.resolveStream(v.videoId)
+                                                queueUrls.add(r?.url ?: "")
+                                                queueTitles.add(v.title)
+                                            }
                                         }
+                                        onPlayChannel(PlayerLaunch(
+                                            profileId = 0, title = video.title, sourceUrl = result.url,
+                                            sourceHeaders = result.headers, streamTitle = video.title,
+                                            providerName = "YouTube",
+                                            parentMetaId = "youtube",
+                                            parentMetaType = "youtube",
+                                            autoPlayQueueUrls = queueUrls,
+                                            autoPlayQueueTitles = queueTitles,
+                                            autoPlayQueueIndex = videoIdx,
+                                        ))
                                     }
-                                    onPlayChannel(PlayerLaunch(
-                                        profileId = 0, title = video.title, sourceUrl = result.url,
-                                        sourceHeaders = result.headers, streamTitle = video.title,
-                                        providerName = "YouTube",
-                                        parentMetaId = "youtube",
-                                        parentMetaType = "youtube",
-                                        autoPlayQueueUrls = queueUrls,
-                                        autoPlayQueueTitles = queueTitles,
-                                        autoPlayQueueIndex = videoIdx,
-                                    ))
+                                } finally {
+                                    uiState = uiState.copy(resolvingVideoId = null)
                                 }
                             }
                         },
@@ -410,7 +453,7 @@ private fun VidNutzChip(label: String, isSelected: Boolean, onClick: () -> Unit)
 }
 
 @Composable
-private fun VidNutzVideoCard(video: VidNutzVideo, isTvMode: Boolean, onPlay: () -> Unit) {
+private fun VidNutzVideoCard(video: VidNutzVideo, isTvMode: Boolean, isLoading: Boolean = false, onPlay: () -> Unit) {
     var isFocused by remember { mutableStateOf(false) }
     val thumbShape = RoundedCornerShape(12.dp)
 
@@ -429,12 +472,21 @@ private fun VidNutzVideoCard(video: VidNutzVideo, isTvMode: Boolean, onPlay: () 
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
                 )
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Filled.PlayArrow, "Play",
-                        tint = Color.White,
-                        modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.3f)).padding(12.dp),
-                    )
+                if (video.isLive) {
+                    Box(Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFFF0000)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                        Text("LIVE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = if (isLoading) 0.7f else 0.6f)), contentAlignment = Alignment.Center) {
+                    if (isLoading) {
+                        CircularProgressIndicator(color = Color.White, strokeWidth = 3.dp, modifier = Modifier.size(32.dp))
+                    } else {
+                        Icon(
+                            Icons.Filled.PlayArrow, "Play",
+                            tint = Color.White,
+                            modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.3f)).padding(12.dp),
+                        )
+                    }
                 }
                 if (video.durationSeconds > 0) {
                     Box(
@@ -483,15 +535,24 @@ private fun VidNutzVideoCard(video: VidNutzVideo, isTvMode: Boolean, onPlay: () 
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
                 )
+                if (video.isLive) {
+                    Box(Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFFF0000)).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                        Text("LIVE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
                 if (isFocused) {
                     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)))
                 }
-                Icon(
-                    Icons.Filled.PlayArrow, "Play",
-                    tint = Color.White.copy(alpha = if (isFocused) 1f else 0.7f),
-                    modifier = Modifier.size(if (isFocused) 56.dp else 48.dp).align(Alignment.Center).clip(CircleShape)
-                        .background(Color.Black.copy(alpha = if (isFocused) 0.5f else 0.3f)).padding(12.dp),
-                )
+                if (isLoading) {
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 3.dp, modifier = Modifier.size(32.dp).align(Alignment.Center))
+                } else {
+                    Icon(
+                        Icons.Filled.PlayArrow, "Play",
+                        tint = Color.White.copy(alpha = if (isFocused) 1f else 0.7f),
+                        modifier = Modifier.size(if (isFocused) 56.dp else 48.dp).align(Alignment.Center).clip(CircleShape)
+                            .background(Color.Black.copy(alpha = if (isFocused) 0.5f else 0.3f)).padding(12.dp),
+                    )
+                }
                 if (video.durationSeconds > 0) {
                     Box(
                         Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 6.dp)
@@ -537,6 +598,34 @@ private fun VidNutzVideoCard(video: VidNutzVideo, isTvMode: Boolean, onPlay: () 
                 }
             }
             Spacer(Modifier.height(4.dp))
+        }
+    }
+}
+
+@Composable
+private fun ShimmerVideoCard(isTvMode: Boolean) {
+    val shimmerColor = Color(0xFF2A2A2A)
+    if (isTvMode) {
+        Column(Modifier.fillMaxWidth()) {
+            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(shimmerColor))
+            Spacer(Modifier.height(8.dp))
+            Box(Modifier.fillMaxWidth(0.8f).height(14.dp).clip(RoundedCornerShape(4.dp)).background(shimmerColor))
+            Spacer(Modifier.height(4.dp))
+            Box(Modifier.fillMaxWidth(0.5f).height(10.dp).clip(RoundedCornerShape(4.dp)).background(shimmerColor))
+        }
+    } else {
+        Column(Modifier.fillMaxWidth()) {
+            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)).background(shimmerColor))
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(36.dp).clip(CircleShape).background(shimmerColor))
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Box(Modifier.fillMaxWidth(0.85f).height(14.dp).clip(RoundedCornerShape(4.dp)).background(shimmerColor))
+                    Spacer(Modifier.height(4.dp))
+                    Box(Modifier.fillMaxWidth(0.5f).height(10.dp).clip(RoundedCornerShape(4.dp)).background(shimmerColor))
+                }
+            }
         }
     }
 }

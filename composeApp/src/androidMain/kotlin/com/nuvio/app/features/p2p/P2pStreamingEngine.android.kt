@@ -51,7 +51,10 @@ actual object P2pStreamingEngine {
         try {
             binary.start()
             api.applyOptimizedSettings()
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            Log.e(TAG, "TorrServer start failed: ${e.message}")
+            _state.value = P2pStreamingState.Error("TorrServer: ${e.message}")
+        }
     }
 
     actual suspend fun startStream(request: P2pStreamRequest): String = withContext(Dispatchers.IO) {
@@ -317,18 +320,24 @@ actual object P2pStreamingEngine {
             killOrphanedProcess()
 
             val ctx = requireContext()
-            val binaryFile = File(ctx.applicationInfo.nativeLibraryDir, "libtorrserver.so")
-            if (!binaryFile.exists()) {
-                throw P2pStreamingException("TorrServer binary not found at ${binaryFile.absolutePath}")
-            }
-
-            if (!binaryFile.canExecute()) {
-                binaryFile.setExecutable(true)
-            }
-
             val configDir = File(ctx.filesDir, "torrserver").also { it.mkdirs() }
+
+            // Copy binary from native libs to writable directory (needed on Android 10+ where nativeLibDir is read-only)
+            val nativeBinary = File(ctx.applicationInfo.nativeLibraryDir, "libtorrserver.so")
+            val executableBinary = File(configDir, "libtorrserver")
+            if (!executableBinary.exists() || executableBinary.length() != nativeBinary.length()) {
+                if (!nativeBinary.exists()) {
+                    throw P2pStreamingException("TorrServer binary not found at ${nativeBinary.absolutePath}")
+                }
+                nativeBinary.copyTo(executableBinary, overwrite = true)
+                Log.d(TAG, "Copied TorrServer binary to ${executableBinary.absolutePath}")
+            }
+            if (!executableBinary.canExecute()) {
+                executableBinary.setExecutable(true)
+            }
+
             val processBuilder = ProcessBuilder(
-                binaryFile.absolutePath,
+                executableBinary.absolutePath,
                 "--port",
                 PORT.toString(),
                 "--path",
@@ -337,7 +346,7 @@ actual object P2pStreamingEngine {
             processBuilder.directory(configDir)
             processBuilder.redirectErrorStream(true)
 
-            Log.d(TAG, "Starting TorrServer on port $PORT from ${binaryFile.absolutePath}")
+            Log.d(TAG, "Starting TorrServer on port $PORT from ${executableBinary.absolutePath}")
             process = processBuilder.start()
 
             val proc = process!!

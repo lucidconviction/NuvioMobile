@@ -378,7 +378,7 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                 refreshTracks()
                 showAudioModal = true
             },
-            onHistoryClick = if (args.parentMetaId == "iptv") { { historyOverlayTrigger++ } } else null,
+            onHistoryClick = { historyOverlayTrigger++ },
             onVideoSettingsClick = if (isIos) {
                 {
                     showVideoSettingsModal = true
@@ -389,9 +389,9 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             },
             onLiveGamesClick = if (SportsNowStore.liveEvents.isNotEmpty()) { { showLiveGamesOverlay = !showLiveGamesOverlay } } else null,
             onSourcesClick = if (activeVideoId != null) { { openSourcesPanel() } } else null,
-            onChannelsClick = if (args.parentMetaId == "iptv") { { channelOverlayTrigger++ } } else null,
+            onChannelsClick = { channelOverlayTrigger++ },
             onEpisodesClick = if (isSeries) { { openEpisodesPanel() } } else null,
-            onVolumeClick = { showVolumeSlider = !showVolumeSlider },
+            // Volume button removed as requested
             onQualityClick = if (qualities.isNotEmpty()) { { showQualitySelector = !showQualitySelector } } else null,
             onMultiViewClick = { showMultiViewPicker = true },
             showVolumeSlider = showVolumeSlider,

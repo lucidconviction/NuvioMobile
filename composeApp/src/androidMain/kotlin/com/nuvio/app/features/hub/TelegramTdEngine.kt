@@ -46,7 +46,7 @@ actual class TelegramTdEngine {
             { e -> e.printStackTrace() },
             { e -> e.printStackTrace() },
         )
-        sendTdlibParameters()
+        // sendTdlibParameters is called by onUpdate() when AuthorizationStateWaitTdlibParameters is received
     }
 
     actual suspend fun close() {
@@ -300,7 +300,14 @@ actual class TelegramTdEngine {
         p.systemLanguageCode = "en"
         p.deviceModel = "Android"
         p.applicationVersion = "1.0.0"
-        client?.send(p, null)
+        Log.d(TAG, "Sending TdlibParameters: apiId=${TelegramConfig.API_ID}, dbDir=$dbDir")
+        client?.send(p, Client.ResultHandler { obj ->
+            if (obj is TdApi.Error) {
+                Log.e(TAG, "setTdlibParameters failed: ${obj.message}")
+            } else {
+                Log.d(TAG, "setTdlibParameters succeeded")
+            }
+        })
     }
 
     private fun onUpdate(obj: TdApi.Object) {

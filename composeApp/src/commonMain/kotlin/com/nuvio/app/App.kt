@@ -10,7 +10,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -60,6 +63,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
@@ -68,6 +72,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
@@ -151,6 +156,7 @@ import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.home.HomeScreen
 import com.nuvio.app.features.home.MetaPreview
 import com.nuvio.app.features.hub.HubReturnStore
+import com.nuvio.app.features.hub.MultiWindowStore
 import com.nuvio.app.features.hub.RobbdeezeNutzHubScreen
 import com.nuvio.app.features.iptv.IptvRepository
 import com.nuvio.app.features.sports.SportsRepository
@@ -166,8 +172,6 @@ import com.nuvio.app.features.library.toMetaPreview
 import com.nuvio.app.features.notifications.EpisodeReleaseNotificationsRepository
 import com.nuvio.app.features.p2p.P2pConsentDialog
 import com.nuvio.app.features.p2p.P2pSettingsRepository
-import com.nuvio.app.features.discord.DiscordPromptDialog
-import com.nuvio.app.features.discord.DiscordPromptStorage
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.player.PlayerLaunchStore
 import com.nuvio.app.features.player.SportsNowStore
@@ -895,9 +899,6 @@ private fun MainAppContent(
     val isTraktLibrarySource = libraryUiState.sourceMode == LibrarySourceMode.TRAKT
     var initialHomeReady by rememberSaveable(ownsAppRuntime) {
         mutableStateOf(!ownsAppRuntime)
-    }
-    var showDiscordPrompt by remember(ownsAppRuntime) {
-        mutableStateOf(ownsAppRuntime && !DiscordPromptStorage.isDismissed())
     }
     var offlineLaunchRouteHandled by rememberSaveable { mutableStateOf(false) }
     var networkToastBaselineReady by rememberSaveable { mutableStateOf(false) }
@@ -3578,15 +3579,6 @@ private fun MainAppContent(
                     .zIndex(25f),
             )
 
-            if (initialHomeReady && showDiscordPrompt) {
-                DiscordPromptDialog(
-                    onDismiss = { showDiscordPrompt = false },
-                    onDontShowAgain = {
-                        DiscordPromptStorage.setDismissed()
-                        showDiscordPrompt = false
-                    },
-                )
-            }
         }
 }
 
@@ -3671,6 +3663,19 @@ private fun AppTabHost(
                         onContinueWatchingLongPress = onContinueWatchingLongPress,
                         onFolderClick = onFolderClick,
                         onFirstCatalogRendered = onInitialHomeContentRendered,
+                        onIptvChannelClick = { channel ->
+                            val launch = com.nuvio.app.features.player.PlayerLaunch(
+                                profileId = 0,
+                                title = channel.name,
+                                sourceUrl = channel.url,
+                                streamTitle = channel.name,
+                                providerName = "IPTV",
+                                parentMetaId = "iptv",
+                                parentMetaType = "tv",
+                                logo = channel.logo,
+                            )
+                            onIptvPlayChannel?.invoke(launch)
+                        },
                     )
                 }
 
@@ -3731,6 +3736,27 @@ private fun AppTabHost(
                         onCollectionsClick = onCollectionsSettingsClick,
                     )
                 }
+            }
+        }
+
+        // Global MultiNutz quick-nav overlay — hides when already on Multi view
+        if (MultiWindowStore.allStreams.isNotEmpty() && HubReturnStore.subScreen != "Multi") {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 72.dp)
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x991E1E1E))
+                    .border(
+                        width = 1.dp,
+                        color = Color.White.copy(alpha = 0.4f),
+                        shape = CircleShape,
+                    )
+                    .clickable { HubReturnStore.subScreen = "Multi" },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("MW", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

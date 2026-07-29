@@ -55,39 +55,9 @@ import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 
-private const val APK_URL = "https://apps.rdnutz.us/"
-private const val gitHubOwner = "Robbdeeze"
+private const val gitHubOwner = "lucidconviction"
 private const val gitHubRepo = "NuvioMobile"
 private const val gitHubApiBase = "https://api.github.com"
-private const val releaseChannelBranch = "cmp-rewrite"
-
-private const val RELEASE_NOTES = """
-v0.7.0 — Text-Only MatchCards, VidNutz NewPipe Trending, YouTube Audio Fix, MultiWindow Audio Fix
-
-SportNutz:
-- Text-only MatchCards: no team logos, event title + team names
-- Event titles shown on every card (UFC: "O'Malley vs Dvalishvili")
-- Date labels on upcoming event cards
-
-VidNutz:
-- NewPipe primary for trending + search (was unreliable Piped/Invidious)
-- 28 results per query with 30min duration cap
-- LIVE_STREAMS category removed
-
-YouTube Audio:
-- InnerTube picks progressive formats over adaptive+separate audio
-- HLS priority: HLS → Progressive → Adaptive
-
-MultiNutz Audio Fix:
-- New streams start at full volume (was 0f)
-- Audio focus at creation; subsequent streams start muted
-- Channel changing forces player recreation
-- Play/Pause calls engine methods correctly
-
-Other:
-- Live Games overlay filters to live events only
-- Force close fixes: safe channel callback, bounds check
-"""
 
 data class AppUpdate(
     val tag: String,
@@ -180,31 +150,33 @@ private object VersionUtils {
 
     private object AppUpdaterRepository {
     suspend fun getLatestChannelUpdate(): Result<AppUpdate> = runCatching {
+        val apiUrl = "$gitHubApiBase/repos/$gitHubOwner/$gitHubRepo/releases/latest"
         val response = httpRequestRaw(
             method = "GET",
-            url = APK_URL,
-            headers = mapOf("User-Agent" to "NuvioMobile"),
+            url = apiUrl,
+            headers = mapOf(
+                "User-Agent" to "NuvioMobile",
+                "Accept" to "application/vnd.github+json",
+            ),
             body = "",
         )
         if (response.status !in 200..299) {
-            error("Server returned ${response.status}")
+            error("GitHub API returned ${response.status}")
         }
 
-        val apkRegex = Regex("""href="(Nuvio-Mobile[^"]*\.apk)"""", RegexOption.IGNORE_CASE)
-        val match = apkRegex.find(response.body)
-        val apkFileName = match?.groupValues?.getOrNull(1)
-            ?: error("No Mobile APK found on server")
+        val release = appUpdaterJson.decodeFromString<GitHubReleaseDto>(response.body)
 
-        val apkUrl = APK_URL.trimEnd('/') + "/" + apkFileName
+        val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
+            ?: error("No APK asset found in latest release")
 
         AppUpdate(
-            tag = "latest",
-            title = "Nuvio Mobile Update",
-            notes = RELEASE_NOTES,
-            releaseUrl = apkUrl,
-            assetName = apkFileName,
-            assetUrl = apkUrl,
-            assetSizeBytes = 0L,
+            tag = release.tagName ?: "latest",
+            title = release.name ?: "Nuvio Mobile Update",
+            notes = release.body ?: "",
+            releaseUrl = release.htmlUrl,
+            assetName = apkAsset.name,
+            assetUrl = apkAsset.browserDownloadUrl,
+            assetSizeBytes = apkAsset.size,
         )
     }
 }
