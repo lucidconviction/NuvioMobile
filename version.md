@@ -6,6 +6,10 @@
 ```
 APK: `androidApp/build/outputs/apk/full/debug/androidApp-full-debug.apk`
 
+### v0.8.1 — Home Screen Row Reorder: IPTV History → Row 1, IPTV Favorites → Row 2, Continue Watching → Row 3 (July 28, 2026)
+- **Home screen reordered** — IPTV Channel History (row 1) and IPTV Favorite Channels (row 2) now appear above Continue Watching (row 3)
+- **MW overlay** — single global button visible on all tabs; navigates to Hub → Multi view
+
 ### v0.8.0 — Home Screen IPTV Rows, TeleNutz Fixes, MusicNutz Persistence, MultiNutz Overlay, VidNutz Live & Saved Searches (July 28, 2026)
 
 #### Bug Fixes
