@@ -31,6 +31,25 @@ APK: `androidApp/build/outputs/apk/full/debug/androidApp-full-debug.apk`
 #### Quick Channel List
 - **Reorganized** — 187 entries sorted into 10 section headers (News, US Sports, UK Sports, CA Sports, Multi-Region Sports, US Premium Movies, UK Networks, CA Networks, US Entertainment, SF Bay Area Local)
 
+#### Quick Channels
+- **Channel source popup** — tapping a Quick Channel on home screen now opens a bottom sheet with matching IPTV channel sources instead of playing the first match directly
+- **Bay Area expanded** — 16 individual Bay Area local channels with full call signs and aliases (KTVU, KPIX, KGO, KRON, KNTV, KQED, KBCW, KICU, KDTV, KTSF, KTVU Plus, NBC Bay Area News, KPJK, KRCB, KCSM, KEMO)
+
+#### MultiWindow
+- **Tabbed channel picker** — "CH" button on VideoCell now opens Channels/History/Favs/Quick tabbed overlay with search
+- **Quick Channels tab** — region-filtered Quick Channels directly in the MW channel picker
+
+#### SportNutz
+- **DaddyLive channel popup** — tapping a DaddyLive event now shows a bottom sheet with available channel sources instead of playing directly
+- **BKFC league tab** — accessible from quick league pills next to UFC
+
+#### Player Screen
+- **IPTV channel navigation arrows** — hideaway ◀ ▶ buttons on player screen when watching IPTV from home screen (auto-hide with controls)
+
+#### Settings
+- **Telegram groups updated** — footer now shows @RnutzNuvioUpdates, @RNutzNuvioChat, @RNutzNuvioBugs (removed GitHub link)
+- **Version display** — simplified to show version name only
+
 #### Internal
 - **Telegram API credentials updated** — new api_id/api_hash for TeleNutz
 - **Backup module removed** — TeleBackup, DVR, SitBack, DeezeNutz, CinematicTuner all deleted
