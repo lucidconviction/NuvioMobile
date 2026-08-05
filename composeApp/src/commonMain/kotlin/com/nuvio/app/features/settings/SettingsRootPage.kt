@@ -261,20 +261,47 @@ internal fun LazyListScope.settingsRootContent(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "https://github.com/robbdeeze/nuvio",
+                text = "Version ${AppVersionConfig.VERSION_NAME}",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Telegram Groups",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "@RnutzNuvioUpdates",
                 modifier = Modifier.fillMaxWidth().clickable {
-                    runCatching { uriHandler.openUri("https://github.com/robbdeeze/nuvio") }
+                    runCatching { uriHandler.openUri("https://t.me/RnutzNuvioUpdates") }
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(4.dp))
             Text(
-                text = "Version ${AppVersionConfig.VERSION_NAME} (${AppVersionConfig.VERSION_CODE})",
-                modifier = Modifier.fillMaxWidth(),
+                text = "@RNutzNuvioChat",
+                modifier = Modifier.fillMaxWidth().clickable {
+                    runCatching { uriHandler.openUri("https://t.me/RNutzNuvioChat") }
+                },
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = "@RNutzNuvioBugs",
+                modifier = Modifier.fillMaxWidth().clickable {
+                    runCatching { uriHandler.openUri("https://t.me/RNutzNuvioBugs") }
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center,
             )
         }

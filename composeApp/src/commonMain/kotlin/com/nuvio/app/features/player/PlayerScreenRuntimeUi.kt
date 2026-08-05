@@ -310,6 +310,73 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                 }
             }
         }
+
+        // IPTV channel navigation arrows (hideaway, shown with controls)
+        val iptvChUrls = args.iptvChannelUrls
+        if (args.parentMetaId == "iptv" && iptvChUrls != null && iptvChUrls.isNotEmpty() && controlsVisible) {
+            val chIdx = args.iptvCurrentChannelIndex
+            val chUrls = iptvChUrls
+            val chNames = args.iptvChannelNames
+            val hasPrevCh = chIdx > 0
+            val hasNextCh = chIdx < chUrls.size - 1
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 4.dp, end = 4.dp),
+            ) {
+                if (hasPrevCh) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .align(Alignment.CenterStart)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.4f))
+                            .clickable {
+                                val newIdx = chIdx - 1
+                                val newLaunch = PlayerLaunchStore.get(args.launchId)?.copy(
+                                    sourceUrl = chUrls[newIdx],
+                                    streamTitle = chNames?.getOrNull(newIdx) ?: "",
+                                    currentChannelIndex = newIdx,
+                                )
+                                if (newLaunch != null) {
+                                    flushWatchProgress()
+                                    args.onSwitchIptvChannel?.invoke(PlayerLaunchStore.put(newLaunch))
+                                }
+                            }
+                            .padding(12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("\u25C0", color = Color.White, fontSize = 20.sp)
+                    }
+                }
+                if (hasNextCh) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .align(Alignment.CenterEnd)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.4f))
+                            .clickable {
+                                val newIdx = chIdx + 1
+                                val newLaunch = PlayerLaunchStore.get(args.launchId)?.copy(
+                                    sourceUrl = chUrls[newIdx],
+                                    streamTitle = chNames?.getOrNull(newIdx) ?: "",
+                                    currentChannelIndex = newIdx,
+                                )
+                                if (newLaunch != null) {
+                                    flushWatchProgress()
+                                    args.onSwitchIptvChannel?.invoke(PlayerLaunchStore.put(newLaunch))
+                                }
+                            }
+                            .padding(12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("\u25B6", color = Color.White, fontSize = 20.sp)
+                    }
+                }
+            }
+        }
+
         RenderPlayerModals(displayedPositionMs = displayedPositionMs)
 
         // Toast overlay for user feedback

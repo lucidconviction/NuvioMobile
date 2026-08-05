@@ -47,6 +47,21 @@ object QuickChannelList {
         // ── 7. CANADA & REGIONAL LOCALS ──────────────────────────────────────
 
         QuickChannel("Canadian Broadcast", listOf("CBC", "CBC Television", "CTV", "CTV 2", "CTV2", "Global TV", "Global", "Showcase", "W Network"), listOf("CA"), listOf("broadcast")),
-        QuickChannel("Bay Area Locals", listOf("KTVU", "KTVU Fox 2", "KPIX", "KPIX CBS 5", "CBS Bay Area", "KGO", "KGO ABC 7", "ABC7 Bay Area", "KRON", "KRON 4", "KRON4"), listOf("US", "bay-area"), listOf("regional", "news", "broadcast")),
+        QuickChannel("KTVU Fox 2", listOf("KTVU", "KTVU Fox 2", "FOX 2 KTVU", "KTVU San Francisco"), listOf("US", "bay-area"), listOf("regional", "news")),
+        QuickChannel("KPIX CBS 5", listOf("KPIX", "KPIX CBS 5", "CBS 5 KPIX", "CBS Bay Area"), listOf("US", "bay-area"), listOf("regional", "news")),
+        QuickChannel("KGO ABC 7", listOf("KGO", "KGO ABC 7", "ABC 7 KGO", "ABC7 Bay Area"), listOf("US", "bay-area"), listOf("regional", "news")),
+        QuickChannel("KRON 4", listOf("KRON", "KRON 4", "KRON4", "KRON News", "KRON On"), listOf("US", "bay-area"), listOf("regional", "news")),
+        QuickChannel("KNTV NBC Bay Area", listOf("KNTV", "KNTV NBC 11", "NBC Bay Area", "NBC 11", "KNTV Bay Area"), listOf("US", "bay-area"), listOf("regional", "news")),
+        QuickChannel("KQED 9", listOf("KQED", "KQED 9", "KQED PBS", "PBS KQED", "KQED Plus"), listOf("US", "bay-area"), listOf("regional")),
+        QuickChannel("KBCW CW 44", listOf("KBCW", "KBCW CW 44", "CW 44", "CW Bay Area"), listOf("US", "bay-area"), listOf("regional")),
+        QuickChannel("KICU MyNetwork 36", listOf("KICU", "KICU 36", "MyNetwork 36", "KICU Bay Area"), listOf("US", "bay-area"), listOf("regional")),
+        QuickChannel("KDTV Univision 14", listOf("KDTV", "KDTV Univision 14", "Univision 14", "Univision Bay Area"), listOf("US", "bay-area"), listOf("regional")),
+        QuickChannel("KTSF 26", listOf("KTSF", "KTSF 26", "KTSF Bay Area", "KTSF 26 San Francisco"), listOf("US", "bay-area"), listOf("regional")),
+        QuickChannel("KTVU Fox 2 Plus", listOf("KTVU Plus", "KTVU Fox 2 Plus", "KTVU+"), listOf("US", "bay-area"), listOf("regional")),
+        QuickChannel("NBC Bay Area News", listOf("NBC Bay Area News", "NBCBA News", "NBC Bay Area Nonstop"), listOf("US", "bay-area"), listOf("regional", "news")),
+        QuickChannel("KPJK 60", listOf("KPJK", "KPJK 60", "KPJK San Francisco"), listOf("US", "bay-area"), listOf("regional")),
+        QuickChannel("KRCB 22", listOf("KRCB", "KRCB 22", "KRCB North Bay", "KRCB PBS"), listOf("US", "bay-area"), listOf("regional")),
+        QuickChannel("KCSM 43", listOf("KCSM", "KCSM 43", "KCSM San Mateo"), listOf("US", "bay-area"), listOf("regional")),
+        QuickChannel("KEMO 50", listOf("KEMO", "KEMO 50", "KEMO San Francisco"), listOf("US", "bay-area"), listOf("regional")),
     )
 }

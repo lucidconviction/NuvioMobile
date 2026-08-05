@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,8 +55,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -1951,14 +1954,17 @@ private fun DaddyLiveSection(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DaddyLiveEventCard(event: DaddyLiveEvent, isLive: Boolean, onPlay: () -> Unit) {
     val chCount = event.channels.size
+    var showChannels by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
             .background(SurfaceContainerLow)
             .border(0.5.dp, if (isLive) ErrorRed.copy(alpha = 0.4f) else OutlineVariant.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
-            .clickable(onClick = onPlay)
+            .clickable(onClick = { if (chCount > 0) showChannels = true else onPlay() })
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1988,6 +1994,41 @@ private fun DaddyLiveEventCard(event: DaddyLiveEvent, isLive: Boolean, onPlay: (
         }
         Box(Modifier.clip(RoundedCornerShape(8.dp)).background(if (isLive) ErrorRed.copy(alpha = 0.2f) else SurfaceContainerHigh).padding(horizontal = 10.dp, vertical = 6.dp)) {
             Text(if (isLive) "WATCH" else "VIEW", color = if (isLive) ErrorRed else OnSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+
+    if (showChannels) {
+        ModalBottomSheet(
+            onDismissRequest = { showChannels = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = SurfaceContainer,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        ) {
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth().heightIn(max = 500.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text(event.eventName, color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text("$chCount source${if (chCount != 1) "s" else ""}", color = OnSurfaceVariant, fontSize = 12.sp)
+                }
+                Spacer(Modifier.height(12.dp))
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(event.channels) { ch ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                .background(SurfaceContainerLow)
+                                .clickable { showChannels = false; onPlay() }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(ch.name, color = OnSurface, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text("Play", color = Primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
         }
     }
 }
