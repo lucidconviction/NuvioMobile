@@ -8,6 +8,33 @@ export ANDROID_HOME=~/Library/Android/sdk
 ```
 APK: `androidApp/build/outputs/apk/full/debug/androidApp-full-debug.apk`
 
+### v0.13.0 — MagNutz Removal, Quick Channels, MultiWindow Overhaul, BKFC, Timezone Fixes (August 4, 2026)
+
+#### Hub Changes
+- **MagNutz removed** — entire torrent download manager deleted (TorrServer-dependent, unreliable)
+- **MultiWindow auto-next** — `STATE_ENDED` listener on each ExoPlayer auto-removes completed streams
+- **MultiWindow hideaway arrows** — left/right arrow buttons per cell swap content with adjacent occupied slot
+- **MultiWindow channel picker** — "CH" button on each cell opens inline channel browser bottom sheet
+- **Quick Channels on home screen** — new `HomeQuickChannelsSection` with region filter tabs (All, US, UK, CA, Bay Area, Premium, Sports, News); taps resolve against IPTV channels via alias matching
+- **IPTV Favorites removed from home screen** — replaced by Quick Channels row
+
+#### SportNutz
+- **BKFC added** — Bare Knuckle Fighting Championship added to ESPN API sports, repository leagues, and quick league pills (next to UFC)
+- **Live tab refinements** — league group badges show live count only; `MatchCard` properly tags LIVE / UPCOMING / FINAL
+
+#### Timezone Fixes
+- **ESPN event times** — `extractTime12h` now applies device timezone offset to UTC timestamps
+- **IPTV clock widget** — `TvClock` shows device-local time
+- **LiveGame today-filter** — date computation shifted from UTC epoch to local time
+- **DaddyLive times** — hardcoded +4h ET replaced with `TraktPlatformClock.localTimezoneOffsetMs()`
+
+#### Quick Channel List
+- **Reorganized** — 187 entries sorted into 10 section headers (News, US Sports, UK Sports, CA Sports, Multi-Region Sports, US Premium Movies, UK Networks, CA Networks, US Entertainment, SF Bay Area Local)
+
+#### Internal
+- **Telegram API credentials updated** — new api_id/api_hash for TeleNutz
+- **Backup module removed** — TeleBackup, DVR, SitBack, DeezeNutz, CinematicTuner all deleted
+
 ### v0.12.0 — TeleNutz Restore, Channel Intelligence, Custom Groups, SportNutz Polish, Global MW Overlay (August 2, 2026)
 
 #### Hub Changes
