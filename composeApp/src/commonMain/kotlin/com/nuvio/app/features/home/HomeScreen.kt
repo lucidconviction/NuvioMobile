@@ -78,7 +78,7 @@ import com.nuvio.app.features.collection.CollectionRepository
 import com.nuvio.app.features.profiles.ProfileRepository
 import com.nuvio.app.features.home.components.HomeCollectionRowSection
 import com.nuvio.app.features.home.components.HomeIptvHistorySection
-import com.nuvio.app.features.home.components.HomeIptvFavoritesSection
+import com.nuvio.app.features.home.components.HomeQuickChannelsSection
 import com.nuvio.app.features.iptv.IptvRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -145,7 +145,6 @@ fun HomeScreen(
     }.collectAsStateWithLifecycle()
     val iptvUiState by IptvRepository.uiState.collectAsStateWithLifecycle()
     val iptvHistoryChannels = remember(iptvUiState) { IptvRepository.getHistoryChannels() }
-    val iptvFavoriteChannels = remember(iptvUiState) { IptvRepository.getFavoriteChannels() }
     var observedOfflineState by remember { mutableStateOf(false) }
 
     LaunchedEffect(scrollToTopRequests) {
@@ -934,15 +933,12 @@ fun HomeScreen(
                         }
                     }
 
-                    // IPTV Favorite Channels (row 2)
-                    if (iptvFavoriteChannels.isNotEmpty()) {
-                        item(key = "iptv_favorites") {
-                            HomeIptvFavoritesSection(
-                                channels = iptvFavoriteChannels,
-                                sectionPadding = homeSectionPadding,
-                                onChannelClick = onIptvChannelClick,
-                            )
-                        }
+                    // Quick Channels (row 2)
+                    item(key = "quick_channels") {
+                        HomeQuickChannelsSection(
+                            sectionPadding = homeSectionPadding,
+                            onChannelClick = onIptvChannelClick,
+                        )
                     }
 
                     if (continueWatchingPreferences.isVisible && continueWatchingItems.isNotEmpty()) {

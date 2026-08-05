@@ -12,7 +12,7 @@ const val RESIZE_FIXED_HEIGHT = 3
 const val RESIZE_ZOOM = 4
 
 expect object MultiWindowPlayerManager {
-    fun createPlayer(sourceUrl: String, headers: Map<String, String>): PlayerHandle
+    fun createPlayer(sourceUrl: String, headers: Map<String, String>, onCompletion: (() -> Unit)? = null): PlayerHandle
     fun setVolume(handle: PlayerHandle, volume: Float)
     fun setAudioFocus(handleId: Int)
     fun pausePlayer(handle: PlayerHandle)

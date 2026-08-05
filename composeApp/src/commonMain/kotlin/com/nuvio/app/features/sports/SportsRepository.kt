@@ -44,6 +44,7 @@ object SportsRepository {
         SportLeague("ufc", "UFC MMA", "UFC", "mma/ufc", "https://a.espncdn.com/i/teamlogos/leagues/500/ufc.png"),
         SportLeague("boxing", "Boxing", "BOX", "boxing/boxing", "https://a.espncdn.com/i/teamlogos/leagues/500/boxing.png"),
         SportLeague("pfl", "PFL MMA", "PFL", "mma/pfl", "https://a.espncdn.com/i/teamlogos/leagues/500/pfl.png"),
+        SportLeague("bkfc", "BKFC", "BKFC", "mma/bkfc", "https://a.espncdn.com/i/teamlogos/leagues/500/bkfc.png"),
         SportLeague("mls", "MLS Soccer", "MLS", "soccer/usa.1", "https://a.espncdn.com/i/teamlogos/leagues/500/mls.png"),
         SportLeague("epl", "Premier League", "EPL", "soccer/eng.1", "https://a.espncdn.com/i/teamlogos/leagues/500/epl.png"),
         SportLeague("laliga", "La Liga", "LALIGA", "soccer/esp.1", "https://a.espncdn.com/i/teamlogos/leagues/500/laliga.png"),

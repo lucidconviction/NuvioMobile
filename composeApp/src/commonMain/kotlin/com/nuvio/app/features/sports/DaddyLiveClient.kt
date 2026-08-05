@@ -77,7 +77,7 @@ data class DaddyLiveEvent(
                 val h24 = when { isPM && hour != 12 -> hour + 12; !isPM && hour == 12 -> 0; else -> hour }
 
                 val days = daysFromEpoch(year, month, day)
-                return (days * 86400L + h24 * 3600L + minute * 60L + 4 * 3600L) * 1000L
+                return (days * 86400L + h24 * 3600L + minute * 60L) * 1000L + TraktPlatformClock.localTimezoneOffsetMs()
             } catch (_: Exception) { return 0 }
         }
 

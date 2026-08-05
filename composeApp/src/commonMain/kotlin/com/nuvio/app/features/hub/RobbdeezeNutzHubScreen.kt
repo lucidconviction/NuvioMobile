@@ -52,7 +52,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.build.AppVersionConfig
 import com.nuvio.app.features.iptv.IptvScreen
-import com.nuvio.app.features.magnutz.MagNutzScreen
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.sports.SportsScreen
 import kotlinx.coroutines.flow.Flow
@@ -72,7 +71,7 @@ private val CardBorder = Color(0x1AFFFFFF)
 private val Primary = Color(0xFFFDFDFC)
 private val GlassBg = Color(0x991E1E1E)
 
-private enum class HubSubScreen { Hub, Iptv, Sports, VidNutz, Music, Multi, MagNutz, TeleNutz }
+private enum class HubSubScreen { Hub, Iptv, Sports, VidNutz, Music, Multi, TeleNutz }
 
 private data class HubItem(
     val title: String,
@@ -86,7 +85,6 @@ private val hubItems = listOf(
     HubItem("VidNutz Hub", "VN", HubSubScreen.VidNutz),
     HubItem("MusicNutz Hub", "MU", HubSubScreen.Music),
     HubItem("MultiNutz Hub", "MW", HubSubScreen.Multi),
-    HubItem("MagNutz Hub", "MG", HubSubScreen.MagNutz),
     HubItem("TeleNutz Hub", "TG", HubSubScreen.TeleNutz),
 )
 
@@ -104,7 +102,7 @@ fun RobbdeezeNutzHubScreen(
             when (HubReturnStore.subScreen) {
                 "Iptv" -> HubSubScreen.Iptv; "Sports" -> HubSubScreen.Sports
                 "VidNutz" -> HubSubScreen.VidNutz; "Music" -> HubSubScreen.Music
-                "Multi" -> HubSubScreen.Multi; "MagNutz" -> HubSubScreen.MagNutz
+                "Multi" -> HubSubScreen.Multi
                 "TeleNutz" -> HubSubScreen.TeleNutz
                 else -> HubSubScreen.Hub
             },
@@ -119,7 +117,7 @@ fun RobbdeezeNutzHubScreen(
                     val restored = when (saved) {
                         "Iptv" -> HubSubScreen.Iptv; "Sports" -> HubSubScreen.Sports
                         "VidNutz" -> HubSubScreen.VidNutz; "Music" -> HubSubScreen.Music
-                        "Multi" -> HubSubScreen.Multi; "MagNutz" -> HubSubScreen.MagNutz
+                        "Multi" -> HubSubScreen.Multi
                         "TeleNutz" -> HubSubScreen.TeleNutz
                         else -> null
                     }
@@ -228,16 +226,6 @@ fun RobbdeezeNutzHubScreen(
                                 onPlayChannel = onPlayChannelSave,
                             )
                         }
-                    }
-                }
-                HubSubScreen.MagNutz -> {
-                    Column(Modifier.fillMaxSize()) {
-                        Row(Modifier.fillMaxWidth().padding(start = 2.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { HubReturnStore.subScreen = "Hub"; subScreen = HubSubScreen.Hub }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = OnSurface)
-                            }
-                        }
-                        Box(Modifier.fillMaxSize()) { MagNutzScreen(onPlayChannel = onPlayChannelSave) }
                     }
                 }
                 HubSubScreen.TeleNutz -> {

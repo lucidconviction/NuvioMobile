@@ -783,7 +783,7 @@ private fun MobileSettingsScreen(
                     commentsEnabled = traktCommentsEnabled,
                     onCommentsEnabledChange = TraktCommentsSettings::setEnabled,
                 )
-                SettingsPage.BackupRestore -> { item { com.nuvio.app.features.backup.BackupScreen() } }
+                SettingsPage.BackupRestore -> {}
             }
         }
     }
@@ -1191,7 +1191,8 @@ private fun TabletSettingsScreen(
                         commentsEnabled = traktCommentsEnabled,
                         onCommentsEnabledChange = TraktCommentsSettings::setEnabled,
                     )
-                    SettingsPage.BackupRestore -> { item { com.nuvio.app.features.backup.BackupScreen() } }
+                    SettingsPage.BackupRestore -> {}
+
                 }
             }
         }

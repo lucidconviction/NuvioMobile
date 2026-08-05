@@ -228,7 +228,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
 
     // Live Games overlay
     if (showLiveGamesOverlay) {
-        val todayPrefix = TraktPlatformClock.nowEpochMs().let { epochMs ->
+        val todayPrefix = (TraktPlatformClock.nowEpochMs() + TraktPlatformClock.localTimezoneOffsetMs()).let { epochMs ->
             val totalDays = (epochMs / 86400000L).toInt()
             var y = 1970
             var rem = totalDays

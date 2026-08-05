@@ -445,7 +445,8 @@ private fun TvClock() {
             ms = TraktPlatformClock.nowEpochMs()
         }
     }
-    val totalSeconds = ms / 1000L
+    val localMs = ms + TraktPlatformClock.localTimezoneOffsetMs()
+    val totalSeconds = localMs / 1000L
     val h = ((totalSeconds / 3600) % 24).toInt()
     val m = ((totalSeconds / 60) % 60).toInt()
     val s = (totalSeconds % 60).toInt()

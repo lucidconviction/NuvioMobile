@@ -1,6 +1,7 @@
 package com.nuvio.app.features.iptv
 
 import com.nuvio.app.features.sports.TeamStanding
+import com.nuvio.app.features.trakt.TraktPlatformClock
 import com.nuvio.app.features.addons.httpGetText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -36,6 +37,8 @@ object EspnClient {
         "fighting/bellator",
         "mma/boxing",
         "fighting/boxing",
+        "mma/bkfc",
+        "fighting/bkfc",
         "racing/f1",
         "golf/pga",
         "tennis/atp",
@@ -47,6 +50,7 @@ object EspnClient {
         "mma/ufc", "fighting/ufc",
         "mma/pfl", "fighting/pfl",
         "mma/boxing", "fighting/boxing",
+        "mma/bkfc", "fighting/bkfc",
         "mma/bellator", "fighting/bellator",
         "football/nfl", "basketball/nba", "baseball/mlb", "hockey/nhl",
         "football/college-football", "basketball/mens-college-basketball",
@@ -445,13 +449,17 @@ object EspnClient {
         val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
         // ESPN often returns midnight (00:00) as a placeholder for fighting events — skip it
         if (hour == 0 && minute == 0) return null
-        val amPm = if (hour < 12) "AM" else "PM"
+        val offsetMinutes = (TraktPlatformClock.localTimezoneOffsetMs() / 60_000L).toInt()
+        val localTotalMinutes = (hour * 60 + minute + offsetMinutes) % (24 * 60)
+        val localHour = (localTotalMinutes / 60 + 24) % 24
+        val localMinute = localTotalMinutes % 60
+        val amPm = if (localHour < 12) "AM" else "PM"
         val hour12 = when {
-            hour == 0 -> 12
-            hour > 12 -> hour - 12
-            else -> hour
+            localHour == 0 -> 12
+            localHour > 12 -> localHour - 12
+            else -> localHour
         }
-        val minStr = minute.toString().padStart(2, '0')
+        val minStr = localMinute.toString().padStart(2, '0')
         return "$hour12:$minStr $amPm"
     }
 }

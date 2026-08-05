@@ -16,10 +16,22 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -47,6 +59,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nuvio.app.features.iptv.IptvChannel
+import com.nuvio.app.features.iptv.IptvRepository
 import kotlinx.coroutines.delay
 
 // ── Digital Kinetic color tokens (matching design system) ──
@@ -271,6 +285,11 @@ fun MultiWindowGrid(
                                     gridPos++
                                     val isAudioFocused = MultiWindowStore.isAudioFocused(stream.id)
                                     key(stream.id) {
+                                        val occupiedSlots = streams.map { it.slotIndex }.sorted()
+                                        val curSlot = stream.slotIndex
+                                        val curIdx = occupiedSlots.indexOf(curSlot)
+                                        val prevSlot = if (curIdx > 0) occupiedSlots[curIdx - 1] else null
+                                        val nextSlot = if (curIdx >= 0 && curIdx < occupiedSlots.size - 1) occupiedSlots[curIdx + 1] else null
                                         VideoCell(
                                             stream = stream,
                                             gridPosition = gridPos,
@@ -279,6 +298,9 @@ fun MultiWindowGrid(
                                             onLongPress = { onCellLongPress(stream) },
                                             onVolumeToggle = { active -> onCellVolumeToggle(stream, active) },
                                             onFullscreen = onFullscreenCell?.let { { it(stream) } },
+                                            onCompletion = { onRemoveStream(stream.id) },
+                                            onSwapLeft = prevSlot?.let { { MultiWindowStore.swapSlots(curSlot, it) } },
+                                            onSwapRight = nextSlot?.let { { MultiWindowStore.swapSlots(curSlot, it) } },
                                             modifier = Modifier.weight((slot.colSpan * totalRows).toFloat()).padding(4.dp),
                                         )
                                     }
@@ -295,32 +317,12 @@ fun MultiWindowGrid(
                         }
                     }
                 }
-                // Add Channel button
-                if (streams.size < maxSlots) {
-                    Box(
-                        Modifier.fillMaxWidth().height(48.dp).padding(4.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(SurfaceContainerLow.copy(alpha = 0.3f))
-                            .border(1.dp, OutlineVariant.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-                            .clickable(onClick = onAddMore),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Box(
-                                Modifier.size(24.dp).clip(CircleShape).background(SurfaceContainer),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(Icons.Default.Add, "Add", tint = OnSurfaceVariant, modifier = Modifier.size(14.dp))
-                            }
-                            Text("Add Channel", color = OnSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                        }
-                    }
-                }
             }
         }
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun VideoCell(
     stream: WindowStream,
@@ -330,10 +332,13 @@ private fun VideoCell(
     onLongPress: () -> Unit,
     onVolumeToggle: (Boolean) -> Unit,
     onFullscreen: (() -> Unit)? = null,
+    onCompletion: (() -> Unit)? = null,
+    onSwapLeft: (() -> Unit)? = null,
+    onSwapRight: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val playerHandle = remember(stream.id) {
-        MultiWindowPlayerManager.createPlayer(stream.channel.url, emptyMap()).also { MultiWindowStore.storePlayerHandle(stream.id, it.id) }
+        MultiWindowPlayerManager.createPlayer(stream.channel.url, emptyMap(), onCompletion = onCompletion).also { MultiWindowStore.storePlayerHandle(stream.id, it.id) }
     }
     DisposableEffect(stream.id) {
         val vol = MultiWindowStore.getVolume(stream.id)
@@ -349,6 +354,8 @@ private fun VideoCell(
     var controlsInteractionTrigger by remember { mutableStateOf(0) }
     var elapsedSeconds by remember { mutableStateOf(0) }
     var seekProgress by remember { mutableStateOf(0f) }
+    var showChannelPicker by remember { mutableStateOf(false) }
+    var channelSearchQuery by remember { mutableStateOf("") }
 
     // Audio focus gets 2dp primary border + glow
     val borderModifier = if (isAudioFocused) {
@@ -429,6 +436,18 @@ private fun VideoCell(
                 }
             }
 
+            // Left: swap-left arrow
+            if (onSwapLeft != null) {
+                Box(
+                    Modifier.align(Alignment.CenterStart).padding(start = 4.dp).size(28.dp).clip(CircleShape)
+                        .background(SurfaceContainerHighest.copy(alpha = 0.7f))
+                        .clickable { onSwapLeft(); onInteraction() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("◀", color = OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
             // Center: play/pause button
             Box(
                 Modifier.align(Alignment.Center).size(36.dp).clip(CircleShape)
@@ -444,6 +463,18 @@ private fun VideoCell(
             ) {
                 Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     "Play/Pause", tint = Primary, modifier = Modifier.size(18.dp))
+            }
+
+            // Right: swap-right arrow
+            if (onSwapRight != null) {
+                Box(
+                    Modifier.align(Alignment.CenterEnd).padding(end = 4.dp).size(28.dp).clip(CircleShape)
+                        .background(SurfaceContainerHighest.copy(alpha = 0.7f))
+                        .clickable { onSwapRight(); onInteraction() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("▶", color = OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
             }
 
             // Bottom-right: volume toggle chip
@@ -474,14 +505,22 @@ private fun VideoCell(
                 }
             }
 
-            // Bottom-left: options menu (⋮)
-            Box(
-                Modifier.align(Alignment.BottomStart).padding(6.dp)
-                    .clip(RoundedCornerShape(6.dp)).background(SurfaceContainerHighest.copy(alpha = 0.8f))
-                    .clickable(onClick = { onLongPress(); onInteraction() })
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            ) {
-                Text("⋮", color = OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            // Bottom-left: channel picker + options menu
+            Row(Modifier.align(Alignment.BottomStart).padding(6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(
+                    Modifier.clip(RoundedCornerShape(6.dp)).background(Primary.copy(alpha = 0.8f))
+                        .clickable(onClick = { showChannelPicker = true; onInteraction() })
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                ) {
+                    Text("CH", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+                Box(
+                    Modifier.clip(RoundedCornerShape(6.dp)).background(SurfaceContainerHighest.copy(alpha = 0.8f))
+                        .clickable(onClick = { onLongPress(); onInteraction() })
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    Text("⋮", color = OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
             }
 
             // Progress bar at very bottom
@@ -498,6 +537,83 @@ private fun VideoCell(
                         Modifier.align(Alignment.CenterEnd).size(6.dp).clip(CircleShape)
                             .background(PrimaryContainer),
                     )
+                }
+            }
+        }
+    }
+
+    if (showChannelPicker) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showChannelPicker = false; channelSearchQuery = "" },
+            sheetState = sheetState,
+            containerColor = SurfaceContainer,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        ) {
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth().heightIn(max = 500.dp)) {
+                val allCh = remember { IptvRepository.getAllChannels() }
+                val filteredCh = remember(allCh, channelSearchQuery) {
+                    if (channelSearchQuery.isBlank()) allCh
+                    else allCh.filter { it.name.lowercase().contains(channelSearchQuery.lowercase()) }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text("Select Channel — Slot ${stream.slotIndex + 1}", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text("${filteredCh.size}", color = OnSurfaceVariant, fontSize = 12.sp)
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = channelSearchQuery,
+                    onValueChange = { channelSearchQuery = it },
+                    placeholder = { Text("Search channels...", color = OnSurfaceVariant.copy(alpha = 0.5f), fontSize = 13.sp) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = OnSurface, unfocusedTextColor = OnSurface,
+                        focusedBorderColor = Primary, unfocusedBorderColor = OnSurfaceVariant.copy(alpha = 0.3f),
+                        cursorColor = Primary,
+                    ),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+                )
+                Spacer(Modifier.height(8.dp))
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    items(filteredCh) { ch ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                                .background(SurfaceContainerLow)
+                                .clickable {
+                                    MultiWindowStore.addToSlot(ch, stream.slotIndex)
+                                    showChannelPicker = false
+                                    channelSearchQuery = ""
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (!ch.logo.isNullOrBlank()) {
+                                coil3.compose.AsyncImage(
+                                    model = ch.logo, contentDescription = null,
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                                    modifier = Modifier.size(28.dp).clip(RoundedCornerShape(4.dp))
+                                        .background(SurfaceContainerHighest),
+                                )
+                                Spacer(Modifier.width(10.dp))
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(ch.name, color = OnSurface, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (ch.group != null) {
+                                    Text(ch.group, color = OnSurfaceVariant.copy(alpha = 0.6f), fontSize = 10.sp, maxLines = 1)
+                                }
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text("Select", color = Primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (filteredCh.isEmpty()) {
+                        item {
+                            Text("No channels match", color = OnSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(vertical = 20.dp))
+                        }
+                    }
                 }
             }
         }

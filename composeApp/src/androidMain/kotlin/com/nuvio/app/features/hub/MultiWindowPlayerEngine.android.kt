@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -24,7 +25,7 @@ actual object MultiWindowPlayerManager {
         appContext = context.applicationContext
     }
 
-    actual fun createPlayer(sourceUrl: String, headers: Map<String, String>): PlayerHandle {
+    actual fun createPlayer(sourceUrl: String, headers: Map<String, String>, onCompletion: (() -> Unit)?): PlayerHandle {
         if (players.size >= MAX_PLAYERS) {
             val oldest = players.keys.first()
             releasePlayer(PlayerHandle(oldest))
@@ -53,6 +54,15 @@ actual object MultiWindowPlayerManager {
             setMediaItem(mediaItem)
             prepare()
             playWhenReady = true
+            if (onCompletion != null) {
+                addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (playbackState == Player.STATE_ENDED) {
+                            onCompletion()
+                        }
+                    }
+                })
+            }
         }
         players[id] = player
         return PlayerHandle(id)

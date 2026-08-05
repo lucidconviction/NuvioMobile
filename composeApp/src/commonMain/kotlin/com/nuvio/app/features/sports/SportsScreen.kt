@@ -1016,7 +1016,8 @@ private fun Page1Live(
                                                     .background(Primary.copy(alpha = 0.15f))
                                                     .padding(horizontal = 8.dp, vertical = 2.dp),
                                             ) {
-                                                Text("${leagueEvents.size} LIVE", color = Primary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                                val liveCount = leagueEvents.count { it.isLive }
+                            Text("${liveCount} LIVE", color = Primary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                                             }
                                         }
                                         Text(if (isExpanded) "▲" else "▼", color = OnSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -2461,7 +2462,7 @@ private fun CategoryChipsBar(
     selectedLeague: SportLeague?,
     onLeagueSelected: (SportLeague?) -> Unit,
 ) {
-    val quickLeagues = listOf("nfl", "nba", "mlb", "nhl", "ufc", "mls")
+    val quickLeagues = listOf("nfl", "nba", "mlb", "nhl", "ufc", "bkfc", "mls")
     val quickList = leagues.filter { it.id.lowercase() in quickLeagues }
     val orderedQuick = quickLeagues.mapNotNull { abbr -> quickList.find { it.id.lowercase() == abbr } }
     var showMore by remember { mutableStateOf(false) }
