@@ -45,6 +45,19 @@ APK: `androidApp/build/outputs/apk/full/debug/androidApp-full-debug.apk`
 
 #### Player Screen
 - **IPTV channel navigation arrows** — hideaway ◀ ▶ buttons on player screen when watching IPTV from home screen (auto-hide with controls)
+- **CH & History overlay fix** — channel/history buttons now work when launching IPTV from home screen; added `IptvRepository` fallback for missing channel list data
+- **Live Games overlay** — only shows live events (DaddyLive filtered to `it.isLive`); channel picker now properly switches to selected IPTV channel
+
+#### Pin to Quick Channels
+- **Pin button** — star (★/☆) button on TV and mobile channel cards; pinned channels appear at top of Quick Channels list (session-scoped)
+
+#### SportNutz Highlights
+- **Past highlights** — up to 8 highlight videos shown in all-live mode (was 3); TV mode shows up to 8 (was 2)
+- **Trending highlights** — already visible in league tabs at bottom of Page1Live
+
+#### Bug Fixes
+- **TorrServer execution on Android 13** — uses `/system/bin/linker64` to bypass `noexec` mount on app data directories
+- **IPTV player channel data** — fallback to `IptrRepository.getAllChannels()` when `PlayerLaunch` lacks channel list
 
 #### Settings
 - **Telegram groups updated** — footer now shows @RnutzNuvioUpdates, @RNutzNuvioChat, @RNutzNuvioBugs (removed GitHub link)
