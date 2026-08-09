@@ -320,13 +320,7 @@ actual object P2pStreamingEngine {
             killOrphanedProcess()
 
             val ctx = requireContext()
-            // Use external files dir for the binary (app internal data dirs are mounted noexec on Android 13+ Samsung)
-            val externalDir = ctx.getExternalFilesDir(null)
-            val configDir = if (externalDir != null) {
-                File(externalDir, "torrserver").also { it.mkdirs() }
-            } else {
-                File(ctx.cacheDir, "torrserver").also { it.mkdirs() }
-            }
+            val configDir = File(ctx.filesDir, "torrserver").also { it.mkdirs() }
 
             // Copy binary from native libs to writable directory (needed on Android 10+ where nativeLibDir is read-only)
             val nativeBinary = File(ctx.applicationInfo.nativeLibraryDir, "libtorrserver.so")
@@ -342,7 +336,15 @@ actual object P2pStreamingEngine {
                 executableBinary.setExecutable(true)
             }
 
+            // Android 13+ blocks executing binaries from app data dirs.
+            // Use the system linker to load and execute the .so binary instead.
+            val linker = if (ctx.applicationInfo.nativeLibraryDir.contains("arm64")) {
+                "/system/bin/linker64"
+            } else {
+                "/system/bin/linker"
+            }
             val processBuilder = ProcessBuilder(
+                linker,
                 executableBinary.absolutePath,
                 "--port",
                 PORT.toString(),

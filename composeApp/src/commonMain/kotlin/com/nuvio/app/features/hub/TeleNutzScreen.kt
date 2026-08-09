@@ -540,53 +540,6 @@ private fun AuthScreen(
                             .clickable { if (uiState.phoneInput.isNotBlank()) scope.launch { TeleNutzRepository.setPhoneNumber(uiState.phoneInput) } }
                             .padding(horizontal = 24.dp, vertical = 12.dp),
                     ) { Text("Next", color = ChipTextSelected, fontWeight = FontWeight.Bold) }
-                    Spacer(Modifier.height(16.dp))
-                    Text("- or -", color = TertiaryText, fontSize = 13.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(SurfaceCard)
-                            .clickable { scope.launch { TeleNutzRepository.requestQrCode() } }
-                            .padding(horizontal = 24.dp, vertical = 12.dp),
-                    ) { Text("Login with QR Code", color = OnSurface) }
-                }
-                TelegramAuthState.WaitQrCode -> {
-                    Text("Scan this QR code with your Telegram app", color = OnSurfaceVariant, fontSize = 14.sp)
-                    Spacer(Modifier.height(12.dp))
-                    if (uiState.authQrUrl != null) {
-                        Text(uiState.authQrUrl!!, color = TertiaryText, fontSize = 10.sp, textAlign = TextAlign.Center)
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    Text("- or -", color = TertiaryText, fontSize = 13.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Text("Enter your phone number", color = OnSurfaceVariant, fontSize = 14.sp)
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = uiState.phoneInput,
-                        onValueChange = { onUpdate(uiState.copy(phoneInput = it)) },
-                        placeholder = { Text("+1234567890", color = TertiaryText) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Go),
-                        keyboardActions = KeyboardActions(onGo = {
-                            if (uiState.phoneInput.isNotBlank()) scope.launch { TeleNutzRepository.setPhoneNumber(uiState.phoneInput) }
-                        }),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = OnSurface, unfocusedTextColor = OnSurface,
-                            focusedBorderColor = BorderColor, unfocusedBorderColor = BorderColor,
-                            cursorColor = OnSurface, focusedContainerColor = SurfaceCard, unfocusedContainerColor = SurfaceCard,
-                        ),
-                        modifier = Modifier.fillMaxWidth(if (isWide) 0.5f else 1f),
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(ChipBgSelected)
-                            .clickable { if (uiState.phoneInput.isNotBlank()) scope.launch { TeleNutzRepository.setPhoneNumber(uiState.phoneInput) } }
-                            .padding(horizontal = 24.dp, vertical = 12.dp),
-                    ) { Text("Next", color = ChipTextSelected, fontWeight = FontWeight.Bold) }
                 }
                 TelegramAuthState.WaitCode -> {
                     Text("Enter the code sent to your phone", color = OnSurfaceVariant, fontSize = 14.sp)
@@ -651,6 +604,7 @@ private fun AuthScreen(
                     Spacer(Modifier.height(16.dp))
                     CircularProgressIndicator(color = OnSurfaceVariant, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
                 }
+                TelegramAuthState.WaitQrCode -> {}
                 TelegramAuthState.Closed -> Text("Disconnected", color = OnSurfaceVariant, fontSize = 14.sp)
             }
             if (uiState.authError != null) {

@@ -15,6 +15,7 @@ object Sync2CalMappings {
         Sync2CalLeague("ufc", "sports/fighting/ufc"),
         Sync2CalLeague("boxing", "sports/fighting/boxing"),
         Sync2CalLeague("pfl", "sports/fighting/pfl"),
+        Sync2CalLeague("bkfc", "sports/fighting/bkfc"),
         Sync2CalLeague("mls", "sports/soccer/usa/mls", "sports/soccer/usa/mls/"),
         Sync2CalLeague("epl", "sports/soccer/england/premier-league", "sports/soccer/england/premier-league/"),
         Sync2CalLeague("laliga", "sports/soccer/spain/la-liga", "sports/soccer/spain/la-liga/"),

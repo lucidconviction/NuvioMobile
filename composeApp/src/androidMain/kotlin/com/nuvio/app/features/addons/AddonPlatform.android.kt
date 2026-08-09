@@ -66,6 +66,13 @@ actual object AddonStorage {
             ?.putString("${addonEnabledStatesKey}_$profileId", payload)
             ?.apply()
     }
+
+    actual fun hasSeededDefaultAddons(): Boolean =
+        preferences?.getBoolean("default_addons_seeded", false) ?: false
+
+    actual fun markDefaultAddonsSeeded() {
+        preferences?.edit()?.putBoolean("default_addons_seeded", true)?.apply()
+    }
 }
 
 private fun parseEnabledStateLine(line: String): Pair<String, Boolean>? {

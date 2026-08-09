@@ -10,6 +10,7 @@ import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.p2p.P2pStreamingState
 import com.nuvio.app.features.player.skip.NextEpisodeInfo
 import com.nuvio.app.features.player.skip.PlayerNextEpisodeRules
+import com.nuvio.app.features.sports.YouTubeStreamResolver
 import com.nuvio.app.features.player.skip.SkipIntroRepository
 import com.nuvio.app.features.streams.BingeGroupCacheRepository
 import com.nuvio.app.features.streams.StreamLinkCacheRepository
@@ -19,6 +20,7 @@ import com.nuvio.app.features.watchprogress.WatchProgressRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 
@@ -531,6 +533,24 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
                         providerName = args.providerName,
                         parentMetaId = args.parentMetaId,
                         parentMetaType = args.parentMetaType,
+                        poster = args.poster,
+                        autoPlayQueueUrls = args.autoPlayQueueUrls,
+                        autoPlayQueueTitles = args.autoPlayQueueTitles,
+                        autoPlayQueueIndex = nextIdx,
+                    )
+                } else if (nextUrl.startsWith("yt://")) {
+                    val videoId = nextUrl.removePrefix("yt://")
+                    val resolved = runBlocking { com.nuvio.app.features.sports.YouTubeStreamResolver.resolveStream(videoId) }
+                    PlayerLaunch(
+                        profileId = args.profileId, title = nextTitle,
+                        sourceUrl = resolved?.url ?: nextUrl,
+                        sourceHeaders = resolved?.headers ?: emptyMap(),
+                        sourceAudioUrl = resolved?.audioUrl,
+                        qualities = resolved?.qualities ?: emptyList(),
+                        streamTitle = nextTitle,
+                        streamSubtitle = args.streamSubtitle,
+                        providerName = "YouTube",
+                        parentMetaId = "youtube", parentMetaType = "youtube",
                         poster = args.poster,
                         autoPlayQueueUrls = args.autoPlayQueueUrls,
                         autoPlayQueueTitles = args.autoPlayQueueTitles,

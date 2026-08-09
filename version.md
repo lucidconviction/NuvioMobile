@@ -8,7 +8,42 @@ export ANDROID_HOME=~/Library/Android/sdk
 ```
 APK: `androidApp/build/outputs/apk/full/debug/androidApp-full-debug.apk`
 
-### v0.13.0 — MagNutz Removal, Quick Channels, MultiWindow Overhaul, BKFC, Timezone Fixes (August 4, 2026)
+### v0.17.0 — BKFC/PFL/PowerSlap Scrapers, Quick Channel Region Bundles, SportNutz Overhaul, Prev/Next Player Arrows (August 8, 2026)
+
+#### New Features
+- **BKFC scraper** — `BkfcClient` scrapes `bkfc.com/events` for upcoming Bare Knuckle FC events; wired into BKFC collapsible tab + pill tab
+- **PFL scraper** — `PflClient` scrapes `pflmma.com` homepage JSON-LD for PFL fight cards; wired into PFL collapsible tab + pill tab
+- **PowerSlap scraper** — `PowerSlapClient` scrapes `powerslap.com/events` for PowerSlap events; new PowerSlap league pill tab added
+- **Boxing scraper** — `BoxingSceneClient` fetches boxing schedule from Sync2Cal API; wired into BOXING collapsible tab + pill tab
+
+#### SportNutz Overhaul
+- **Featured Highlights grid** — merged trending news + league-specific highlights into a single grid (TV: 4-col, Mobile: adaptive), up to 12 videos
+- **30-day Sync2Cal schedule window** — upcoming events filtered to next 30 days with proper sorting by start time
+- **Real team names on Sync2Cal tap** — `splitEventTeams()` parses event titles for real home/away team names; video search uses actual names
+- **LIVE/UPCOMING/ENDED badges** — collapsible tab headers show accurate counts per status; individual event cards tagged with LIVE/UPCOMING/ENDED
+- **League-specific highlights** — each league tab fetches 4 highlight queries (e.g. "MLB highlights", "MLB top plays") and shows up to 12 videos
+- **Fighting tabs first** — collapsible section order: UFC, PFL, BKFC, BOXING, PowerSlap, then rest alphabetically
+- **Soccer leagues filtered** — USA.1, ESP.1, ITA.1, FRA.1, ENG.1 removed from collapsible display
+- **10 trending highlights** — trending news section capped at 10 videos with diverse query coverage
+
+#### Player Screen
+- **Prev/Next video arrows** — SkipPrevious/SkipNext buttons added to center control bar; overlay ◀▶ arrows on left/right edges for queue navigation
+- **Auto-advance queue** — `yt://` protocol for YouTube video queues; resolves stream URLs on-the-fly when navigating prev/next/auto-advance
+- **All SportNutz video queues** — featured highlights, search results, event detail videos all pass queue for prev/next navigation
+
+#### Quick Channels
+- **Region sub-channel bundles** — "US Channels", "CA Channels", "UK Channels" entries with word-boundary regex matching on channel name + category
+- **`QuickChannelList.matches()`** — dedicated matching function with region token lists and `\b` word-boundary for short tokens
+- **All callers updated** — HomeQuickChannelsSection, IptvScreen, MultiWindowCellOptions now use `QuickChannelList.matches()`
+
+#### Default Addons
+- **First-launch seeding** — `AddonRepository.initialize()` seeds cinemeta, opensubtitles, hdhub, mediafusion, torrentio on first ever launch
+- **First-launch flag** — `AddonStorage.hasSeededDefaultAddons()`/`markDefaultAddonsSeeded()` prevents re-seeding
+
+#### TeleNutz
+- **QR code login removed** — login via QR code option removed from auth screen; WaitQrCode state handled as empty
+
+#### v0.13.0 — MagNutz Removal, Quick Channels, MultiWindow Overhaul, BKFC, Timezone Fixes (August 4, 2026)
 
 #### Hub Changes
 - **MagNutz removed** — entire torrent download manager deleted (TorrServer-dependent, unreliable)

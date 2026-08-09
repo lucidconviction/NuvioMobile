@@ -844,17 +844,22 @@ private fun TvDaddyLiveCard(event: DaddyLiveEvent, onClick: () -> Unit) {
 }
 
 // ── Helper to play a YouTube video ───────────────────────────────────────
-private fun CoroutineScope.playYouTubeVideo(video: YouTubeVideo, onPlayChannel: ((PlayerLaunch) -> Unit)?) {
+private fun CoroutineScope.playYouTubeVideo(video: YouTubeVideo, onPlayChannel: ((PlayerLaunch) -> Unit)?, queue: List<YouTubeVideo>? = null) {
     launch {
         try {
             val result = com.nuvio.app.features.sports.YouTubeStreamResolver.resolveStream(video.videoId)
             if (result != null && onPlayChannel != null) {
+                val queueUrls = queue?.map { v -> "yt://${v.videoId}" } ?: emptyList()
+                val queueTitles = queue?.map { it.title } ?: emptyList()
+                val currentIdx = queue?.indexOfFirst { it.videoId == video.videoId }?.coerceIn(0, queue.size - 1) ?: 0
                 val launch = PlayerLaunch(
                     profileId = 0, title = video.title, sourceUrl = result.url,
                     sourceHeaders = result.headers, streamTitle = video.title,
                     providerName = "YouTube", parentMetaId = "youtube",
                     parentMetaType = "youtube",
                     sourceAudioUrl = result.audioUrl, qualities = result.qualities,
+                    autoPlayQueueUrls = queueUrls, autoPlayQueueTitles = queueTitles,
+                    autoPlayQueueIndex = currentIdx,
                 )
                 onPlayChannel(launch)
             }
@@ -1169,7 +1174,7 @@ private fun Page1Live(
                 item {
                     TrendingNewsVideosSection(
                         videos = uiState.trendingNewsVideos,
-                        onPlayVideo = { v -> scope.playYouTubeVideo(v, onPlayChannel) },
+                        onPlayVideo = { v -> scope.playYouTubeVideo(v, onPlayChannel, uiState.trendingNewsVideos) },
                     )
                 }
             }
@@ -2710,15 +2715,19 @@ private fun SportEventDetailPanel(
                             VideoCardSmall(video = video, onClick = {
                                 scope.launch {
                                     val result = com.nuvio.app.features.sports.YouTubeStreamResolver.resolveStream(video.videoId)
-                                    result?.let { sr ->
-                                        val launch = PlayerLaunch(
-                                            profileId = 0, title = video.title, sourceUrl = sr.url,
-                                            sourceHeaders = sr.headers, streamTitle = video.title,
+                                    if (result != null) {
+                                        val queueUrls = videos.map { v -> "yt://${v.videoId}" }
+                                        val queueTitles = videos.map { it.title }
+                                        val currentIdx = videos.indexOfFirst { it.videoId == video.videoId }.coerceAtLeast(0)
+                                        onPlayPlayerLaunch?.invoke(PlayerLaunch(
+                                            profileId = 0, title = video.title, sourceUrl = result.url,
+                                            sourceHeaders = result.headers, streamTitle = video.title,
                                             providerName = "YouTube", parentMetaId = "youtube",
                                             parentMetaType = "youtube",
-                                            sourceAudioUrl = sr.audioUrl, qualities = sr.qualities,
-                                        )
-                                        onPlayPlayerLaunch?.invoke(launch)
+                                            sourceAudioUrl = result.audioUrl, qualities = result.qualities,
+                                            autoPlayQueueUrls = queueUrls, autoPlayQueueTitles = queueTitles,
+                                            autoPlayQueueIndex = currentIdx,
+                                        ))
                                     }
                                 }
                             })
@@ -3019,4 +3028,20 @@ private fun SportsSkeletonLoader() {
             }
         }
     }
+}
+
+private fun parseIsoMillis(dateStr: String): Long? {
+    if (dateStr.isBlank()) return null
+    try { return java.time.OffsetDateTime.parse(dateStr).toInstant().toEpochMilli() } catch (_: Exception) {}
+    try { return java.time.LocalDateTime.parse(dateStr.take(19)).atZone(java.time.ZoneOffset.UTC).toInstant().toEpochMilli() } catch (_: Exception) {}
+    try { return java.time.LocalDate.parse(dateStr.take(10)).atStartOfDay().atZone(java.time.ZoneOffset.UTC).toInstant().toEpochMilli() } catch (_: Exception) {}
+    return null
+}
+
+private fun splitEventTeams(title: String): Pair<String, String> {
+    val parts = title.split(Regex("\\s+[vV][sS]\\s+|\\s*@\\s*"))
+    val first = parts.firstOrNull()?.trim().orEmpty()
+    val second = parts.getOrNull(1)?.trim().orEmpty()
+    if (first.isBlank() || second.isBlank()) return Pair("Away", "Home")
+    return Pair(first, second)
 }

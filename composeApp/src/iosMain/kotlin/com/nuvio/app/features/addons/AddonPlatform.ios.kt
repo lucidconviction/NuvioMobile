@@ -61,6 +61,13 @@ actual object AddonStorage {
             forKey = "${addonEnabledStatesKey}_$profileId",
         )
     }
+
+    actual fun hasSeededDefaultAddons(): Boolean =
+        NSUserDefaults.standardUserDefaults.boolForKey("default_addons_seeded")
+
+    actual fun markDefaultAddonsSeeded() {
+        NSUserDefaults.standardUserDefaults.setObject(true, forKey = "default_addons_seeded")
+    }
 }
 
 private fun parseEnabledStateLine(line: String): Pair<String, Boolean>? {

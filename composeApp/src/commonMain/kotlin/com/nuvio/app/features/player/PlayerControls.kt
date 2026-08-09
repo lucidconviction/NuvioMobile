@@ -41,6 +41,8 @@ import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.List
 import androidx.compose.material.icons.rounded.Replay10
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Speed
@@ -100,6 +102,8 @@ internal fun PlayerControlsShell(
     onTogglePlayback: () -> Unit,
     onSeekBack: () -> Unit,
     onSeekForward: () -> Unit,
+    onPrev: (() -> Unit)? = null,
+    onNext: (() -> Unit)? = null,
     onResizeModeClick: () -> Unit,
     onSpeedClick: () -> Unit,
     onSubtitleClick: () -> Unit,
@@ -200,6 +204,8 @@ internal fun PlayerControlsShell(
                     onSeekBack = onSeekBack,
                     onSeekForward = onSeekForward,
                     onTogglePlayback = onTogglePlayback,
+                    onPrev = onPrev,
+                    onNext = onNext,
                     modifier = Modifier
                         .align(Alignment.Center)
                         .padding(bottom = metrics.centerLift),
@@ -433,6 +439,8 @@ private fun CenterControls(
     onSeekBack: () -> Unit,
     onSeekForward: () -> Unit,
     onTogglePlayback: () -> Unit,
+    onPrev: (() -> Unit)? = null,
+    onNext: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -440,6 +448,14 @@ private fun CenterControls(
         horizontalArrangement = Arrangement.spacedBy(metrics.centerGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (onPrev != null) {
+            SideControlButton(
+                icon = Icons.Rounded.SkipPrevious,
+                contentDescription = "Previous",
+                metrics = metrics,
+                onClick = onPrev,
+            )
+        }
         SideControlButton(
             icon = Icons.Rounded.Replay10,
             contentDescription = stringResource(Res.string.compose_player_seek_back_10),
@@ -458,6 +474,14 @@ private fun CenterControls(
             metrics = metrics,
             onClick = onSeekForward,
         )
+        if (onNext != null) {
+            SideControlButton(
+                icon = Icons.Rounded.SkipNext,
+                contentDescription = "Next",
+                metrics = metrics,
+                onClick = onNext,
+            )
+        }
     }
 }
 

@@ -474,8 +474,7 @@ private fun QuickChannelOverlay(
         loadState = try {
             val matches = withContext(Dispatchers.Default) {
                 allChannels.filter { ch ->
-                    ch.name.contains(qc.displayName, ignoreCase = true) ||
-                    qc.aliases.any { ch.name.contains(it, ignoreCase = true) }
+                    QuickChannelList.matches(qc, ch)
                 }
             }
             if (matches.isEmpty()) {

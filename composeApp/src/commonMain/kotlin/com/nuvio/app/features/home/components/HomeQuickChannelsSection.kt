@@ -115,8 +115,7 @@ fun HomeQuickChannelsSection(
                     qc = qc,
                     onClick = {
                         val matches = IptvRepository.getAllChannels().filter { ch ->
-                            ch.name.contains(qc.displayName, ignoreCase = true) ||
-                            qc.aliases.any { ch.name.contains(it, ignoreCase = true) }
+                            QuickChannelList.matches(qc, ch)
                         }
                         qcMatches = matches
                         selectedQc = qc

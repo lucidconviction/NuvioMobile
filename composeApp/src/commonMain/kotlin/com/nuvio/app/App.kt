@@ -2886,6 +2886,22 @@ private fun MainAppContent(
                         launch.videoId?.let { ResumePromptRepository.markPlayerEntered(it) }
                     }
                     LaunchedEffect(Unit) {
+                        SportsNowStore.onSwitchToChannel = { channel ->
+                            val chLaunch = PlayerLaunch(
+                                profileId = 0,
+                                title = channel.name,
+                                sourceUrl = channel.url,
+                                streamTitle = channel.name,
+                                providerName = "IPTV",
+                                parentMetaId = "iptv",
+                                parentMetaType = "tv",
+                                logo = channel.logo,
+                            )
+                            ResumePromptRepository.markPlayerExitedNormally()
+                            PlayerLaunchStore.remove(route.launchId)
+                            onBack()
+                            navController.navigate(PlayerRoute(launchId = PlayerLaunchStore.put(chLaunch)))
+                        }
                         SportsNowStore.onSwitchToEvent = { event ->
                             SportsRepository.selectEvent(event)
                             onBack()
@@ -3664,6 +3680,13 @@ private fun AppTabHost(
                         onFolderClick = onFolderClick,
                         onFirstCatalogRendered = onInitialHomeContentRendered,
                         onIptvChannelClick = { channel ->
+                            val allIptvCh = com.nuvio.app.features.iptv.IptvRepository.getAllChannels()
+                            val allNames = allIptvCh.map { it.name }
+                            val allUrls = allIptvCh.map { it.url }
+                            val allLogos = allIptvCh.mapNotNull { it.logo }
+                            val allIds = allIptvCh.map { it.id }
+                            val historyCh = com.nuvio.app.features.iptv.IptvRepository.getHistoryChannels()
+                            val currentIdx = allIptvCh.indexOfFirst { it.id == channel.id && it.sourceId == channel.sourceId }.coerceAtLeast(0)
                             val launch = com.nuvio.app.features.player.PlayerLaunch(
                                 profileId = 0,
                                 title = channel.name,
@@ -3673,6 +3696,15 @@ private fun AppTabHost(
                                 parentMetaId = "iptv",
                                 parentMetaType = "tv",
                                 logo = channel.logo,
+                                channelNames = allNames,
+                                channelUrls = allUrls,
+                                channelLogos = allLogos,
+                                channelIds = allIds,
+                                currentChannelIndex = currentIdx,
+                                historyChannelNames = historyCh.map { it.name },
+                                historyChannelUrls = historyCh.map { it.url },
+                                historyChannelLogos = historyCh.mapNotNull { it.logo },
+                                historyChannelIds = historyCh.map { it.id },
                             )
                             onIptvPlayChannel?.invoke(launch)
                         },

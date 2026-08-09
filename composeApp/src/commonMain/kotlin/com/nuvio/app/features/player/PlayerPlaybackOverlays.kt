@@ -239,7 +239,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
             "${y}-${(m+1).toString().padStart(2,'0')}-${(rem+1).toString().padStart(2,'0')}"
         }
         val espnEvents = SportsNowStore.liveEvents.filter { it.isLive }.filter { it.rawDate?.startsWith(todayPrefix) == true || it.rawDate == null }
-        val dlEvents = SportsNowStore.daddyLiveEvents
+        val dlEvents = SportsNowStore.daddyLiveEvents.filter { it.isLive }
         val hasAny = espnEvents.isNotEmpty() || dlEvents.isNotEmpty()
 
         var pickerEvent by remember { mutableStateOf<Pair<String, List<IptvChannel>>?>(null) }
@@ -285,11 +285,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                             Row(
                                 modifier = Modifier.fillMaxWidth().background(Color(0xFF111111), RoundedCornerShape(8.dp)).clickable {
                                     pickerEvent = null
-                                    SportsNowStore.onSwitchToEvent?.invoke(
-                                        espnEvents.firstOrNull { e ->
-                                            ch.name.lowercase().contains(e.channel.lowercase()) || e.channel.lowercase().contains(ch.name.lowercase())
-                                        } ?: return@clickable
-                                    )
+                                    SportsNowStore.onSwitchToChannel?.let { it(ch) }
                                 }.padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {

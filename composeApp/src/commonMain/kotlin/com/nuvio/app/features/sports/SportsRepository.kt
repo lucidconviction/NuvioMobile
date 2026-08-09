@@ -45,6 +45,7 @@ object SportsRepository {
         SportLeague("boxing", "Boxing", "BOX", "boxing/boxing", "https://a.espncdn.com/i/teamlogos/leagues/500/boxing.png"),
         SportLeague("pfl", "PFL MMA", "PFL", "mma/pfl", "https://a.espncdn.com/i/teamlogos/leagues/500/pfl.png"),
         SportLeague("bkfc", "BKFC", "BKFC", "mma/bkfc", "https://a.espncdn.com/i/teamlogos/leagues/500/bkfc.png"),
+        SportLeague("powerslap", "PowerSlap", "SLAP", "mma/powerslap", "https://a.espncdn.com/i/teamlogos/leagues/500/powerslap.png"),
         SportLeague("mls", "MLS Soccer", "MLS", "soccer/usa.1", "https://a.espncdn.com/i/teamlogos/leagues/500/mls.png"),
         SportLeague("epl", "Premier League", "EPL", "soccer/eng.1", "https://a.espncdn.com/i/teamlogos/leagues/500/epl.png"),
         SportLeague("laliga", "La Liga", "LALIGA", "soccer/esp.1", "https://a.espncdn.com/i/teamlogos/leagues/500/laliga.png"),
@@ -121,19 +122,60 @@ object SportsRepository {
         scope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                val eventsDeferred = async { retryWithBackoff { EspnClient.fetchLeague(sport, leagueName, queryDate) } }
-                val highlightsDeferred = async { retryWithBackoff(maxRetries = 2) { YouTubeHighlightClient.searchHighlights("${league.name} highlights") } }
-                val events = withTimeout(15_000) { eventsDeferred.await() }
-                val highlights = try { withTimeout(10_000) { highlightsDeferred.await() } } catch (_: Exception) { emptyList() }
-                val highlightVideos = if (highlights.isNotEmpty()) {
-                    listOf(HighlightVideo(eventId = "league_${league.id}", video = highlights.first(), sport = sport))
-                } else emptyList()
+                val events = if (league.id == "bkfc" || league.id == "pfl" || league.id == "powerslap") {
+                    val rawEvents = when (league.id) {
+                        "bkfc" -> withTimeout(15_000) { BkfcClient.fetchUpcomingEvents() }.map { ev ->
+                            val f1 = ev.fighter1.ifBlank { ev.mainEvent.substringBefore(" vs ") }
+                            val f2 = ev.fighter2.ifBlank { ev.mainEvent.substringAfter(" vs ") }
+                            val shortTitle = if (f1.isNotBlank() && f2.isNotBlank()) "$f1 vs $f2" else ev.title
+                            EspnProcessedEvent(id = "bkfc_${ev.slug}", title = shortTitle, homeTeam = f2, awayTeam = f1,
+                                homeScore = null, awayScore = null, homeLogo = null, awayLogo = null,
+                                channel = "", status = "Scheduled", detail = ev.location, date = ev.date, rawDate = ev.date,
+                                timeStr = ev.time.ifBlank { null }, sport = "Fighting", league = "BKFC", isLive = false, isPpv = false)
+                        }
+                        "pfl" -> withTimeout(15_000) { PflClient.fetchUpcomingEvents() }.map { ev ->
+                            val shortTitle = if (ev.fighter1.isNotBlank()) "${ev.fighter1} vs ${ev.fighter2}" else ev.title
+                            EspnProcessedEvent(id = "pfl_${ev.title.hashCode()}", title = shortTitle, homeTeam = ev.fighter2, awayTeam = ev.fighter1,
+                                homeScore = null, awayScore = null, homeLogo = null, awayLogo = null,
+                                channel = "", status = "Scheduled", detail = ev.location, date = ev.date, rawDate = ev.date,
+                                timeStr = ev.time.ifBlank { null }, sport = "Fighting", league = "PFL", isLive = false, isPpv = false)
+                        }
+                        else -> withTimeout(15_000) { PowerSlapClient.fetchUpcomingEvents() }.map { ev ->
+                            val shortTitle = if (ev.fighter1.isNotBlank()) "${ev.fighter1} vs ${ev.fighter2}" else ev.title
+                            EspnProcessedEvent(id = "slap_${ev.title.hashCode()}", title = shortTitle, homeTeam = ev.fighter2, awayTeam = ev.fighter1,
+                                homeScore = null, awayScore = null, homeLogo = null, awayLogo = null,
+                                channel = "", status = "Scheduled", detail = ev.location, date = ev.date, rawDate = ev.date,
+                                sport = "Fighting", league = "SLAP", isLive = false, isPpv = false)
+                        }
+                    }
+                    rawEvents
+                } else {
+                    withTimeout(15_000) { retryWithBackoff { EspnClient.fetchLeague(sport, leagueName, queryDate) } }
+                }
+                val standingsDeferred = async { retryWithBackoff(maxRetries = 2) { EspnClient.fetchStandings(sport, leagueName, null) } }
+                val standings = try { withTimeout(10_000) { standingsDeferred.await() } } catch (_: Exception) { emptyList() }
+                val highlightQueries = if (league.id == "boxing") {
+                    listOf("boxing highlights", "boxing knockouts", "boxing best fights", "boxing news")
+                } else {
+                    listOf(
+                        "${league.name} highlights", "${league.abbreviation} highlights",
+                        "${league.name} top plays", "${league.name} best moments",
+                    )
+                }
+                val highlightVideos = highlightQueries.mapNotNull { query ->
+                    try { withTimeout(8_000) { YouTubeHighlightClient.searchHighlights(query).take(3) } }
+                    catch (_: Exception) { emptyList() }
+                }.flatten().distinctBy { it.videoId }.take(12).mapIndexed { idx, video ->
+                    HighlightVideo(eventId = "league_${league.id}_$idx", video = video, sport = sport)
+                }
 
                 leagueCache[cacheKey] = LeagueCache(events, highlightVideos, System.currentTimeMillis())
                 _uiState.value = _uiState.value.copy(
                     events = events,
                     highlightVideos = highlightVideos,
+                    standings = standings,
                     isLoading = false,
+                    error = null,
                 )
             } catch (e: Exception) {
                 val cached = leagueCache[cacheKey]
@@ -208,8 +250,6 @@ object SportsRepository {
         _uiState.value = _uiState.value.copy(selectedLeague = league)
         if (league == null) {
             loadAllLiveEvents()
-        } else {
-            loadStandings(league)
         }
     }
 
@@ -276,6 +316,54 @@ object SportsRepository {
                 SportsNowStore.daddyLiveEvents = events
             } catch (_: Exception) {
                 _uiState.value = _uiState.value.copy(daddyLiveLoading = false)
+            }
+        }
+    }
+
+    fun loadBkfcEvents() {
+        scope.launch {
+            _uiState.value = _uiState.value.copy(bkfcLoading = true)
+            try {
+                val events = withTimeout(15_000) { BkfcClient.fetchUpcomingEvents() }
+                _uiState.value = _uiState.value.copy(bkfcEvents = events, bkfcLoading = false)
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(bkfcLoading = false)
+            }
+        }
+    }
+
+    fun loadBoxingEvents() {
+        scope.launch {
+            _uiState.value = _uiState.value.copy(boxingLoading = true)
+            try {
+                val events = withTimeout(15_000) { BoxingSceneClient.fetchUpcomingEvents() }
+                _uiState.value = _uiState.value.copy(boxingEvents = events, boxingLoading = false)
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(boxingLoading = false)
+            }
+        }
+    }
+
+    fun loadPflEvents() {
+        scope.launch {
+            _uiState.value = _uiState.value.copy(pflLoading = true)
+            try {
+                val events = withTimeout(15_000) { PflClient.fetchUpcomingEvents() }
+                _uiState.value = _uiState.value.copy(pflEvents = events, pflLoading = false)
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(pflLoading = false)
+            }
+        }
+    }
+
+    fun loadPowerSlapEvents() {
+        scope.launch {
+            _uiState.value = _uiState.value.copy(powerSlapLoading = true)
+            try {
+                val events = withTimeout(15_000) { PowerSlapClient.fetchUpcomingEvents() }
+                _uiState.value = _uiState.value.copy(powerSlapEvents = events, powerSlapLoading = false)
+            } catch (_: Exception) {
+                _uiState.value = _uiState.value.copy(powerSlapLoading = false)
             }
         }
     }
@@ -452,22 +540,29 @@ object SportsRepository {
 
     private suspend fun fetchTrendingNewsVideos(): List<YouTubeVideo> = coroutineScope {
         val queries = listOf(
-            "sports news this week", "NFL highlights", "NBA highlights",
-            "UFC news", "soccer highlights", "F1 racing",
-            "MLB highlights", "NHL highlights", "college football highlights",
+            "sports news today", "sports highlights today",
+            "NFL highlights", "NBA highlights",
+            "UFC news", "boxing highlights",
+            "MLB highlights", "NHL highlights",
+            "soccer highlights", "F1 racing",
+            "tennis highlights", "college football highlights",
+            "MMA fights", "WNBA highlights",
         )
         val results = mutableSetOf<YouTubeVideo>()
-        queries.shuffled().take(6).map { query ->
+        queries.shuffled().take(10).map { query ->
             async {
-                try { withTimeout(10_000) { YouTubeHighlightClient.searchHighlights(query) } }
+                try { withTimeout(12_000) { YouTubeHighlightClient.searchHighlights(query) } }
                 catch (_: Exception) { emptyList() }
             }
         }.also { deferreds ->
             deferreds.forEach { def ->
                 try { results.addAll(def.await().filter { it.videoId.isNotBlank() }) } catch (_: Exception) {}
-                if (results.size >= 15) return@forEach
             }
         }
-        results.take(15).shuffled()
+        if (results.size < 10) {
+            val fallback = try { YouTubeHighlightClient.searchHighlights("sports") } catch (_: Exception) { emptyList() }
+            results.addAll(fallback.filter { it.videoId.isNotBlank() })
+        }
+        results.take(10).shuffled()
     }
 }

@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.compose.material3.Text
+import kotlinx.coroutines.runBlocking
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -206,7 +207,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             p2pRebufferMessage = p2pRebufferMessage,
             p2pRebufferProgress = p2pRebufferProgress,
         )
-        if (args.autoPlayQueueUrls.isNotEmpty() && (navOverlayVisible || controlsVisible)) {
+        if (args.autoPlayQueueUrls.isNotEmpty()) {
             LaunchedEffect(navOverlayVisible, controlsVisible) {
                 if (navOverlayVisible || controlsVisible) {
                     delay(3000)
@@ -235,17 +236,20 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                                     val newIndex = currentIndex - 1
                                     val nextUrl = args.autoPlayQueueUrls[newIndex]
                                     val nextTitle = args.autoPlayQueueTitles.getOrElse(newIndex) { "" }
+                                    val resolved = if (nextUrl.startsWith("yt://")) {
+                                        runCatching { runBlocking { com.nuvio.app.features.sports.YouTubeStreamResolver.resolveStream(nextUrl.removePrefix("yt://")) } }.getOrNull()
+                                    } else null
                                     val nextLaunch = PlayerLaunch(
-                                        profileId = args.profileId,
-                                        title = nextTitle,
-                                        sourceUrl = nextUrl,
+                                        profileId = args.profileId, title = nextTitle,
+                                        sourceUrl = resolved?.url ?: nextUrl,
+                                        sourceHeaders = resolved?.headers ?: emptyMap(),
+                                        sourceAudioUrl = resolved?.audioUrl,
+                                        qualities = resolved?.qualities ?: emptyList(),
                                         streamTitle = nextTitle,
+                                        providerName = if (nextUrl.startsWith("yt://")) "YouTube" else args.providerName,
                                         streamSubtitle = args.streamSubtitle,
-                                        providerName = args.providerName,
-                                        parentMetaId = args.parentMetaId,
-                                        parentMetaType = args.parentMetaType,
-                                        poster = args.poster,
-                                        logo = args.logo,
+                                        parentMetaId = args.parentMetaId, parentMetaType = args.parentMetaType,
+                                        poster = args.poster, logo = args.logo,
                                         autoPlayQueueUrls = args.autoPlayQueueUrls,
                                         autoPlayQueueTitles = args.autoPlayQueueTitles,
                                         autoPlayQueueIndex = newIndex,
@@ -277,17 +281,20 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                                     val newIndex = currentIndex + 1
                                     val nextUrl = args.autoPlayQueueUrls[newIndex]
                                     val nextTitle = args.autoPlayQueueTitles.getOrElse(newIndex) { "" }
+                                    val resolved = if (nextUrl.startsWith("yt://")) {
+                                        runCatching { runBlocking { com.nuvio.app.features.sports.YouTubeStreamResolver.resolveStream(nextUrl.removePrefix("yt://")) } }.getOrNull()
+                                    } else null
                                     val nextLaunch = PlayerLaunch(
-                                        profileId = args.profileId,
-                                        title = nextTitle,
-                                        sourceUrl = nextUrl,
+                                        profileId = args.profileId, title = nextTitle,
+                                        sourceUrl = resolved?.url ?: nextUrl,
+                                        sourceHeaders = resolved?.headers ?: emptyMap(),
+                                        sourceAudioUrl = resolved?.audioUrl,
+                                        qualities = resolved?.qualities ?: emptyList(),
                                         streamTitle = nextTitle,
+                                        providerName = if (nextUrl.startsWith("yt://")) "YouTube" else args.providerName,
                                         streamSubtitle = args.streamSubtitle,
-                                        providerName = args.providerName,
-                                        parentMetaId = args.parentMetaId,
-                                        parentMetaType = args.parentMetaType,
-                                        poster = args.poster,
-                                        logo = args.logo,
+                                        parentMetaId = args.parentMetaId, parentMetaType = args.parentMetaType,
+                                        poster = args.poster, logo = args.logo,
                                         autoPlayQueueUrls = args.autoPlayQueueUrls,
                                         autoPlayQueueTitles = args.autoPlayQueueTitles,
                                         autoPlayQueueIndex = newIndex,
@@ -317,6 +324,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             val chIdx = args.iptvCurrentChannelIndex
             val chUrls = iptvChUrls
             val chNames = args.iptvChannelNames
+            val chLogos = args.iptvChannelLogos
             val hasPrevCh = chIdx > 0
             val hasNextCh = chIdx < chUrls.size - 1
             Box(
@@ -337,6 +345,8 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                                     sourceUrl = chUrls[newIdx],
                                     streamTitle = chNames?.getOrNull(newIdx) ?: "",
                                     currentChannelIndex = newIdx,
+                                    logo = chLogos?.getOrNull(newIdx),
+                                    poster = chLogos?.getOrNull(newIdx),
                                 )
                                 if (newLaunch != null) {
                                     flushWatchProgress()
@@ -362,6 +372,8 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                                     sourceUrl = chUrls[newIdx],
                                     streamTitle = chNames?.getOrNull(newIdx) ?: "",
                                     currentChannelIndex = newIdx,
+                                    logo = chLogos?.getOrNull(newIdx),
+                                    poster = chLogos?.getOrNull(newIdx),
                                 )
                                 if (newLaunch != null) {
                                     flushWatchProgress()
@@ -405,6 +417,31 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     }
 }
 
+private fun PlayerScreenRuntime.navigateQueue(newIndex: Int, queueUrls: List<String>, queueTitles: List<String>) {
+    val nextEntry = queueUrls.getOrNull(newIndex) ?: return
+    val nextTitle = queueTitles.getOrElse(newIndex) { "" }
+    val resolved = if (nextEntry.startsWith("yt://")) {
+        runCatching { runBlocking { com.nuvio.app.features.sports.YouTubeStreamResolver.resolveStream(nextEntry.removePrefix("yt://")) } }.getOrNull()
+    } else null
+    val nextLaunch = PlayerLaunch(
+        profileId = args.profileId, title = nextTitle,
+        sourceUrl = resolved?.url ?: nextEntry,
+        sourceHeaders = resolved?.headers ?: emptyMap(),
+        sourceAudioUrl = resolved?.audioUrl,
+        qualities = resolved?.qualities ?: emptyList(),
+        streamTitle = nextTitle,
+        streamSubtitle = args.streamSubtitle,
+        providerName = if (nextEntry.startsWith("yt://")) "YouTube" else args.providerName,
+        parentMetaId = args.parentMetaId, parentMetaType = args.parentMetaType,
+        poster = args.poster, logo = args.logo,
+        autoPlayQueueUrls = queueUrls, autoPlayQueueTitles = queueTitles,
+        autoPlayQueueIndex = newIndex,
+    )
+    flushWatchProgress()
+    val onSwitch = if (args.parentMetaId == "iptv") args.onSwitchIptvChannel else args.onAutoPlayNext
+    onSwitch?.invoke(PlayerLaunchStore.put(nextLaunch))
+}
+
 @Composable
 private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, isEpisode: Boolean) {
     AnimatedVisibility(
@@ -435,6 +472,8 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
             onTogglePlayback = { togglePlayback() },
             onSeekBack = { seekBy(-10_000L) },
             onSeekForward = { seekBy(10_000L) },
+            onPrev = if (args.autoPlayQueueIndex > 0) { { navigateQueue(args.autoPlayQueueIndex - 1, args.autoPlayQueueUrls, args.autoPlayQueueTitles) } } else null,
+            onNext = if (args.autoPlayQueueIndex < args.autoPlayQueueUrls.size - 1) { { navigateQueue(args.autoPlayQueueIndex + 1, args.autoPlayQueueUrls, args.autoPlayQueueTitles) } } else null,
             onResizeModeClick = { cycleResizeMode() },
             onSpeedClick = { cyclePlaybackSpeed() },
             onSubtitleClick = {
@@ -543,16 +582,23 @@ private fun BoxScope.RenderPlaybackOverlays(
 
     runtime.run {
         val iptvLaunch = remember(args.launchId) { PlayerLaunchStore.get(args.launchId) }
-        val iptvChannelNames = iptvLaunch?.channelNames
-        val iptvChannelUrls = iptvLaunch?.channelUrls
-        val iptvChannelLogos = iptvLaunch?.channelLogos
-        val iptvChannelIds = args.iptvChannelIds
+        var iptvChannelNames = iptvLaunch?.channelNames ?: args.iptvChannelNames
+        var iptvChannelUrls = iptvLaunch?.channelUrls ?: args.iptvChannelUrls
+        var iptvChannelLogos = iptvLaunch?.channelLogos ?: args.iptvChannelLogos
+        var iptvChannelIds = iptvLaunch?.channelIds ?: args.iptvChannelIds
+        if (iptvChannelNames == null && args.parentMetaId == "iptv") {
+            val allCh = com.nuvio.app.features.iptv.IptvRepository.getAllChannels()
+            iptvChannelNames = allCh.map { it.name }
+            iptvChannelUrls = allCh.map { it.url }
+            iptvChannelLogos = allCh.mapNotNull { it.logo }
+            iptvChannelIds = allCh.map { it.id }
+        }
         val iptvFavoriteIds = args.iptvFavoriteIds
         val iptvHistoryNames = args.iptvHistoryNames
         val iptvHistoryUrls = args.iptvHistoryUrls
         val iptvHistoryLogos = args.iptvHistoryLogos
         val iptvHistoryIds = args.iptvHistoryIds
-        val iptvCurrentChannelIndex = iptvLaunch?.currentChannelIndex ?: 0
+        val iptvCurrentChannelIndex = iptvLaunch?.currentChannelIndex ?: iptvChannelUrls?.indexOfFirst { it == args.sourceUrl }?.coerceAtLeast(0) ?: 0
 
         PlayerPlaybackOverlays(
             channelOverlayTrigger = channelOverlayTrigger,

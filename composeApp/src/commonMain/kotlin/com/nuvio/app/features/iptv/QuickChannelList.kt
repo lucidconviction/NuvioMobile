@@ -1,7 +1,52 @@
 package com.nuvio.app.features.iptv
 
 object QuickChannelList {
-    val all: List<QuickChannel> = listOf(
+    private val pinnedNames = mutableSetOf<String>()
+
+    val all: List<QuickChannel> get() = {
+        val pinnedQc = pinnedNames.mapNotNull { name -> default.find { it.displayName == name } }
+        pinnedQc + default.filter { it.displayName !in pinnedNames }
+    }()
+
+    fun isPinned(displayName: String): Boolean = displayName in pinnedNames
+
+    fun togglePin(displayName: String) {
+        if (displayName in pinnedNames) pinnedNames.remove(displayName)
+        else pinnedNames.add(displayName)
+    }
+
+    fun unpin(displayName: String) { pinnedNames.remove(displayName) }
+
+    private val regionUs = listOf("us", "usa", "united states")
+    private val regionCa = listOf("ca", "canada", "canadian", "canadien", "canadiens")
+    private val regionUk = listOf("uk", "united kingdom", "britain", "british", "england")
+
+    private val regionTokensByDisplayName = mapOf(
+        "US Channels" to regionUs,
+        "CA Channels" to regionCa,
+        "UK Channels" to regionUk,
+    )
+
+    fun matches(quickChannel: QuickChannel, channel: IptvChannel): Boolean {
+        val regionTokens = regionTokensByDisplayName[quickChannel.displayName]
+        if (regionTokens != null) {
+            val name = channel.name.lowercase()
+            val group = (channel.group ?: "").lowercase()
+            return regionTokens.any { token ->
+                val pattern = if (token.length <= 3) Regex("\\b$token\\b", RegexOption.IGNORE_CASE)
+                              else Regex(token, RegexOption.IGNORE_CASE)
+                pattern.containsMatchIn(name) || pattern.containsMatchIn(group)
+            }
+        }
+        return channel.name.contains(quickChannel.displayName, ignoreCase = true) ||
+            quickChannel.aliases.any { alias -> channel.name.contains(alias, ignoreCase = true) }
+    }
+
+    private val default: List<QuickChannel> = listOf(
+        // ── 0. REGION SUB-CHANNEL BUNDLES (always listed first) ──────────────
+        QuickChannel("US Channels", listOf("us", "usa", "united states", "american"), listOf("US"), listOf("region")),
+        QuickChannel("CA Channels", listOf("ca", "canada", "canadian", "canadien", "canadiens"), listOf("CA"), listOf("region")),
+        QuickChannel("UK Channels", listOf("uk", "united kingdom", "britain", "british", "england"), listOf("UK"), listOf("region")),
 
         // ── 1. NEWS ──────────────────────────────────────────────────────────
 

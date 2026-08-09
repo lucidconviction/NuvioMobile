@@ -355,9 +355,11 @@ private fun IptvTvMode(
                     TvChannelCard(
                         channel = channel,
                         isFavorite = channel.id in uiState.favoriteChannelIds,
+                        isQuickPinned = com.nuvio.app.features.iptv.QuickChannelList.isPinned(channel.name),
                         now = now,
                         onPlay = { playChannel(channel, onPlayChannel) },
                         onToggleFavorite = { IptvRepository.toggleFavorite(channel.id) },
+                        onToggleQuickPin = { com.nuvio.app.features.iptv.QuickChannelList.togglePin(channel.name) },
                         onAddToMultiWindow = { onPickerChannel(channel) },
                     )
                 }
@@ -677,9 +679,11 @@ private fun animateToAlpha(): Float {
 private fun TvChannelCard(
     channel: IptvChannel,
     isFavorite: Boolean,
+    isQuickPinned: Boolean,
     now: Long,
     onPlay: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onToggleQuickPin: () -> Unit,
     onAddToMultiWindow: () -> Unit,
 ) {
     Box(
@@ -703,6 +707,9 @@ private fun TvChannelCard(
         }
         Box(Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 4.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                IconButton(onClick = onToggleQuickPin, modifier = Modifier.size(28.dp)) {
+                    Text(if (isQuickPinned) "\u2605" else "\u2606", color = if (isQuickPinned) primary else onsurfaceContainerHigh.copy(alpha = 0.6f), fontSize = 14.sp)
+                }
                 IconButton(onClick = onToggleFavorite, modifier = Modifier.size(28.dp)) {
                     Icon(
                         if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
@@ -1037,14 +1044,15 @@ private fun IptvMobileMode(
                                 ) {
                                     rowChannels.forEach { channel ->
                                         Box(modifier = Modifier.weight(1f)) {
-                                            ChannelCard(
-                                                channel = channel,
-                                                now = now,
-                                                isFavorite = channel.id in uiState.favoriteChannelIds,
-                                                onPlay = { playChannel(channel, onPlayChannel) },
-                                                onToggleFavorite = { IptvRepository.toggleFavorite(channel.id) },
-                                                onAddToMultiWindow = { onPickerChannel(channel) },
-                                            )
+                                        ChannelCard(
+                                            channel = channel,
+                                            now = now,
+                                            isFavorite = channel.id in uiState.favoriteChannelIds,
+                                            isQuickPinned = com.nuvio.app.features.iptv.QuickChannelList.isPinned(channel.name),
+                                            onPlay = { playChannel(channel, onPlayChannel) },
+                                            onToggleFavorite = { IptvRepository.toggleFavorite(channel.id) },
+                                            onToggleQuickPin = { com.nuvio.app.features.iptv.QuickChannelList.togglePin(channel.name) },
+                                        )
                                         }
                                     }
                                     if (rowChannels.size < 2) {
@@ -1387,8 +1395,10 @@ private fun ChannelCard(
     channel: IptvChannel,
     now: Long,
     isFavorite: Boolean,
+    isQuickPinned: Boolean = false,
     onPlay: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onToggleQuickPin: (() -> Unit)? = null,
     onAddToMultiWindow: (() -> Unit)? = null,
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -1454,6 +1464,11 @@ private fun ChannelCard(
                 )
 
                 Row(Modifier.align(Alignment.TopEnd).padding(end = 4.dp)) {
+                    if (onToggleQuickPin != null) {
+                        IconButton(onClick = onToggleQuickPin, modifier = Modifier.size(28.dp)) {
+                            Text(if (isQuickPinned) "\u2605" else "\u2606", color = if (isQuickPinned) primary else onsurfaceContainerHigh.copy(alpha = 0.6f), fontSize = 14.sp)
+                        }
+                    }
                     if (onAddToMultiWindow != null) {
                         IconButton(onClick = onAddToMultiWindow, modifier = Modifier.size(28.dp)) {
                             Text("\u2295", color = onsurfaceContainerHigh.copy(alpha = 0.6f), fontSize = 14.sp)
@@ -2169,8 +2184,7 @@ private fun QuickChannelSourcesSheet(
         loadState = try {
             val matches = withContext(Dispatchers.Default) {
                 allChannels.filter { ch ->
-                    ch.name.contains(quickChannel.displayName, ignoreCase = true) ||
-                    quickChannel.aliases.any { ch.name.contains(it, ignoreCase = true) }
+                    QuickChannelList.matches(quickChannel, ch)
                 }
             }
             if (matches.isEmpty()) {

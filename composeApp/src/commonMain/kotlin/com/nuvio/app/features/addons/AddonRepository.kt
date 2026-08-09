@@ -63,7 +63,14 @@ object AddonRepository {
         currentProfileId = effectiveProfileId
         log.d { "initialize() — loading local addons for profile $currentProfileId" }
 
-        val storedUrls = dedupeManifestUrls(AddonStorage.loadInstalledAddonUrls(currentProfileId))
+        var storedUrls = dedupeManifestUrls(AddonStorage.loadInstalledAddonUrls(currentProfileId))
+        if (storedUrls.isEmpty() && !AddonStorage.hasSeededDefaultAddons()) {
+            log.i { "initialize() — first launch, seeding default addons" }
+            val defaultUrls = getDefaultAddonUrls()
+            AddonStorage.saveInstalledAddonUrls(currentProfileId, defaultUrls)
+            AddonStorage.markDefaultAddonsSeeded()
+            storedUrls = defaultUrls
+        }
         val enabledByUrl = loadLocalEnabledStates()
         log.d { "initialize() — local addon count: ${storedUrls.size}" }
         if (storedUrls.isEmpty()) return
@@ -498,6 +505,14 @@ private fun ensureManifestSuffix(url: String): String {
     val withSuffix = if (path.endsWith("/manifest.json")) path else "$path/manifest.json"
     return if (query.isEmpty()) withSuffix else "$withSuffix?$query"
 }
+
+private fun getDefaultAddonUrls(): List<String> = listOf(
+    "https://v3-cinemeta.strem.io",
+    "https://opensubtitles-v3.strem.io",
+    "https://hdhub.strem.io/manifest.json",
+    "https://mediafusion.strem.io/manifest.json",
+    "https://torrentio.strem.io/manifest.json",
+)
 
 private fun normalizeManifestUrl(rawUrl: String): String {
     val trimmed = rawUrl.trim()
