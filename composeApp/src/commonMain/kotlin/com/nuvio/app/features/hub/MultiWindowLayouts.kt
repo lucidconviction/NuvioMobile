@@ -3,6 +3,7 @@ package com.nuvio.app.features.hub
 data class SlotPos(val index: Int, val row: Int, val col: Int, val rowSpan: Int, val colSpan: Int)
 
 enum class MultiWindowLayout(val label: String) {
+    V1_FULL("1"),
     V2_SPLIT("1\u00D72"),
     V2_STACK("2\u00D71"),
     V3_STACK("3 vert"),
@@ -53,6 +54,7 @@ enum class MultiWindowLayout(val label: String) {
 
 fun getValidLayouts(count: Int, isPortrait: Boolean, isTablet: Boolean = false): List<MultiWindowLayout> {
     return when (count) {
+        1 -> listOf(MultiWindowLayout.V1_FULL)
         2 -> listOf(
             MultiWindowLayout.V2_SPLIT,
             MultiWindowLayout.V2_STACK,
@@ -146,10 +148,13 @@ fun getValidLayouts(count: Int, isPortrait: Boolean, isTablet: Boolean = false):
 }
 
 fun defaultLayout(count: Int, isPortrait: Boolean, isTablet: Boolean = false): MultiWindowLayout =
-    getValidLayouts(count, isPortrait, isTablet).first()
+    getValidLayouts(count, isPortrait, isTablet).firstOrNull() ?: MultiWindowLayout.V1_FULL
 
 fun MultiWindowLayout.calculateSlots(count: Int): List<SlotPos> {
     return when (this) {
+        MultiWindowLayout.V1_FULL -> listOf(
+            SlotPos(0, 0, 0, 1, 1),
+        )
         MultiWindowLayout.V2_SPLIT -> listOf(
             SlotPos(0, 0, 0, 1, 1), SlotPos(1, 0, 1, 1, 1),
         )

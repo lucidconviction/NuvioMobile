@@ -1,7 +1,10 @@
+@file:OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+
 package com.nuvio.app.features.iptv
 
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.addons.httpGetTextWithHeaders
+import com.nuvio.app.features.addons.httpGetTextWithHeadersLimited
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -9,6 +12,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -16,6 +20,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlin.io.encoding.Base64
 import kotlin.math.min
 
 data class PortalNutzEntry(
@@ -40,8 +45,49 @@ object PortalNutzScraper {
 
     private val UA = "Mozilla/5.0 (Linux; Android 11; NuvioTV) AppleWebKit/537.36"
 
+    private const val FETCH_TIMEOUT_MS = 4_000L
+    private const val MAX_PARALLEL_FETCHES = 24
+    private const val MAX_COUNT_PARALLEL = 48
+    private const val MAX_VERIFY_BYTES = 2 * 1024 * 1024
+    private const val MAX_COUNT_BYTES = 8 * 1024 * 1024
+    private const val MAX_RAW_FILE_BYTES = 8 * 1024 * 1024
+
     private data class Portal(val url: String, val username: String, val password: String, val source: String)
     private data class VerifiedPortal(val portal: Portal, val name: String, val domain: String)
+
+    private data class GitHubRepo(
+        val owner: String,
+        val repo: String,
+        val path: String,
+        val json: Boolean = false,
+        val fallbackFiles: List<String> = emptyList(),
+    )
+
+    private val WORLD_REPO_FALLBACK = listOf(
+        "25.txt", "71.txt", "ABN.txt", "DOV.txt",
+        "%5BK_B_W_%20Client%5D.txt", "br.txt",
+        "channels_fulltime%20(OR).txt", "channels_fulltime.txt",
+        "kgen%20(4).txt", "kgen.txt", "rg.txt", "x.txt",
+        "%7BAllTelegram%7D2.txt",
+    )
+
+    private val TELEGRAM_CHANNELS = listOf(
+        "xtreamcodes", "xtream_iptv_code", "satglobaltv", "IPTVXTREAMPRO",
+        "m3u86", "iptvgratuitfr0", "extremeportals",
+    )
+
+    private val REDDIT_SUBREDDITS = listOf("IPTV_ZONENEW", "xml2")
+
+    private val PASTE_DOMAINS = listOf(
+        "paste.sh", "pastebin.com", "justpaste.it", "controlc.com",
+        "pastes.dev", "text.is", "rentry.co",
+    )
+
+    private val RAW_PASTE = Regex("""https?://(?:${PASTE_DOMAINS.joinToString("|")})/[a-zA-Z0-9#_=\-]+""", RegexOption.IGNORE_CASE)
+
+    private val B64_RE = Regex("""aHR0c[a-zA-Z0-9+/=]{10,}""")
+
+    private val REDDIT_RSS_HOSTS = listOf("old.reddit.com", "www.reddit.com")
 
     private val ADULT_TERMS = setOf(
         "xxx", "adult", "porn", "sex", "erotic", "18+", "onlyfans", "cam", "nude",
@@ -88,6 +134,14 @@ object PortalNutzScraper {
         val slashIdx = cleaned.indexOf('/')
         return if (slashIdx >= 0) cleaned.substring(0, slashIdx) else cleaned
     }
+
+    private fun domainKey(url: String): String =
+        url
+            .removePrefix("https://")
+            .removePrefix("http://")
+            .substringBefore('/')
+            .substringBefore(':')
+            .lowercase()
 
     private fun extractPortals(text: String, source: String): List<Portal> {
         if (text.length < 15) return emptyList()
@@ -137,16 +191,78 @@ object PortalNutzScraper {
             Regex("""[\u3040-\u30FF]""").containsMatchIn(text)
     }
 
-    private suspend fun fetchText(url: String): String? {
-        return try {
+    private suspend fun fetchText(url: String): String? = withTimeoutOrNull(FETCH_TIMEOUT_MS) {
+        try {
             httpGetText(url)
         } catch (_: Exception) { null }
     }
 
-    private suspend fun fetchTextWithHeaders(url: String, headers: Map<String, String>): String? {
+    private suspend fun fetchTextWithHeaders(url: String, headers: Map<String, String>): String? =
+        withTimeoutOrNull(FETCH_TIMEOUT_MS) {
+            try {
+                httpGetTextWithHeaders(url, headers)
+            } catch (_: Exception) { null }
+        }
+
+    private suspend fun fetchTextWithHeadersLimited(url: String, headers: Map<String, String>, maxBytes: Int): String? =
+        withTimeoutOrNull(FETCH_TIMEOUT_MS) {
+            try {
+                httpGetTextWithHeadersLimited(url, headers, maxBytes)
+            } catch (_: Exception) { null }
+        }
+
+    private fun decodeBase64(raw: String): String? {
+        val u = raw.replace(Regex("""[^A-Za-z0-9+/=]"""), "")
+        val padded = u + "=".repeat((4 - u.length % 4) % 4)
         return try {
-            httpGetTextWithHeaders(url, headers)
+            Base64.decode(padded).decodeToString()
         } catch (_: Exception) { null }
+    }
+
+    private suspend fun fetchPasteContent(url: String): String? {
+        return try {
+            when {
+                url.contains("pastebin.com/") && !url.contains("/raw/") -> {
+                    val id = url.substringAfter("pastebin.com/").substringBefore('?').substringBefore('#')
+                    fetchTextWithHeaders("https://pastebin.com/raw/$id", mapOf("User-Agent" to UA))
+                }
+                url.contains("pastes.dev/") -> {
+                    val id = url.substringAfter("pastes.dev/").substringBefore('?').substringBefore('#')
+                    fetchTextWithHeaders("https://api.pastes.dev/$id", mapOf("User-Agent" to UA))
+                }
+                url.contains("rentry.co/") && !url.contains("/raw") -> {
+                    val id = url.substringAfter("rentry.co/").substringBefore('?').substringBefore('#')
+                    fetchTextWithHeaders("https://rentry.co/$id/raw", mapOf("User-Agent" to UA))
+                }
+                else -> fetchText(url)
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private suspend fun collectPortalsFromText(
+        text: String,
+        source: String,
+        seen: MutableSet<String>,
+        portals: MutableList<Portal>,
+    ) {
+        for (p in extractPortals(text, source)) {
+            val key = "${p.url}|${p.username}|${p.password}"
+            if (seen.add(key)) portals.add(p)
+        }
+        for (m in B64_RE.findAll(text)) {
+            val decoded = decodeBase64(m.value) ?: continue
+            for (p in extractPortals(decoded, "$source:b64")) {
+                val key = "${p.url}|${p.username}|${p.password}"
+                if (seen.add(key)) portals.add(p)
+            }
+        }
+        for (m in RAW_PASTE.findAll(text)) {
+            val content = fetchPasteContent(m.value) ?: continue
+            for (p in extractPortals(content, "$source:paste")) {
+                val key = "${p.url}|${p.username}|${p.password}"
+                if (seen.add(key)) portals.add(p)
+            }
+        }
     }
 
     private suspend fun fetchGitHubPortals(onEvent: (ScrapeEvent) -> Unit): List<Portal> {
@@ -155,89 +271,165 @@ object PortalNutzScraper {
         val portals = mutableListOf<Portal>()
 
         val repos = listOf(
-            Triple("akeotaseo", "world_repo", "Updater_Matrix/XML2"),
-            Triple("Armiiin", "world_repo", "Updater_Matrix/XML2"),
-            Triple("rochana-sadila", "Xtream-Codes-Library", ""),
+            GitHubRepo("akeotaseo", "world_repo", "Updater_Matrix/XML2", fallbackFiles = WORLD_REPO_FALLBACK),
+            GitHubRepo("Armiiin", "world_repo", "Updater_Matrix/XML2", fallbackFiles = WORLD_REPO_FALLBACK),
+            GitHubRepo("rochana-sadila", "Xtream-Codes-Library", "", json = true),
         )
 
-        for ((owner, repo, path) in repos) {
+        for (repo in repos) {
+            var files = mutableListOf<Triple<String, String, Long>>()
             try {
-                val apiUrl = "https://api.github.com/repos/$owner/$repo/contents/$path?ref=main"
-                val jsonText = fetchTextWithHeaders(apiUrl, mapOf("User-Agent" to UA, "Accept" to "application/vnd.github.v3+json")) ?: continue
-                val arr = json.parseToJsonElement(jsonText).jsonArray
-                val files = mutableListOf<Pair<String, String>>()
-                for (item in arr) {
-                    val obj = item.jsonObject
-                    if (obj["type"]?.jsonPrimitive?.contentOrNull == "file") {
-                        val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: ""
-                        val downloadUrl = obj["download_url"]?.jsonPrimitive?.contentOrNull ?: ""
-                        if (name.endsWith(".txt") || name.endsWith(".json")) {
-                            files.add(name to downloadUrl)
-                        }
-                    }
-                }
-                files.sortBy { it.first }
-                for ((name, dlUrl) in files.take(10)) {
-                    val text = fetchTextWithHeaders(dlUrl, mapOf("User-Agent" to UA)) ?: continue
-                    if (name.endsWith(".json")) {
-                        try {
-                            val jsonArr = json.parseToJsonElement(text).jsonArray
-                            for (entry in jsonArr) {
-                                val entryObj = entry.jsonObject
-                                val pUrl = entryObj["url"]?.jsonPrimitive?.contentOrNull ?: ""
-                                val user = (entryObj["username"]?.jsonPrimitive?.contentOrNull ?: entryObj["user"]?.jsonPrimitive?.contentOrNull ?: "")
-                                val pass = (entryObj["password"]?.jsonPrimitive?.contentOrNull ?: entryObj["pass"]?.jsonPrimitive?.contentOrNull ?: "")
-                                if (pUrl.isNotEmpty() && user.length >= 3 && pass.length >= 3) {
-                                    val key = "${cleanPortalUrl(pUrl)}|$user|$pass"
-                                    if (seen.add(key)) portals.add(Portal(cleanPortalUrl(pUrl), user, pass, "github/$repo"))
-                                }
+                val apiUrl = "https://api.github.com/repos/${repo.owner}/${repo.repo}/contents/${repo.path}?ref=main"
+                val jsonText = fetchTextWithHeadersLimited(apiUrl, mapOf("User-Agent" to UA, "Accept" to "application/vnd.github.v3+json"), 2 * 1024 * 1024)
+                if (jsonText != null) {
+                    val arr = json.parseToJsonElement(jsonText).jsonArray
+                    for (item in arr) {
+                        val obj = item.jsonObject
+                        if (obj["type"]?.jsonPrimitive?.contentOrNull == "file") {
+                            val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: ""
+                            val downloadUrl = obj["download_url"]?.jsonPrimitive?.contentOrNull ?: ""
+                            if (name.endsWith(if (repo.json) ".json" else ".txt") && downloadUrl.isNotEmpty()) {
+                                val size = obj["size"]?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: Long.MAX_VALUE
+                                files.add(Triple(name, downloadUrl, size))
                             }
-                        } catch (_: Exception) {}
-                    } else {
-                        for (p in extractPortals(text, "github/$repo")) {
-                            val key = "${p.url}|${p.username}|${p.password}"
-                            if (seen.add(key)) portals.add(p)
                         }
                     }
+                    files.sortBy { it.third }
                 }
             } catch (_: Exception) {}
+
+            if (files.isEmpty()) {
+                val base = "https://raw.githubusercontent.com/${repo.owner}/${repo.repo}/main/${repo.path}"
+                files = when {
+                    repo.fallbackFiles.isNotEmpty() -> repo.fallbackFiles.map { Triple(it, "$base/${it.trimStart('/')}", Long.MAX_VALUE) }.toMutableList()
+                    repo.json -> mutableListOf(Triple("xtreams.json", "$base/xtreams.json", Long.MAX_VALUE))
+                    else -> mutableListOf()
+                }
+            }
+
+            for (chunk in files.take(20).chunked(MAX_PARALLEL_FETCHES)) {
+                coroutineScope {
+                    chunk.map { (name, dlUrl, _) ->
+                        async { parseGitHubFile(name, dlUrl, repo) }
+                    }.awaitAll()
+                }.flatten().forEach { p ->
+                    val key = "${p.url}|${p.username}|${p.password}"
+                    if (seen.add(key)) portals.add(p)
+                }
+            }
         }
 
         onEvent(ScrapeEvent.Progress("Bagged ${portals.size} wild nutz so far..."))
         return portals
     }
 
+    private suspend fun parseGitHubFile(name: String, dlUrl: String, repo: GitHubRepo): List<Portal> {
+        val text = fetchTextWithHeadersLimited(dlUrl, mapOf("User-Agent" to UA), MAX_RAW_FILE_BYTES) ?: return emptyList()
+        val result = mutableListOf<Portal>()
+        if (repo.json || name.endsWith(".json")) {
+            try {
+                val jsonArr = json.parseToJsonElement(text).jsonArray
+                for (entry in jsonArr) {
+                    val entryObj = entry.jsonObject
+                    val pUrl = entryObj["url"]?.jsonPrimitive?.contentOrNull ?: ""
+                    val user = (entryObj["username"]?.jsonPrimitive?.contentOrNull ?: entryObj["user"]?.jsonPrimitive?.contentOrNull ?: "")
+                    val pass = (entryObj["password"]?.jsonPrimitive?.contentOrNull ?: entryObj["pass"]?.jsonPrimitive?.contentOrNull ?: "")
+                    if (pUrl.isNotEmpty() && user.length >= 3 && pass.length >= 3) {
+                        result.add(Portal(cleanPortalUrl(pUrl), user, pass, "github/${repo.repo}"))
+                    }
+                }
+            } catch (_: Exception) {}
+        } else {
+            result.addAll(extractPortals(text, "github/${repo.repo}:$name"))
+        }
+        return result
+    }
+
     private suspend fun fetchTelegramPortals(onEvent: (ScrapeEvent) -> Unit): List<Portal> {
         onEvent(ScrapeEvent.Progress("Tapping the social vines for nutz..."))
         val seen = mutableSetOf<String>()
         val portals = mutableListOf<Portal>()
-        val channels = listOf("xtreamcodes", "xtream_iptv_code", "satglobaltv", "IPTVXTREAMPRO")
 
-        for (channel in channels) {
-            try {
-                val url = "https://t.me/s/$channel"
-                val html = fetchTextWithHeaders(url, mapOf("User-Agent" to UA)) ?: continue
-                val msgRegex = Regex("""<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)</div>\s*</div>""")
-                for (m in msgRegex.findAll(html)) {
-                    val text = m.groupValues[1]
-                        .replace(Regex("<br\\s*/?>"), "\n")
-                        .replace(Regex("<[^>]+>"), "")
-                        .replace("&amp;".toRegex(), "&")
-                        .replace("&lt;".toRegex(), "<")
-                        .replace("&gt;".toRegex(), ">")
-                        .replace("&quot;".toRegex(), "\"")
-                        .trim()
-                    if (text.isNotEmpty()) {
-                        for (p in extractPortals(text, "telegram:$channel")) {
-                            val key = "${p.url}|${p.username}|${p.password}"
-                            if (seen.add(key)) portals.add(p)
-                        }
+        for (chunk in TELEGRAM_CHANNELS.chunked(MAX_PARALLEL_FETCHES)) {
+            coroutineScope {
+                chunk.map { channel ->
+                    async {
+                        val channelPortals = mutableListOf<Portal>()
+                        try {
+                            val url = "https://t.me/s/$channel"
+                            val html = fetchTextWithHeaders(url, mapOf("User-Agent" to UA)) ?: return@async emptyList()
+                            val msgRegex = Regex("""<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)</div>\s*</div>""")
+                            for (m in msgRegex.findAll(html)) {
+                                val text = m.groupValues[1]
+                                    .replace(Regex("<br\\s*/?>"), "\n")
+                                    .replace(Regex("<[^>]+>"), "")
+                                    .replace("&amp;".toRegex(), "&")
+                                    .replace("&lt;".toRegex(), "<")
+                                    .replace("&gt;".toRegex(), ">")
+                                    .replace("&quot;".toRegex(), "\"")
+                                    .trim()
+                                if (text.isNotEmpty()) {
+                                    val localSeen = mutableSetOf<String>()
+                                    collectPortalsFromText(text, "telegram:$channel", localSeen, channelPortals)
+                                }
+                            }
+                        } catch (_: Exception) {}
+                        channelPortals
+                    }
+                }.awaitAll().forEach { channelPortals ->
+                    for (p in channelPortals) {
+                        val key = "${p.url}|${p.username}|${p.password}"
+                        if (seen.add(key)) portals.add(p)
                     }
                 }
-            } catch (_: Exception) {}
+            }
         }
 
         onEvent(ScrapeEvent.Progress("Caught ${portals.size} more rolling nutz..."))
+        return portals
+    }
+
+    private suspend fun fetchRedditPortals(): List<Portal> {
+        val seen = mutableSetOf<String>()
+        val portals = mutableListOf<Portal>()
+        for (chunk in REDDIT_SUBREDDITS.chunked(MAX_PARALLEL_FETCHES)) {
+            coroutineScope {
+                chunk.map { sub ->
+                    async {
+                        val subPortals = mutableListOf<Portal>()
+                        var rss: String? = null
+                        for (host in REDDIT_RSS_HOSTS) {
+                            val url = "https://$host/r/$sub/new/.rss"
+                            rss = fetchTextWithHeaders(url, mapOf("User-Agent" to "Mozilla/5.0 (compatible; PodcastFeedFetcher/1.0; +http://example.com)"))
+                            if (rss != null) break
+                        }
+                        rss ?: return@async emptyList()
+                        try {
+                            val itemRegex = Regex("""<item>([\s\S]*?)</item>""")
+                            for (item in itemRegex.findAll(rss)) {
+                                val itemText = item.groupValues[1]
+                                val title = Regex("""<title>([\s\S]*?)</title>""").find(itemText)?.groupValues?.getOrNull(1)
+                                val desc = Regex("""<description>([\s\S]*?)</description>""").find(itemText)?.groupValues?.getOrNull(1)
+                                val body = "${title.orEmpty()}\n${desc.orEmpty()}"
+                                    .replace("&amp;".toRegex(), "&")
+                                    .replace("&lt;".toRegex(), "<")
+                                    .replace("&gt;".toRegex(), ">")
+                                    .replace("&quot;".toRegex(), "\"")
+                                if (body.length > 15) {
+                                    subPortals.addAll(extractPortals(body, "reddit:$sub"))
+                                }
+                            }
+                        } catch (_: Exception) {}
+                        subPortals
+                    }
+                }.awaitAll().forEach { subPortals ->
+                    for (p in subPortals) {
+                        val key = "${p.url}|${p.username}|${p.password}"
+                        if (seen.add(key)) portals.add(p)
+                    }
+                }
+            }
+        }
         return portals
     }
 
@@ -270,7 +462,10 @@ object PortalNutzScraper {
 
     private suspend fun verifyPortal(p: Portal): VerifiedPortal? {
         if (isAdultText(p.url)) return null
+        return verifyViaPlayerApi(p) ?: verifyViaM3U(p)
+    }
 
+    private suspend fun verifyViaPlayerApi(p: Portal): VerifiedPortal? {
         try {
             val url = "${p.url}/player_api.php?username=${p.username}&password=${p.password}"
             val body = fetchTextWithHeaders(url, mapOf("User-Agent" to "VLC/3.0.20")) ?: return null
@@ -282,16 +477,18 @@ object PortalNutzScraper {
                     val status = info["status"]?.jsonPrimitive?.contentOrNull ?: ""
                     if (auth == "1" || status == "active" || element.containsKey("user_info")) {
                         val name = info["username"]?.jsonPrimitive?.contentOrNull ?: p.username
-                        val domain = extractDomain(p.url)
-                        return VerifiedPortal(p, name, domain)
+                        return VerifiedPortal(p, name, extractDomain(p.url))
                     }
                 }
             } catch (_: Exception) {}
         } catch (_: Exception) {}
+        return null
+    }
 
+    private suspend fun verifyViaM3U(p: Portal): VerifiedPortal? {
         try {
             val url = "${p.url}/get.php?username=${p.username}&password=${p.password}&type=m3u_plus"
-            val text = fetchTextWithHeaders(url, mapOf("User-Agent" to "VLC/3.0.20")) ?: return null
+            val text = fetchTextWithHeadersLimited(url, mapOf("User-Agent" to "VLC/3.0.20"), MAX_VERIFY_BYTES) ?: return null
             if (Regex("#EXTM3U", RegexOption.IGNORE_CASE).containsMatchIn(text) &&
                 !Regex("<html|<head|<body", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
                 val urlCount = text.lines().count { it.startsWith("http") }
@@ -303,14 +500,13 @@ object PortalNutzScraper {
                 }
             }
         } catch (_: Exception) {}
-
         return null
     }
 
     private suspend fun getChannelCount(p: Portal): Int {
         try {
             val url = "${p.url}/player_api.php?username=${p.username}&password=${p.password}&action=get_live_streams"
-            val text = fetchTextWithHeaders(url, mapOf("User-Agent" to "VLC/3.0.20")) ?: return 0
+            val text = fetchTextWithHeadersLimited(url, mapOf("User-Agent" to "VLC/3.0.20"), MAX_COUNT_BYTES) ?: return 0
             try {
                 val arr = json.parseToJsonElement(text).jsonArray
                 return arr.size
@@ -319,7 +515,7 @@ object PortalNutzScraper {
 
         try {
             val url = "${p.url}/get.php?username=${p.username}&password=${p.password}&type=m3u_plus"
-            val text = fetchTextWithHeaders(url, mapOf("User-Agent" to "VLC/3.0.20")) ?: return 0
+            val text = fetchTextWithHeadersLimited(url, mapOf("User-Agent" to "VLC/3.0.20"), MAX_COUNT_BYTES) ?: return 0
             return text.lines().count { it.startsWith("http") }
         } catch (_: Exception) {}
         return 0
@@ -330,6 +526,7 @@ object PortalNutzScraper {
         noAdult: Boolean = true,
         sportsOnly: Boolean = false,
         adultOnly: Boolean = false,
+        excludeServers: Set<String> = emptySet(),
         onEvent: (ScrapeEvent) -> Unit,
     ) {
         cancel()
@@ -343,6 +540,7 @@ object PortalNutzScraper {
                     listOf(
                         async { fetchGitHubPortals(onEvent) },
                         async { fetchTelegramPortals(onEvent) },
+                        async { fetchRedditPortals() },
                         async { fetchAmzPortals(onEvent) },
                     ).awaitAll()
                 }
@@ -350,56 +548,57 @@ object PortalNutzScraper {
 
                 onEvent(ScrapeEvent.Progress("Cracking ${raw.size} shells to find the good ones..."))
 
-                val deduped = mutableMapOf<String, Portal>()
-                for (p in raw) {
-                    val key = "${p.url}|${p.username}|${p.password}".lowercase()
-                    if (!deduped.containsKey(key)) deduped[key] = p
-                }
+                val excludedDomains = excludeServers.mapTo(mutableSetOf()) { domainKey(it) }
+                val byCreds = mutableMapOf<String, Portal>()
+                for (p in raw) byCreds.putIfAbsent("${p.username}|${p.password}".lowercase(), p)
 
-                onEvent(ScrapeEvent.Progress("Shelling ${deduped.size} contenders..."))
+                val freshPool = byCreds.values
+                    .filter { domainKey(it.url) !in excludedDomains }
+                    .toList()
+                    .shuffled()
+                    .take(50)
 
-                val contenders = deduped.values.toList().shuffled().take(100)
-                val verified = coroutineScope {
-                    contenders.map { p ->
-                        async { verifyPortal(p) }
-                    }.awaitAll().filterNotNull()
-                }
-
-                onEvent(ScrapeEvent.Progress("Counting kernels in ${verified.size} good nutz..."))
-
-                val withCounts = coroutineScope {
-                    verified.map { vp ->
-                        async { vp to getChannelCount(vp.portal) }
-                    }.awaitAll()
-                }.filter { (vp, count) ->
-                    if (sportsOnly) {
-                        isAdultText(vp.name) || vp.name.let { SPORTS_KEYWORDS.any { kw -> it.lowercase().contains(kw) } }
-                    } else true
-                }.sortedByDescending { (_, count) -> count }
+                onEvent(ScrapeEvent.Progress("Testing ${freshPool.size} fresh nutz..."))
 
                 val maxPortals = if (sportsOnly) 10 else 5
-                val selected = withCounts.take(min(withCounts.size, maxPortals * 3))
-
                 val results = mutableListOf<PortalNutzEntry>()
                 var portalNum = 0
 
-                for ((vp, totalCount) in selected) {
+                for (chunk in freshPool.chunked(MAX_PARALLEL_FETCHES)) {
                     if (results.size >= maxPortals) break
-                    if (noAdult && isAdultText(vp.name)) continue
-                    if (adultOnly && !isAdultText(vp.name)) continue
-                    if (englishOnly && hasNonLatinScript(vp.name)) continue
-                    if (sportsOnly && !SPORTS_KEYWORDS.any { vp.name.lowercase().contains(it) || vp.domain.lowercase().contains(it) }) continue
 
-                    portalNum++
-                    val count = min(totalCount, 500)
-                    results.add(PortalNutzEntry(
-                        label = "portal$portalNum",
-                        url = vp.portal.url,
-                        username = vp.portal.username,
-                        password = vp.portal.password,
-                        channelCount = count,
-                        domain = vp.domain,
-                    ))
+                    val verified = coroutineScope {
+                        chunk.map { p -> async { verifyPortal(p) } }.awaitAll().filterNotNull()
+                    }
+                    if (verified.isEmpty()) continue
+
+                    val withCounts = coroutineScope {
+                        verified.chunked(MAX_COUNT_PARALLEL).flatMap { countChunk ->
+                            coroutineScope {
+                                countChunk.map { vp -> async { vp to getChannelCount(vp.portal) } }.awaitAll()
+                            }
+                        }
+                    }.sortedByDescending { (_, count) -> count }
+
+                    for ((vp, totalCount) in withCounts) {
+                        if (results.size >= maxPortals) break
+                        if (totalCount < 5) continue
+                        if (noAdult && isAdultText(vp.name)) continue
+                        if (adultOnly && !isAdultText(vp.name)) continue
+                        if (englishOnly && hasNonLatinScript(vp.name)) continue
+                        if (sportsOnly && !SPORTS_KEYWORDS.any { vp.name.lowercase().contains(it) || vp.domain.lowercase().contains(it) }) continue
+
+                        portalNum++
+                        val count = min(totalCount, 500)
+                        results.add(PortalNutzEntry(
+                            label = "portal$portalNum",
+                            url = vp.portal.url,
+                            username = vp.portal.username,
+                            password = vp.portal.password,
+                            channelCount = count,
+                            domain = vp.domain,
+                        ))
+                    }
                 }
 
                 if (results.isEmpty()) {

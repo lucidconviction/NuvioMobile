@@ -1941,6 +1941,10 @@ private fun MainAppContent(
                                         iptvScrollToTopRequests = iptvScrollToTopRequests,
                                         sportsScrollToTopRequests = sportsScrollToTopRequests,
                                         hubResetTrigger = hubResetCounter,
+                                        onOpenMultiWindow = {
+                                            activateTab(AppScreenTab.RobbdeezeNutzHub)
+                                            HubReturnStore.subScreen = "Multi"
+                                        },
                                         animateHomeCollectionGifs = tabsRouteActive,
                                         onCatalogClick = onCatalogClick,
                                         onPosterClick = { meta ->
@@ -3661,6 +3665,7 @@ private fun AppTabHost(
     onSportsPlayChannel: ((PlayerLaunch) -> Unit)? = null,
     hubResetTrigger: Int = 0,
     onOpenTeam: ((teamName: String, teamLogo: String?, sport: String) -> Unit)? = null,
+    onOpenMultiWindow: () -> Unit = {},
 ) {
     val tabStateHolder = rememberSaveableStateHolder()
 
@@ -3771,24 +3776,30 @@ private fun AppTabHost(
             }
         }
 
-        // Global MultiNutz quick-nav overlay — hides when already on Multi view
-        if (MultiWindowStore.allStreams.isNotEmpty() && HubReturnStore.subScreen != "Multi") {
+        // Global MultiNutz quick-nav overlay — visible on any screen with streams, reappears
+        // whenever the user leaves the Multi view (hide only while actually on Multi)
+        val onMultiView = selectedTab == AppScreenTab.RobbdeezeNutzHub && HubReturnStore.subScreen == "Multi"
+        if (MultiWindowStore.allStreams.isNotEmpty() && !onMultiView) {
+            val mwCount = MultiWindowStore.allStreams.size
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 16.dp, bottom = 72.dp)
-                    .size(52.dp)
+                    .size(56.dp)
                     .clip(CircleShape)
-                    .background(Color(0x991E1E1E))
+                    .background(Color(0xFFE53935))
                     .border(
                         width = 1.dp,
-                        color = Color.White.copy(alpha = 0.4f),
+                        color = Color.White.copy(alpha = 0.5f),
                         shape = CircleShape,
                     )
-                    .clickable { HubReturnStore.subScreen = "Multi" },
+                    .clickable { onOpenMultiWindow() },
                 contentAlignment = Alignment.Center,
             ) {
-                Text("MW", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("MW", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("$mwCount", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

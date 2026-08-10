@@ -20,12 +20,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,6 +75,23 @@ fun HomeQuickChannelsSection(
 
     var selectedQc by remember { mutableStateOf<QuickChannel?>(null) }
     var qcMatches by remember { mutableStateOf<List<IptvChannel>>(emptyList()) }
+    var aliveByUrl by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    val liveMatches = qcMatches.filter { aliveByUrl[it.url] != false }
+    val checkingCount = qcMatches.count { aliveByUrl[it.url] == null }
+    val workingCount = qcMatches.count { aliveByUrl[it.url] == true }
+
+    LaunchedEffect(selectedQc) {
+        aliveByUrl = emptyMap()
+        selectedQc?.let { qc ->
+            val matches = IptvRepository.getAllChannels().filter { ch ->
+                QuickChannelList.matches(qc, ch)
+            }
+            qcMatches = matches
+            com.nuvio.app.features.iptv.StreamValidationController.resolveChannelsStatuses(matches) { statuses ->
+                aliveByUrl = statuses
+            }
+        }
+    }
 
     Column(modifier = modifier.padding(horizontal = sectionPadding)) {
         Text(
@@ -114,10 +133,7 @@ fun HomeQuickChannelsSection(
                 QuickChannelCard(
                     qc = qc,
                     onClick = {
-                        val matches = IptvRepository.getAllChannels().filter { ch ->
-                            QuickChannelList.matches(qc, ch)
-                        }
-                        qcMatches = matches
+                        qcMatches = emptyList()
                         selectedQc = qc
                     },
                 )
@@ -136,14 +152,23 @@ fun HomeQuickChannelsSection(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Text(qc.displayName, color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("${qcMatches.size} source${if (qcMatches.size != 1) "s" else ""}", color = OnSurface.copy(alpha = 0.6f), fontSize = 12.sp)
+                    if (checkingCount > 0) {
+                        CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Primary, strokeWidth = 2.dp)
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Text("$workingCount working${if (checkingCount > 0) " · checking $checkingCount" else ""}", color = OnSurface.copy(alpha = 0.6f), fontSize = 12.sp)
                 }
                 Spacer(Modifier.height(12.dp))
-                if (qcMatches.isEmpty()) {
-                    Text("No sources found", color = OnSurface.copy(alpha = 0.5f), fontSize = 14.sp, modifier = Modifier.padding(vertical = 20.dp))
+                if (liveMatches.isEmpty()) {
+                    Text(
+                        if (checkingCount > 0) "Checking ${qc.displayName} streams..." else "No working sources found",
+                        color = OnSurface.copy(alpha = 0.5f),
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(vertical = 20.dp),
+                    )
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(qcMatches) { ch ->
+                        items(liveMatches) { ch ->
                             Row(
                                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
                                     .background(Color(0xFF2A2A2A))
@@ -166,7 +191,11 @@ fun HomeQuickChannelsSection(
                                     }
                                 }
                                 Spacer(Modifier.width(8.dp))
-                                Text("Play", color = Primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                when (aliveByUrl[ch.url]) {
+                                    true -> Text("✓ Live", color = Color(0xFF4CAF50), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    null -> Text("checking", color = OnSurface.copy(alpha = 0.5f), fontSize = 11.sp)
+                                    else -> Text("Play", color = Primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }

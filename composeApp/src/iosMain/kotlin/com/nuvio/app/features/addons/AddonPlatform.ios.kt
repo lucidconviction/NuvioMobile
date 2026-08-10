@@ -11,8 +11,11 @@ import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import io.ktor.client.request.prepareGet
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
+import io.ktor.utils.io.readRemaining
+import io.ktor.utils.io.readText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -136,6 +139,50 @@ actual suspend fun httpGetTextWithHeaders(
         }
         .let { response ->
             val payload = response.bodyAsText()
+            if (!response.status.isSuccess()) {
+                error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
+            }
+            if (payload.isBlank()) {
+                throw IllegalStateException(runBlocking { getString(Res.string.network_empty_response_body) })
+            }
+            payload
+        }
+
+private suspend fun readResponseBodyLimited(
+    response: HttpResponse,
+    maxBytes: Int,
+): String {
+    val channel = response.bodyAsChannel()
+    var total = 0
+    var out = ""
+    while (total < maxBytes && !channel.isClosedForRead) {
+        val remaining = (maxBytes - total).coerceAtMost(8192)
+        val packet = channel.readRemaining(remaining.toLong()) ?: break
+        val text = packet.readText()
+        if (text.isEmpty()) break
+        out += text
+        total += text.encodeToByteArray().size
+    }
+    channel.cancel(CancelledCause())
+    return out
+}
+
+private class CancelledCause : Throwable()
+
+actual suspend fun httpGetTextWithHeadersLimited(
+    url: String,
+    headers: Map<String, String>,
+    maxBytes: Int,
+): String =
+    addonHttpClient
+        .get(url) {
+            accept(ContentType.Application.Json)
+            headers.forEach { (key, value) ->
+                header(key, value)
+            }
+        }
+        .let { response ->
+            val payload = readResponseBodyLimited(response, maxBytes)
             if (!response.status.isSuccess()) {
                 error(runBlocking { getString(Res.string.network_request_failed_http, response.status.value) })
             }

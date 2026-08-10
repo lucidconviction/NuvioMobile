@@ -50,6 +50,7 @@ import com.nuvio.app.features.iptv.IptvChannel
 import com.nuvio.app.features.iptv.IptvRepository
 import com.nuvio.app.features.iptv.QuickChannel
 import com.nuvio.app.features.iptv.QuickChannelList
+import com.nuvio.app.features.iptv.StreamValidationController
 import com.nuvio.app.features.player.PlayerLaunch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -455,6 +456,8 @@ private fun QuickChannelOverlay(
     var qcFilter by remember { mutableStateOf("All") }
     var selectedQc by remember { mutableStateOf<QuickChannel?>(null) }
     var loadState by remember { mutableStateOf<QcLoadState>(QcLoadState.Idle) }
+    var aliveByUrl by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    var matchesLoading by remember { mutableStateOf(false) }
 
     val filtered = remember(qcFilter) {
         QuickChannelList.all.filter { qc ->
@@ -470,6 +473,8 @@ private fun QuickChannelOverlay(
 
     LaunchedEffect(selectedQc) {
         val qc = selectedQc ?: return@LaunchedEffect
+        aliveByUrl = emptyMap()
+        matchesLoading = false
         loadState = QcLoadState.Loading
         loadState = try {
             val matches = withContext(Dispatchers.Default) {
@@ -480,6 +485,11 @@ private fun QuickChannelOverlay(
             if (matches.isEmpty()) {
                 QcLoadState.Error("No sources found for \"${qc.displayName}\"")
             } else {
+                matchesLoading = true
+                StreamValidationController.resolveChannelsStatuses(matches) { statuses ->
+                    aliveByUrl = statuses
+                }
+                matchesLoading = false
                 QcLoadState.Success(matches)
             }
         } catch (e: Exception) {
@@ -525,6 +535,7 @@ private fun QuickChannelOverlay(
             QuickChannelMatchOverlay(
                 quickChannel = selectedQc!!,
                 matchedChannels = state.channels,
+                aliveByUrl = aliveByUrl,
                 sourceNames = sourceNames,
                 sourceIds = sourceIds,
                 currentSlotIndex = currentSlotIndex,
@@ -587,6 +598,7 @@ private fun QuickChannelOverlay(
 private fun QuickChannelMatchOverlay(
     quickChannel: QuickChannel,
     matchedChannels: List<IptvChannel>,
+    aliveByUrl: Map<String, Boolean>,
     sourceNames: List<String>,
     sourceIds: List<String>,
     currentSlotIndex: Int,
@@ -601,8 +613,12 @@ private fun QuickChannelMatchOverlay(
         sourceIds.zip(sourceNames).toMap()
     }
 
-    val filtered = remember(matchedChannels, searchQuery, selectedSource, selectedGroup) {
-        var result = matchedChannels
+    val liveChannels = remember(matchedChannels, aliveByUrl) {
+        matchedChannels.filter { aliveByUrl[it.url] != false }
+    }
+
+    val filtered = remember(liveChannels, searchQuery, selectedSource, selectedGroup) {
+        var result = liveChannels
         if (selectedSource >= 0 && selectedSource < sourceIds.size) {
             val sid = sourceIds[selectedSource]
             result = result.filter { it.sourceId == sid }
@@ -617,9 +633,12 @@ private fun QuickChannelMatchOverlay(
         result
     }
 
-    val groups = remember(matchedChannels) {
-        matchedChannels.map { it.group ?: "Other" }.distinct().sorted()
+    val groups = remember(liveChannels) {
+        liveChannels.map { it.group ?: "Other" }.distinct().sorted()
     }
+
+    val checkingCount = matchedChannels.count { aliveByUrl[it.url] == null }
+    val workingCount = matchedChannels.count { aliveByUrl[it.url] == true }
 
     Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp).fillMaxWidth().height(480.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -629,7 +648,11 @@ private fun QuickChannelMatchOverlay(
             Spacer(Modifier.width(12.dp))
             Text(quickChannel.displayName, color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 17.sp)
             Spacer(Modifier.weight(1f))
-            Text("${filtered.size}", color = OnSurfaceVariant, fontSize = 12.sp)
+            if (checkingCount > 0) {
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Accent, strokeWidth = 2.dp)
+                Spacer(Modifier.width(6.dp))
+            }
+            Text("$workingCount working${if (checkingCount > 0) " · checking $checkingCount" else ""}", color = OnSurfaceVariant, fontSize = 12.sp)
         }
         Spacer(Modifier.height(8.dp))
 
@@ -704,6 +727,17 @@ private fun QuickChannelMatchOverlay(
                         }
                     }
                     Spacer(Modifier.width(8.dp))
+                    when (aliveByUrl[ch.url]) {
+                        true -> {
+                            Text("✓", color = Color(0xFF4CAF50), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        null -> {
+                            CircularProgressIndicator(modifier = Modifier.size(12.dp), color = Accent.copy(alpha = 0.6f), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        else -> Unit
+                    }
                     if (currentSlotIndex >= 0) {
                         Text("Slot ${currentSlotIndex + 1}", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     } else {
@@ -713,7 +747,12 @@ private fun QuickChannelMatchOverlay(
             }
             if (filtered.isEmpty()) {
                 item {
-                    Text("No channels match \"${quickChannel.displayName}\"", color = OnSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(vertical = 20.dp))
+                    Text(
+                        if (checkingCount > 0) "Checking ${quickChannel.displayName} streams..." else "No channels match \"${quickChannel.displayName}\"",
+                        color = OnSurfaceVariant,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(vertical = 20.dp),
+                    )
                 }
             }
         }

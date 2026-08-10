@@ -139,11 +139,11 @@ private fun readAtMostBytes(stream: InputStream, maxBytes: Int): LimitedReadResu
     return LimitedReadResult(out.toByteArray(), truncated)
 }
 
-private fun readResponseBodyLimited(body: ResponseBody?): String {
+private fun readResponseBodyLimited(body: ResponseBody?, maxBytes: Int = maxRawResponseBodyBytes): String {
     if (body == null) return ""
     val charset = body.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
     val readResult = body.byteStream().use { stream ->
-        readAtMostBytes(stream, maxRawResponseBodyBytes)
+        readAtMostBytes(stream, maxBytes)
     }
 
     val decoded = try {
@@ -232,6 +232,28 @@ actual suspend fun httpGetTextWithHeaders(
         url = url,
         headers = mapOf("Accept" to "application/json") + headers,
     )
+
+actual suspend fun httpGetTextWithHeadersLimited(
+    url: String,
+    headers: Map<String, String>,
+    maxBytes: Int,
+): String = withContext(Dispatchers.IO) {
+    val sanitizedHeaders = headers.withoutAcceptEncoding()
+    val builder = Request.Builder().url(url)
+    sanitizedHeaders.forEach { (key, value) -> builder.header(key, value) }
+    val request = builder.build()
+
+    addonHttpClient.newCall(request).execute().use { response ->
+        val payload = readResponseBodyLimited(response.body, maxBytes)
+        if (!response.isSuccessful) {
+            error(runBlocking { getString(Res.string.network_request_failed_http, response.code) })
+        }
+        if (payload.isBlank()) {
+            throw IllegalStateException(runBlocking { getString(Res.string.network_empty_response_body) })
+        }
+        payload
+    }
+}
 
 actual suspend fun httpPostJsonWithHeaders(
     url: String,

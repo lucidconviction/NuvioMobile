@@ -99,6 +99,9 @@ object MultiWindowStore {
     fun getStreamsForSlot(slotIndex: Int): WindowStream? = streams.find { it.slotIndex == slotIndex }
     fun getOccupiedSlots(): List<Int> = streams.map { it.slotIndex }
     fun isSlotAvailable(slotIndex: Int): Boolean = streams.none { it.slotIndex == slotIndex }
+
+    /** First free slot index, or null when every slot is occupied. */
+    fun nextAvailableSlot(): Int? = (0 until MAX_SLOTS).firstOrNull { isSlotAvailable(it) }
     fun setVolume(streamId: String, volume: Float) { volumes[streamId] = volume.coerceIn(0f, 1f) }
     fun getVolume(streamId: String): Float = volumes[streamId] ?: 0f
     fun setPaused(streamId: String, isPaused: Boolean) { paused[streamId] = isPaused }
