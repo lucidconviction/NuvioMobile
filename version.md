@@ -8,6 +8,24 @@ export ANDROID_HOME=~/Library/Android/sdk
 ```
 APK: `androidApp/build/outputs/apk/full/debug/androidApp-full-debug.apk`
 
+### v0.18.2 — Crash & ANR Fixes, Cache & Perf Optimization (August 11, 2026)
+
+#### Crash Fixes
+- **ANR fix — main thread CPU hog moved off thread** — `allQuickMatches` (200+ Quick Channels × 1000+ channels regex matching) moved from synchronous `remember{}` on the main thread to `LaunchedEffect` with `withContext(Dispatchers.Default)`. Was causing 107% CPU spikes that blocked input for >5s and triggered ANR kill.
+- **NPE fix — `selectedQc!!` force-unwrap** — `MultiWindowCellOptions.kt` crash on rapid tap/dismiss of Quick Channel sheet. Replaced with `val qc = selectedQc ?: return`.
+- **IndexOutOfBounds fix — `entries[idx]`** — safe access via `entries.getOrNull(idx)` in `PlayerPlaybackOverlays.kt` channel list rendering.
+- **File I/O crash fix** — `IptvStorage.android.kt` `file.readText()`/`file.writeText()` wrapped in try-catch with Kermit logging.
+- **EPG poll leak fix** — `rememberIptvEpgPrograms` loop guarded with `isActive` check.
+
+#### Performance
+- **QuickChannelMatchCache (singleton)** — match results cached app-wide so QC selection is instant (zero filtering) on subsequent taps, even across sheet dismissals.
+- **StreamValidationStore async preload** — `dead_urls.json` loaded on `Dispatchers.IO` via `preload()` + `ensureLoadedSuspend()` instead of blocking the main thread. Background preload triggered early when Quick Channels sheet opens.
+- **Batched status updates** — `resolveChannelsStatuses` calls `onUpdate` only twice (initial + final) instead of once per URL probe.
+- **`resolveCachedStatuses` — zero network probes** — Quick Channels now use cached alive/dead status from `StreamValidationStore` without hitting any URLs. Fresh probes only happen on explicit retry.
+
+#### Stability
+- **StreamValidationStore `ensureLoaded()` made non-blocking** — synchronous `file.readText()` replaced with background coroutine on `Dispatchers.IO`. Callers get empty data on first access; real data populates when I/O completes.
+
 ### v0.18.1 — EPG Now/Next in Overlay, Instant Quick Channels, Overhauled Channel Switcher (August 10, 2026)
 
 #### Player Overlay

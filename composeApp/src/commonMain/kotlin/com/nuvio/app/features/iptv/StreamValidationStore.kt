@@ -1,6 +1,10 @@
 package com.nuvio.app.features.iptv
 
 import androidx.compose.runtime.mutableStateMapOf
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
@@ -15,12 +19,14 @@ data class StreamCheckRecord(
 
 object StreamValidationStore {
     private val json = Json { ignoreUnknownKeys = true }
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private const val DEAD_COOLDOWN_MS = 10 * 60 * 1000L
 
     private val cache = mutableMapOf<String, StreamCheckRecord>()
     private val lock = Any()
     private var loaded = false
+    private var preloadScheduled = false
 
     /**
      * Compose-observable snapshot of url -> alive status, kept in sync with the cache and
@@ -35,26 +41,43 @@ object StreamValidationStore {
         }
     }
 
-    fun ensureLoaded() {
+    private var preloadJob: kotlinx.coroutines.Job? = null
+
+    fun preload() {
+        if (loaded || preloadScheduled) return
+        preloadScheduled = true
+        preloadJob = backgroundScope.launch { doLoad() }
+    }
+
+    suspend fun ensureLoadedSuspend() {
         if (loaded) return
+        preload()
+        preloadJob?.join()
+    }
+
+    private suspend fun doLoad() {
+        val raw = kotlinx.coroutines.withContext(Dispatchers.IO) {
+            IptvStorage.loadDeadUrls()
+        } ?: return
         synchronized(lock) {
-            if (loaded) return
-            loaded = true
-            runCatching {
-                val raw = IptvStorage.loadDeadUrls() ?: return@synchronized
-                try {
-                    json.decodeFromString<List<StreamCheckRecord>>(raw).forEach { record ->
-                        cache[record.url] = record
-                    }
-                } catch (_: Exception) {
-                    val now = System.currentTimeMillis()
-                    json.decodeFromString<List<String>>(raw).forEach { url ->
-                        cache[url] = StreamCheckRecord(url, alive = false, at = now)
-                    }
+            try {
+                json.decodeFromString<List<StreamCheckRecord>>(raw).forEach { record ->
+                    cache[record.url] = record
+                }
+            } catch (_: Exception) {
+                val now = System.currentTimeMillis()
+                json.decodeFromString<List<String>>(raw).forEach { url ->
+                    cache[url] = StreamCheckRecord(url, alive = false, at = now)
                 }
             }
+            loaded = true
         }
         snapshot()
+    }
+
+    fun ensureLoaded() {
+        if (loaded) return
+        preload()
     }
 
     /** Records a single result for live UI updates without triggering a disk write per probe. */

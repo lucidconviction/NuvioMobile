@@ -49,6 +49,7 @@ import com.nuvio.app.features.p2p.formatP2pMegabytes
 import com.nuvio.app.features.p2p.formatP2pSpeed
 import com.nuvio.app.isIos
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 
@@ -970,9 +971,11 @@ private fun rememberIptvEpgPrograms(channel: IptvChannel?): List<EpgProgram> {
     var programs by remember(key) { mutableStateOf<List<EpgProgram>?>(null) }
     LaunchedEffect(key) {
         if (channel == null) return@LaunchedEffect
-        while (true) {
-            programs = IptvRepository.getEpgProgramsForChannel(channel)
+        programs = IptvRepository.getEpgProgramsForChannel(channel)
+        while (isActive) {
             delay(30_000)
+            if (!isActive) break
+            programs = IptvRepository.getEpgProgramsForChannel(channel)
         }
     }
     return programs ?: emptyList()

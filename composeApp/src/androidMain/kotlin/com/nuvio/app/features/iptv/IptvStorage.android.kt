@@ -3,6 +3,8 @@ package com.nuvio.app.features.iptv
 import android.content.Context
 import android.content.SharedPreferences
 import java.io.File
+import java.io.IOException
+import co.touchlab.kermit.Logger
 
 actual object IptvStorage {
     private const val PREFS_NAME = "nuvio_iptv"
@@ -27,43 +29,43 @@ actual object IptvStorage {
     actual fun loadEpgCache(): String? {
         val dir = cacheDir ?: return null
         val file = File(dir, EPG_CACHE_FILE)
-        return if (file.exists()) file.readText() else null
+        return if (file.exists()) try { file.readText() } catch (e: IOException) { Logger.e(e) { "Failed to read EPG cache" }; null } else null
     }
 
     actual fun saveEpgCache(data: String) {
         val dir = cacheDir ?: return
         val file = File(dir, EPG_CACHE_FILE)
-        file.writeText(data)
+        try { file.writeText(data) } catch (e: IOException) { Logger.e(e) { "Failed to write EPG cache" } }
     }
 
     actual fun loadChannelCache(sourceUrl: String): String? {
         val dir = cacheDir ?: return null
         val file = File(dir, "ch_cache_${sourceUrl.hashCode()}.json")
-        return if (file.exists()) file.readText() else null
+        return if (file.exists()) try { file.readText() } catch (e: IOException) { Logger.e(e) { "Failed to read channel cache" }; null } else null
     }
 
     actual fun saveChannelCache(sourceUrl: String, data: String) {
         val dir = cacheDir ?: return
         val file = File(dir, "ch_cache_${sourceUrl.hashCode()}.json")
-        file.writeText(data)
+        try { file.writeText(data) } catch (e: IOException) { Logger.e(e) { "Failed to write channel cache" } }
     }
 
     actual fun invalidateChannelCache(sourceUrl: String) {
         val dir = cacheDir ?: return
         val file = File(dir, "ch_cache_${sourceUrl.hashCode()}.json")
-        if (file.exists()) file.delete()
+        if (file.exists()) try { file.delete() } catch (e: SecurityException) { Logger.e(e) { "Failed to delete channel cache" } }
     }
 
     actual fun loadDeadUrls(): String? {
         val dir = cacheDir ?: return null
         val file = File(dir, "dead_urls.json")
-        return if (file.exists()) file.readText() else null
+        return if (file.exists()) try { file.readText() } catch (e: IOException) { Logger.e(e) { "Failed to read dead URLs" }; null } else null
     }
 
     actual fun saveDeadUrls(data: String) {
         val dir = cacheDir ?: return
         val file = File(dir, "dead_urls.json")
-        file.writeText(data)
+        try { file.writeText(data) } catch (e: IOException) { Logger.e(e) { "Failed to write dead URLs" } }
     }
 
     private fun epgSourcePath(id: String): File? {
@@ -73,16 +75,16 @@ actual object IptvStorage {
 
     actual fun loadEpgSourceContent(id: String): String? {
         val file = epgSourcePath(id) ?: return null
-        return if (file.exists()) file.readText() else null
+        return if (file.exists()) try { file.readText() } catch (e: IOException) { Logger.e(e) { "Failed to read EPG source $id" }; null } else null
     }
 
     actual fun saveEpgSourceContent(id: String, content: String) {
         val file = epgSourcePath(id) ?: return
-        file.writeText(content)
+        try { file.writeText(content) } catch (e: IOException) { Logger.e(e) { "Failed to write EPG source $id" } }
     }
 
     actual fun deleteEpgSourceContent(id: String) {
         val file = epgSourcePath(id) ?: return
-        if (file.exists()) file.delete()
+        if (file.exists()) try { file.delete() } catch (e: SecurityException) { Logger.e(e) { "Failed to delete EPG source $id" } }
     }
 }

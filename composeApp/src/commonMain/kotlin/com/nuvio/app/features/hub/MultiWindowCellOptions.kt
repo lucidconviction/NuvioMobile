@@ -51,6 +51,7 @@ import com.nuvio.app.features.iptv.IptvRepository
 import com.nuvio.app.features.iptv.QuickChannel
 import com.nuvio.app.features.iptv.QuickChannelList
 import com.nuvio.app.features.iptv.StreamValidationController
+import com.nuvio.app.features.iptv.StreamValidationStore
 import com.nuvio.app.features.player.PlayerLaunch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -437,6 +438,10 @@ private fun ChannelOverlay(mode: String, currentSlotIndex: Int, onSelect: (IptvC
 
 private val qcTabs = listOf("All", "Bay Area", "US", "UK", "CA", "Premium", "Sports", "News")
 
+private object QuickChannelMatchCache {
+    val matches = mutableMapOf<String, Pair<List<IptvChannel>, Map<String, Boolean>>>()
+}
+
 private sealed class QcLoadState {
     data object Idle : QcLoadState()
     data object Loading : QcLoadState()
@@ -453,11 +458,11 @@ private fun QuickChannelOverlay(
     val allChannels = remember { IptvRepository.getAllChannels() }
     val sourceNames = remember { IptvRepository.getAllSourceNames() }
     val sourceIds = remember { IptvRepository.getAllSourceIds() }
+    LaunchedEffect(Unit) { StreamValidationStore.preload() }
     var qcFilter by remember { mutableStateOf("All") }
     var selectedQc by remember { mutableStateOf<QuickChannel?>(null) }
     var loadState by remember { mutableStateOf<QcLoadState>(QcLoadState.Idle) }
     var aliveByUrl by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
-    var matchesLoading by remember { mutableStateOf(false) }
 
     val filtered = remember(qcFilter) {
         QuickChannelList.all.filter { qc ->
@@ -473,8 +478,12 @@ private fun QuickChannelOverlay(
 
     LaunchedEffect(selectedQc) {
         val qc = selectedQc ?: return@LaunchedEffect
-        aliveByUrl = emptyMap()
-        matchesLoading = false
+        val cached = QuickChannelMatchCache.matches[qc.displayName]
+        if (cached != null) {
+            aliveByUrl = cached.second
+            loadState = QcLoadState.Success(cached.first)
+            return@LaunchedEffect
+        }
         loadState = QcLoadState.Loading
         loadState = try {
             val matches = withContext(Dispatchers.Default) {
@@ -485,11 +494,10 @@ private fun QuickChannelOverlay(
             if (matches.isEmpty()) {
                 QcLoadState.Error("No sources found for \"${qc.displayName}\"")
             } else {
-                matchesLoading = true
-                StreamValidationController.resolveChannelsStatuses(matches) { statuses ->
+                StreamValidationController.resolveCachedStatuses(matches) { statuses ->
                     aliveByUrl = statuses
                 }
-                matchesLoading = false
+                QuickChannelMatchCache.matches[qc.displayName] = matches to aliveByUrl
                 QcLoadState.Success(matches)
             }
         } catch (e: Exception) {
@@ -498,6 +506,7 @@ private fun QuickChannelOverlay(
     }
 
     val onRetry: () -> Unit = {
+        selectedQc?.let { qc -> QuickChannelMatchCache.matches.remove(qc.displayName) }
         val current = selectedQc
         selectedQc = null
         selectedQc = current
@@ -532,8 +541,9 @@ private fun QuickChannelOverlay(
             }
         }
         is QcLoadState.Success -> {
+            val qc = selectedQc ?: return
             QuickChannelMatchOverlay(
-                quickChannel = selectedQc!!,
+                quickChannel = qc,
                 matchedChannels = state.channels,
                 aliveByUrl = aliveByUrl,
                 sourceNames = sourceNames,

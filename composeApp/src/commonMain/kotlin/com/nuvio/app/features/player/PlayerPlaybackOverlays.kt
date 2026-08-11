@@ -411,13 +411,18 @@ internal fun BoxScope.PlayerPlaybackOverlays(
 
         val showingQuick = overlayMode == "quick"
 
-        val allQuickMatches = remember(channelNames) {
+        var allQuickMatches by remember { mutableStateOf<List<QuickChannelRow>>(emptyList()) }
+        LaunchedEffect(channelNames) {
             val names = channelNames ?: emptyList()
-            QuickChannelList.all.mapNotNull { qc ->
-                val matched = names.mapIndexedNotNull { idx, n -> if (quickChannelNameMatches(qc, n)) idx else null }
-                if (matched.isEmpty()) null
-                else QuickChannelRow(qc.displayName, matched.size, matched.first())
+            if (names.isEmpty()) return@LaunchedEffect
+            val result = withContext(kotlinx.coroutines.Dispatchers.Default) {
+                QuickChannelList.all.mapNotNull { qc ->
+                    val matched = names.mapIndexedNotNull { idx, n -> if (quickChannelNameMatches(qc, n)) idx else null }
+                    if (matched.isEmpty()) null
+                    else QuickChannelRow(qc.displayName, matched.size, matched.first())
+                }
             }
+            allQuickMatches = result
         }
         val quickMatches by remember(allQuickMatches, searchQuery) {
             val q = searchQuery.trim().lowercase()
@@ -722,12 +727,13 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                             val chId = channelIds?.getOrNull(realIdx)
                                             val chName = channelNames.getOrNull(realIdx)
                                             var nowNext by remember(chId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
+                                            val entryName = entries.getOrNull(idx) ?: chName ?: ""
                                             LaunchedEffect(chId, chName) {
-                                                nowNext = if (epgLoader != null) epgLoader(chId, chName ?: entries[idx]) else null
+                                                nowNext = if (epgLoader != null) epgLoader(chId, entryName) else null
                                             }
                                             ChannelListItem(
                                                 index = realIdx,
-                                                name = entries[idx],
+                                                name = entryName,
                                                 logo = channelLogos?.getOrNull(realIdx),
                                                 url = channelUrls?.getOrNull(realIdx),
                                                 isCurrent = realIdx == currentChannelIndex,
@@ -752,11 +758,12 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                                 val chId = channelIds?.getOrNull(idx)
                                                 val chName = channelNames.getOrNull(idx)
                                                 var nowNext by remember(chId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
+                                                val entryName = entries.getOrNull(idx) ?: chName ?: ""
                                                 LaunchedEffect(chId, chName) {
-                                                    nowNext = if (epgLoader != null) epgLoader(chId, chName ?: entries[idx]) else null
+                                                    nowNext = if (epgLoader != null) epgLoader(chId, entryName) else null
                                                 }
                                                 ChannelListItem(
-                                                    index = idx, name = entries[idx], logo = entryLogos?.getOrNull(idx),
+                                                    index = idx, name = entryName, logo = entryLogos?.getOrNull(idx),
                                                     url = channelUrls?.getOrNull(idx),
                                                     isCurrent = idx == currentChannelIndex, isFavorite = true,
                                                     nowNext = nowNext,
@@ -781,11 +788,12 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                             val chId = channelIds?.getOrNull(idx)
                                             val chName = channelNames.getOrNull(idx)
                                             var nowNext by remember(chId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
+                                            val entryName = entries.getOrNull(idx) ?: chName ?: ""
                                             LaunchedEffect(chId, chName) {
-                                                nowNext = if (epgLoader != null) epgLoader(chId, chName ?: entries[idx]) else null
+                                                nowNext = if (epgLoader != null) epgLoader(chId, entryName) else null
                                             }
                                             ChannelListItem(
-                                                index = idx, name = entries[idx], logo = entryLogos?.getOrNull(idx),
+                                                index = idx, name = entryName, logo = entryLogos?.getOrNull(idx),
                                                 url = channelUrls?.getOrNull(idx),
                                                 isCurrent = idx == currentChannelIndex,
                                                 isFavorite = chId?.let { favoriteIds?.contains(it) } == true,

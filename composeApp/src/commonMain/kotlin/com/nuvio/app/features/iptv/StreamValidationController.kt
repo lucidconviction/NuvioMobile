@@ -60,13 +60,19 @@ object StreamValidationController {
         sources.forEach { (id, channels) -> scanSource(id, channels, force) }
     }
 
+    suspend fun resolveCachedStatuses(
+        matches: List<IptvChannel>,
+        onUpdate: (Map<String, Boolean>) -> Unit,
+    ) {
+        StreamValidationStore.ensureLoadedSuspend()
+        onUpdate(StreamValidationStore.getAliveMap())
+    }
+
     suspend fun resolveChannelsStatuses(
         matches: List<IptvChannel>,
         onUpdate: (Map<String, Boolean>) -> Unit,
     ) {
-        StreamValidationStore.ensureLoaded()
-        val initial = StreamValidationStore.getAliveMap()
-        onUpdate(initial)
+        resolveCachedStatuses(matches, onUpdate)
         val urlsToCheck = matches.map { it.url }
             .filter { it.isNotBlank() && StreamValidationStore.needsRecheck(it) }
             .distinct()
@@ -75,8 +81,10 @@ object StreamValidationController {
         StreamValidator.checkBatch(urlsToCheck, onResult = { url, alive ->
             StreamValidationStore.updateStatus(url, alive)
             synchronized(results) { results[url] = alive }
-            onUpdate(initial + results)
         })
-        if (results.isNotEmpty()) StreamValidationStore.remember(results)
+        if (results.isNotEmpty()) {
+            StreamValidationStore.remember(results)
+            onUpdate(StreamValidationStore.getAliveMap())
+        }
     }
 }
