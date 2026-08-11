@@ -6,8 +6,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -16,7 +19,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -30,6 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
+
+import com.nuvio.app.features.iptv.EpgProgram
+import com.nuvio.app.features.iptv.IptvChannel
+import com.nuvio.app.features.iptv.IptvRepository
+import com.nuvio.app.features.trakt.TraktPlatformClock
 
 import com.nuvio.app.features.hub.MultiWindowPositionPicker
 import com.nuvio.app.features.hub.MultiWindowStore
@@ -320,7 +330,19 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
 
         // IPTV channel navigation arrows (hideaway, shown with controls)
         val iptvChUrls = args.iptvChannelUrls
-        if (args.parentMetaId == "iptv" && iptvChUrls != null && iptvChUrls.isNotEmpty() && controlsVisible) {
+        val isIptvPlayback = args.parentMetaId == "iptv" && iptvChUrls != null && iptvChUrls.isNotEmpty()
+        if (isIptvPlayback) {
+            LaunchedEffect(controlsVisible) {
+                if (controlsVisible) iptvChannelNavVisible = true
+            }
+            LaunchedEffect(iptvChannelNavVisible, iptvChannelNavTouch) {
+                if (iptvChannelNavVisible) {
+                    delay(3000)
+                    iptvChannelNavVisible = false
+                }
+            }
+        }
+        if (isIptvPlayback && controlsVisible && iptvChannelNavVisible) {
             val chIdx = args.iptvCurrentChannelIndex
             val chUrls = iptvChUrls
             val chNames = args.iptvChannelNames
@@ -340,13 +362,18 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                             .clip(CircleShape)
                             .background(Color.Black.copy(alpha = 0.4f))
                             .clickable {
+                                iptvChannelNavTouch++
                                 val newIdx = chIdx - 1
+                                val newLogo = chLogos?.getOrNull(newIdx).takeIf { !it.isNullOrBlank() }
                                 val newLaunch = PlayerLaunchStore.get(args.launchId)?.copy(
+                                    title = chNames?.getOrNull(newIdx) ?: "",
                                     sourceUrl = chUrls[newIdx],
                                     streamTitle = chNames?.getOrNull(newIdx) ?: "",
                                     currentChannelIndex = newIdx,
-                                    logo = chLogos?.getOrNull(newIdx),
-                                    poster = chLogos?.getOrNull(newIdx),
+                                    logo = newLogo,
+                                    poster = newLogo,
+                                    initialPositionMs = 0L,
+                                    initialProgressFraction = null,
                                 )
                                 if (newLaunch != null) {
                                     flushWatchProgress()
@@ -367,13 +394,18 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                             .clip(CircleShape)
                             .background(Color.Black.copy(alpha = 0.4f))
                             .clickable {
+                                iptvChannelNavTouch++
                                 val newIdx = chIdx + 1
+                                val newLogo = chLogos?.getOrNull(newIdx).takeIf { !it.isNullOrBlank() }
                                 val newLaunch = PlayerLaunchStore.get(args.launchId)?.copy(
+                                    title = chNames?.getOrNull(newIdx) ?: "",
                                     sourceUrl = chUrls[newIdx],
                                     streamTitle = chNames?.getOrNull(newIdx) ?: "",
                                     currentChannelIndex = newIdx,
-                                    logo = chLogos?.getOrNull(newIdx),
-                                    poster = chLogos?.getOrNull(newIdx),
+                                    logo = newLogo,
+                                    poster = newLogo,
+                                    initialPositionMs = 0L,
+                                    initialProgressFraction = null,
                                 )
                                 if (newLaunch != null) {
                                     flushWatchProgress()
@@ -387,6 +419,16 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
                     }
                 }
             }
+        }
+
+        if (args.parentMetaId == "iptv") {
+            IptvEpgOverlay(
+                sourceUrl = activeSourceUrl,
+                visible = controlsVisible && !playerControlsLocked,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 16.dp, bottom = overlayBottomPadding + 110.dp),
+            )
         }
 
         RenderPlayerModals(displayedPositionMs = displayedPositionMs)
@@ -484,7 +526,7 @@ private fun PlayerScreenRuntime.RenderPlayerControls(displayedPositionMs: Long, 
                 refreshTracks()
                 showAudioModal = true
             },
-            onHistoryClick = { historyOverlayTrigger++ },
+            onHistoryClick = null,
             onVideoSettingsClick = if (isIos) {
                 {
                     showVideoSettingsModal = true
@@ -920,4 +962,73 @@ private fun PlayerScreenRuntime.RenderPlayerModals(displayedPositionMs: Long) {
             },
         )
     }
+}
+
+@Composable
+private fun rememberIptvEpgPrograms(channel: IptvChannel?): List<EpgProgram> {
+    val key = channel?.id ?: ""
+    var programs by remember(key) { mutableStateOf<List<EpgProgram>?>(null) }
+    LaunchedEffect(key) {
+        if (channel == null) return@LaunchedEffect
+        while (true) {
+            programs = IptvRepository.getEpgProgramsForChannel(channel)
+            delay(30_000)
+        }
+    }
+    return programs ?: emptyList()
+}
+
+@Composable
+private fun IptvEpgOverlay(
+    sourceUrl: String,
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val channel = remember(sourceUrl) {
+        IptvRepository.getAllChannels().find { it.url == sourceUrl }
+    }
+    val programs = rememberIptvEpgPrograms(channel)
+    val now = TraktPlatformClock.nowEpochMs()
+    val currentProg = programs.firstOrNull { now in it.startTime until it.endTime }
+    val nextProg = programs.firstOrNull { it.startTime > now }
+    if (currentProg == null && nextProg == null) return
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = tween(durationMillis = 220)),
+        exit = fadeOut(animationSpec = tween(durationMillis = 180)),
+        modifier = modifier,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    currentProg?.let {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFE53935)))
+                            Text(formatEpgTime(it.startTime), color = Color.White.copy(alpha = 0.9f), fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                            Text(it.title, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    nextProg?.let {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF4DD0E1)))
+                            Text(formatEpgTime(it.startTime), color = Color.White.copy(alpha = 0.6f), fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                            Text(it.title, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatEpgTime(ms: Long): String {
+    val local = ms + TraktPlatformClock.localTimezoneOffsetMs()
+    val hours = ((local / 3_600_000L) % 24L).toInt()
+    val minutes = ((local / 60_000L) % 60L).toInt()
+    return "${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}"
 }

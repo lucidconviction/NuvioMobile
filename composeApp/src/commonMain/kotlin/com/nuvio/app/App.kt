@@ -2957,7 +2957,7 @@ private fun MainAppContent(
                         iptvChannelUrls = launch.channelUrls,
                         iptvChannelLogos = launch.channelLogos,
                         iptvCurrentChannelIndex = launch.currentChannelIndex,
-                        iptvFavoriteIds = launch.channelIds?.filter { IptvRepository.isFavorite(it) }?.toSet(),
+                        iptvFavoriteIds = IptvRepository.getFavoriteChannelIds(),
                         onToggleIptvFavorite = { channelId -> IptvRepository.toggleFavorite(channelId) },
                         iptvHistoryNames = launch.historyChannelNames,
                         iptvHistoryUrls = launch.historyChannelUrls,

@@ -20,6 +20,7 @@ import kotlinx.serialization.json.Json
 
 object IptvRepository {
     private const val CHANNEL_CACHE_TTL_MS = 3_600_000L
+    private const val MAX_EPG_CACHE_PROGRAMS = 150_000
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private var idCounter = 0L
@@ -64,7 +65,7 @@ object IptvRepository {
         }
         if (payload != null) {
             try {
-                settings = json.decodeFromString<StoredIptvSettings>(payload).toSettings()
+                settings = hydrateChannels(json.decodeFromString<StoredIptvSettings>(payload).toSettings())
             } catch (_: Exception) {
                 settings = IptvPlaylistSettings()
                 IptvStorage.saveSettings(json.encodeToString(StoredIptvSettings.fromSettings(settings)))
@@ -74,7 +75,75 @@ object IptvRepository {
     }
 
     private fun saveToStorage() {
-        IptvStorage.saveSettings(json.encodeToString(StoredIptvSettings.fromSettings(settings)))
+        val stripped = IptvPlaylistSettings(
+            m3uPlaylists = settings.m3uPlaylists.map { it.copy(channels = emptyList()) },
+            xtreamAccounts = settings.xtreamAccounts.map { it.copy(channels = emptyList()) },
+            stalkerAccounts = settings.stalkerAccounts.map { it.copy(channels = emptyList()) },
+            epgSources = settings.epgSources,
+            favoriteChannelIds = settings.favoriteChannelIds,
+            channelHistory = settings.channelHistory,
+        )
+        try {
+            IptvStorage.saveSettings(json.encodeToString(StoredIptvSettings.fromSettings(stripped)))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun m3uCacheKey(playlist: M3uPlaylist): String =
+        if (playlist.url.isNotBlank()) playlist.url else "m3u:${playlist.id}"
+
+    private fun xtreamCacheKey(account: XtreamAccount): String = "xtream:${account.id}"
+
+    private fun stalkerCacheKey(account: StalkerAccount): String = "stalker:${account.id}"
+
+    private fun loadChannelsFromCacheRaw(key: String): List<IptvChannel>? {
+        return try {
+            val cached = IptvStorage.loadChannelCache(key) ?: return null
+            val data = json.decodeFromString<StoredChannelCache>(cached)
+            data.channels.map { it.toChannel() }
+        } catch (_: Exception) { null }
+    }
+
+    private fun hydrateChannels(s: IptvPlaylistSettings): IptvPlaylistSettings {
+        return s.copy(
+            m3uPlaylists = s.m3uPlaylists.map { p ->
+                val key = m3uCacheKey(p)
+                val cached = loadChannelsFromCacheRaw(key)
+                if (cached != null && cached.isNotEmpty()) {
+                    p.copy(channels = cached)
+                } else if (p.channels.isNotEmpty()) {
+                    saveChannelsToCache(key, p.channels)
+                    p
+                } else {
+                    p
+                }
+            },
+            xtreamAccounts = s.xtreamAccounts.map { a ->
+                val key = xtreamCacheKey(a)
+                val cached = loadChannelsFromCacheRaw(key)
+                if (cached != null && cached.isNotEmpty()) {
+                    a.copy(channels = cached)
+                } else if (a.channels.isNotEmpty()) {
+                    saveChannelsToCache(key, a.channels)
+                    a
+                } else {
+                    a
+                }
+            },
+            stalkerAccounts = s.stalkerAccounts.map { a ->
+                val key = stalkerCacheKey(a)
+                val cached = loadChannelsFromCacheRaw(key)
+                if (cached != null && cached.isNotEmpty()) {
+                    a.copy(channels = cached)
+                } else if (a.channels.isNotEmpty()) {
+                    saveChannelsToCache(key, a.channels)
+                    a
+                } else {
+                    a
+                }
+            },
+        )
     }
 
     fun addM3uPlaylist(name: String, url: String) {
@@ -82,17 +151,27 @@ object IptvRepository {
             val id = nextId("m3u")
             val playlist = M3uPlaylist(id = id, name = name, url = url)
             settings = settings.copy(m3uPlaylists = settings.m3uPlaylists + playlist)
+            if (url == IPTV_ORG_URL) {
+                maybeAutoAddIptvOrgEpg()
+            }
             saveToStorage()
             refreshUi()
             refreshM3uChannels(id)
         }
     }
 
+    private fun maybeAutoAddIptvOrgEpg() {
+        if (settings.epgSources.any { it.url == MJH_EPG_URL }) return
+        val id = nextId("epg")
+        settings = settings.copy(epgSources = settings.epgSources + EpgSource(id = id, name = MJH_EPG_NAME, url = MJH_EPG_URL))
+        saveToStorage()
+    }
+
     fun removeM3uPlaylist(id: String) {
         val playlist = settings.m3uPlaylists.find { it.id == id }
         settings = settings.copy(m3uPlaylists = settings.m3uPlaylists.filter { it.id != id })
         saveToStorage()
-        playlist?.let { IptvStorage.invalidateChannelCache(it.url) }
+        playlist?.let { IptvStorage.invalidateChannelCache(m3uCacheKey(it)) }
         refreshUi()
     }
 
@@ -120,7 +199,7 @@ object IptvRepository {
                 timestamp = System.currentTimeMillis(),
             ))
             IptvStorage.saveChannelCache(url, data)
-        } catch (_: Exception) { }
+        } catch (_: Throwable) { }
     }
 
     fun refreshM3uChannels(id: String) {
@@ -128,7 +207,7 @@ object IptvRepository {
             val playlist = settings.m3uPlaylists.find { it.id == id } ?: return@launch
             _uiState.value = _uiState.value.copy(isLoading = true, error = null, refreshingSourceIds = _uiState.value.refreshingSourceIds + id)
 
-            val cached = loadChannelsFromCache(playlist.url)
+            val cached = loadChannelsFromCache(m3uCacheKey(playlist))
             if (cached != null) {
                 val (channels, _) = cached
                 val updated = playlist.copy(channels = channels)
@@ -144,7 +223,7 @@ object IptvRepository {
             try {
                 val m3uContent = httpGetText(playlist.url)
                 val channels = M3uParser.parse(m3uContent, id)
-                saveChannelsToCache(playlist.url, channels)
+                saveChannelsToCache(m3uCacheKey(playlist), channels)
                 val updated = playlist.copy(channels = channels)
                 settings = settings.copy(
                     m3uPlaylists = settings.m3uPlaylists.map { if (it.id == id) updated else it }
@@ -167,6 +246,7 @@ object IptvRepository {
             val channels = M3uParser.parse(content, id)
             val playlist = M3uPlaylist(id = id, name = name, url = "", channels = channels)
             settings = settings.copy(m3uPlaylists = settings.m3uPlaylists + playlist)
+            saveChannelsToCache(m3uCacheKey(playlist), channels)
             saveToStorage()
             refreshUi()
         }
@@ -184,8 +264,10 @@ object IptvRepository {
     }
 
     fun removeXtreamAccount(id: String) {
+        val account = settings.xtreamAccounts.find { it.id == id }
         settings = settings.copy(xtreamAccounts = settings.xtreamAccounts.filter { it.id != id })
         saveToStorage()
+        account?.let { IptvStorage.invalidateChannelCache(xtreamCacheKey(it)) }
         refreshUi()
     }
 
@@ -216,6 +298,7 @@ object IptvRepository {
                 settings = settings.copy(
                     xtreamAccounts = settings.xtreamAccounts.map { if (it.id == id) updated else it }
                 )
+                saveChannelsToCache(xtreamCacheKey(account), channels)
                 saveToStorage()
                 _uiState.value = _uiState.value.copy(refreshingSourceIds = _uiState.value.refreshingSourceIds - id)
                 refreshUi()
@@ -237,8 +320,10 @@ object IptvRepository {
     }
 
     fun removeStalkerAccount(id: String) {
+        val account = settings.stalkerAccounts.find { it.id == id }
         settings = settings.copy(stalkerAccounts = settings.stalkerAccounts.filter { it.id != id })
         saveToStorage()
+        account?.let { IptvStorage.invalidateChannelCache(stalkerCacheKey(it)) }
         refreshUi()
     }
 
@@ -252,6 +337,7 @@ object IptvRepository {
                 settings = settings.copy(
                     stalkerAccounts = settings.stalkerAccounts.map { if (it.id == id) updated else it }
                 )
+                saveChannelsToCache(stalkerCacheKey(account), channels)
                 saveToStorage()
                 _uiState.value = _uiState.value.copy(refreshingSourceIds = _uiState.value.refreshingSourceIds - id)
                 refreshUi()
@@ -266,10 +352,24 @@ object IptvRepository {
         settings = settings.copy(epgSources = settings.epgSources + EpgSource(id = id, name = name, url = url))
         saveToStorage()
         refreshUi()
+        refreshEpg()
+    }
+
+    fun addUploadedEpgSource(name: String, content: String) {
+        val id = nextId("epg_upload")
+        IptvStorage.saveEpgSourceContent(id, content)
+        settings = settings.copy(epgSources = settings.epgSources + EpgSource(id = id, name = name, url = "file://$id"))
+        saveToStorage()
+        refreshUi()
+        refreshEpg()
     }
 
     fun removeEpgSource(id: String) {
+        val source = settings.epgSources.find { it.id == id }
         settings = settings.copy(epgSources = settings.epgSources.filter { it.id != id })
+        if (source?.url?.startsWith("file://") == true) {
+            IptvStorage.deleteEpgSourceContent(id)
+        }
         saveToStorage()
         refreshUi()
     }
@@ -285,56 +385,73 @@ object IptvRepository {
                     var lastError: String? = null
                     for (source in settings.epgSources) {
                         try {
-                            val result = EpgParser.parseXmltvStream { emit ->
-                                httpGetTextChunked(
-                                    source.url,
-                                    mapOf("Accept" to "application/xml, text/xml, */*"),
-                                ) { chunk ->
-                                    emit(chunk)
-                                    true
+                            val result = if (source.url.startsWith("file://")) {
+                                val content = IptvStorage.loadEpgSourceContent(source.id)
+                                if (content == null) {
+                                    throw IllegalStateException("Local EPG file missing for \"${source.name}\"")
+                                }
+                                EpgParser.parseXmltv(content)
+                            } else {
+                                EpgParser.parseXmltvStream { emit ->
+                                    httpGetTextChunked(
+                                        source.url,
+                                        mapOf("Accept" to "application/xml, text/xml, */*"),
+                                    ) { chunk ->
+                                        emit(chunk)
+                                        true
+                                    }
                                 }
                             }
                             allPrograms.putAll(result.programsByChannelId)
                             for ((chId, progs) in result.programsByChannelId) {
                                 val displayName = result.channelDisplayNames[chId]
                                 if (displayName != null) {
-                                    val key = displayName.lowercase().trim()
-                                    val existing = programsByName[key]
-                                    programsByName[key] = if (existing == null) {
-                                        progs
-                                    } else {
-                                        (existing + progs).sortedBy { it.startTime }
+                                    val key = normalizeIptvName(displayName)
+                                    if (key.isNotEmpty()) {
+                                        val existing = programsByName[key]
+                                        programsByName[key] = if (existing == null) {
+                                            progs
+                                        } else {
+                                            (existing + progs).sortedBy { it.startTime }
+                                        }
                                     }
                                 }
                             }
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
+                        } catch (e: OutOfMemoryError) {
+                            lastError = "EPG source \"${source.name}\" is too large"
                         } catch (e: Exception) {
                             lastError = e.message ?: "Unknown EPG error"
                         }
                     }
+                    val programsByNormId = buildNormalizedIdIndex(allPrograms)
                     val allCh = getAllChannels()
-                    val matchedIds = allCh.count { ch -> ch.epgChannelId != null && allPrograms.containsKey(ch.epgChannelId) }
+                    val matchedIds = allCh.count { ch ->
+                        normalizeEpgId(ch.epgChannelId).let { it.isNotEmpty() && programsByNormId.containsKey(it) }
+                    }
                     val matchedNames = allCh.count { ch ->
-                        ch.epgChannelId == null || !allPrograms.containsKey(ch.epgChannelId)
-                    }.let { total ->
-                        allCh.count { ch ->
-                            val byId = ch.epgChannelId != null && allPrograms.containsKey(ch.epgChannelId)
-                            val byName = !byId && programsByName.containsKey(ch.name.lowercase().trim())
-                            byName
-                        }
+                        val byId = normalizeEpgId(ch.epgChannelId).let { it.isNotEmpty() && programsByNormId.containsKey(it) }
+                        val byName = !byId && normalizeIptvName(ch.name).let { it.isNotEmpty() && programsByName.containsKey(it) }
+                        byName
                     }
                     _uiState.value = _uiState.value.copy(
                         epgPrograms = allPrograms,
                         epgProgramsByName = programsByName,
+                        epgProgramsByNormId = programsByNormId,
                         epgLoading = false,
                         epgError = lastError,
                         epgMatchCount = matchedIds + matchedNames,
                     )
-                    saveEpgCache(allPrograms, programsByName)
+                    saveEpgCache(allPrograms, programsByName, programsByNormId)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
+            } catch (e: OutOfMemoryError) {
+                _uiState.value = _uiState.value.copy(
+                    epgLoading = false,
+                    epgError = "EPG feed is too large to load",
+                )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     epgLoading = false,
@@ -393,6 +510,8 @@ object IptvRepository {
 
     fun isFavorite(channelId: String): Boolean = channelId in settings.favoriteChannelIds
 
+    fun getFavoriteChannelIds(): Set<String> = settings.favoriteChannelIds
+
     fun getFavoriteChannels(): List<IptvChannel> {
         return getAllChannels().filter { it.id in settings.favoriteChannelIds }
     }
@@ -418,13 +537,9 @@ object IptvRepository {
         val exists = settings.m3uPlaylists.any { it.url == IPTV_ORG_URL }
         if (!exists) {
             addM3uPlaylist(IPTV_ORG_NAME, IPTV_ORG_URL)
-        }
-        val epgExists = settings.epgSources.any { it.url == MJH_EPG_URL }
-        if (!epgExists) {
-            val id = nextId("epg")
-            settings = settings.copy(epgSources = settings.epgSources + EpgSource(id = id, name = MJH_EPG_NAME, url = MJH_EPG_URL))
-            saveToStorage()
-            refreshUi()
+        } else {
+            maybeAutoAddIptvOrgEpg()
+            refreshEpg()
         }
     }
 
@@ -439,6 +554,12 @@ object IptvRepository {
         saveToStorage()
     }
 
+    fun clearHistory() {
+        settings = settings.copy(channelHistory = emptyList())
+        saveToStorage()
+        refreshUi()
+    }
+
     fun getHistoryChannels(): List<IptvChannel> {
         return settings.channelHistory.mapNotNull { id ->
             getAllChannels().find { it.id == id }
@@ -446,6 +567,37 @@ object IptvRepository {
     }
 
     fun getLastFilteredChannels(): List<IptvChannel> = _uiState.value.channels
+
+    fun getXtreamAccounts(): List<XtreamAccount> = settings.xtreamAccounts
+
+    suspend fun getEpgProgramsForChannel(channel: IptvChannel): List<EpgProgram> {
+        return when (channel.sourceType) {
+            SourceType.Xtream -> {
+                val account = settings.xtreamAccounts.find { it.id == channel.sourceId }
+                if (account != null) ShortEpgCache.getOrLoad(account, channel, limit = 2)
+                else emptyList()
+            }
+            SourceType.Stalker, SourceType.M3U -> {
+                val byId = channel.epgChannelId
+                    ?.let { id -> _uiState.value.epgProgramsByNormId[normalizeEpgId(id)] }
+                    ?.takeIf { it.isNotEmpty() }
+                byId ?: _uiState.value.epgProgramsByName[normalizeIptvName(channel.name)]
+                    ?.takeIf { it.isNotEmpty() } ?: emptyList()
+            }
+        }
+    }
+
+    suspend fun getEpgNowNext(channelId: String?, channelName: String?): Pair<EpgProgram?, EpgProgram?> {
+        val now = TraktPlatformClock.nowEpochMs()
+        val programs = channelId?.let { id -> getAllChannels().find { it.id == id } }
+            ?.let { ch -> getEpgProgramsForChannel(ch) }
+            ?: channelName?.let { name -> _uiState.value.epgProgramsByName[normalizeIptvName(name)] }
+                ?.takeIf { it.isNotEmpty() }
+                ?: emptyList()
+        val current = programs.firstOrNull { now in it.startTime until it.endTime }
+        val next = programs.firstOrNull { it.startTime > now }
+        return current to next
+    }
 
     fun getAllChannels(): List<IptvChannel> {
         val m3uChannels = settings.m3uPlaylists.flatMap { it.channels }
@@ -489,6 +641,7 @@ object IptvRepository {
                 error = null,
                 epgPrograms = _uiState.value.epgPrograms,
                 epgProgramsByName = _uiState.value.epgProgramsByName,
+                epgProgramsByNormId = _uiState.value.epgProgramsByNormId,
                 epgLoading = _uiState.value.epgLoading,
                 epgMatchCount = _uiState.value.epgMatchCount,
                 debugText = _uiState.value.debugText,
@@ -502,16 +655,20 @@ object IptvRepository {
             val data = json.decodeFromString<EpgCacheData>(cached)
             val age = TraktPlatformClock.nowEpochMs() - data.timestamp
             if (data.timestamp > 0 && age in 0..3_600_000L) {
+                val programsByNormId = buildNormalizedIdIndex(data.programsByChannelId)
                 val allCh = getAllChannels()
-                val matchedIds = allCh.count { ch -> ch.epgChannelId != null && data.programsByChannelId.containsKey(ch.epgChannelId) }
+                val matchedIds = allCh.count { ch ->
+                    normalizeEpgId(ch.epgChannelId).let { it.isNotEmpty() && programsByNormId.containsKey(it) }
+                }
                 val matchedNames = allCh.count { ch ->
-                    val byId = ch.epgChannelId != null && data.programsByChannelId.containsKey(ch.epgChannelId)
-                    val byName = !byId && data.programsByName.containsKey(ch.name.lowercase().trim())
+                    val byId = normalizeEpgId(ch.epgChannelId).let { it.isNotEmpty() && programsByNormId.containsKey(it) }
+                    val byName = !byId && normalizeIptvName(ch.name).let { it.isNotEmpty() && data.programsByName.containsKey(it) }
                     byName
                 }
                 _uiState.value = _uiState.value.copy(
                     epgPrograms = data.programsByChannelId,
                     epgProgramsByName = data.programsByName,
+                    epgProgramsByNormId = programsByNormId,
                     epgLoading = false,
                     epgMatchCount = matchedIds + matchedNames,
                 )
@@ -519,15 +676,19 @@ object IptvRepository {
         } catch (_: Exception) { }
     }
 
-    private fun saveEpgCache(programs: Map<String, List<EpgProgram>>, programsByName: Map<String, List<EpgProgram>>) {
+    private fun saveEpgCache(programs: Map<String, List<EpgProgram>>, programsByName: Map<String, List<EpgProgram>>, programsByNormId: Map<String, List<EpgProgram>>) {
         try {
+            val totalPrograms = programs.values.sumOf { it.size }
+            if (totalPrograms > MAX_EPG_CACHE_PROGRAMS) return
             val data = json.encodeToString(EpgCacheData(
                 programsByChannelId = programs,
                 programsByName = programsByName,
+                programsByNormId = programsByNormId,
                 timestamp = TraktPlatformClock.nowEpochMs(),
             ))
+            if (data.length > 8_000_000) return
             IptvStorage.saveEpgCache(data)
-        } catch (_: Exception) { }
+        } catch (_: Throwable) { }
     }
 
     private fun refreshUi() {
@@ -539,8 +700,37 @@ object IptvRepository {
 private data class EpgCacheData(
     val programsByChannelId: Map<String, List<EpgProgram>>,
     val programsByName: Map<String, List<EpgProgram>>,
+    val programsByNormId: Map<String, List<EpgProgram>> = emptyMap(),
     val timestamp: Long,
 )
+
+private fun buildNormalizedIdIndex(programsByChannelId: Map<String, List<EpgProgram>>): Map<String, List<EpgProgram>> {
+    val result = mutableMapOf<String, List<EpgProgram>>()
+    for ((id, progs) in programsByChannelId) {
+        val key = normalizeEpgId(id)
+        if (key.isEmpty()) continue
+        val existing = result[key]
+        result[key] = if (existing == null) progs else (existing + progs).sortedBy { it.startTime }
+    }
+    return result
+}
+
+private fun normalizeEpgId(id: String?): String {
+    if (id == null) return ""
+    var s = id.trim().lowercase()
+    val at = s.indexOf('@')
+    if (at >= 0) s = s.substring(0, at).trim()
+    return s
+}
+
+private fun normalizeIptvName(name: String): String {
+    if (name.isBlank()) return ""
+    return name.lowercase()
+        .replace(Regex("\\([^)]*\\)"), " ")
+        .replace(Regex("\\[[^\\]]*\\]"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+}
 
 @Serializable
 private data class StoredIptvSettings(

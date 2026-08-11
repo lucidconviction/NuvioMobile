@@ -6,6 +6,8 @@ data class EpgParseResult(
 )
 
 object EpgParser {
+    private const val MAX_BUFFER_CHARS = 8_000_000
+
     fun parseXmltv(xmlContent: String): EpgParseResult {
         val channelNames = mutableMapOf<String, String>()
         val channelRegex = Regex("""<channel\s+id="([^"]+)"[^>]*>""")
@@ -106,6 +108,9 @@ object EpgParser {
 
         suspend fun feed(chunk: String) {
             buffer.append(chunk)
+            if (buffer.length > MAX_BUFFER_CHARS) {
+                throw IllegalStateException("EPG source exceeds maximum size (${buffer.length / 1_000_000} MB)")
+            }
 
             if (!channelsParsed) {
                 var searchFrom = channelsSearchFrom
@@ -185,17 +190,21 @@ object EpgParser {
                     searchFrom = blockEnd + programEndTag.length
                 }
                 programmesSearchFrom = searchFrom
+            }
 
-                if (buffer.length > 200000) {
-                    val discardUpTo = programmesSearchFrom.coerceAtMost(channelsSearchFrom)
-                    if (discardUpTo > 100000) {
-                        val keep = buffer.substring(discardUpTo)
-                        buffer.clear()
-                        buffer.append(keep)
-                        programmesSearchFrom -= discardUpTo
-                        channelsSearchFrom = (channelsSearchFrom - discardUpTo).coerceAtLeast(0)
-                        if (programmesSearchFrom < 0) programmesSearchFrom = 0
-                    }
+            if (buffer.length > 200000) {
+                val discardUpTo = if (channelsParsed) {
+                    programmesSearchFrom.coerceAtMost(channelsSearchFrom)
+                } else {
+                    channelsSearchFrom
+                }
+                if (discardUpTo > 100000) {
+                    val keep = buffer.substring(discardUpTo)
+                    buffer.clear()
+                    buffer.append(keep)
+                    programmesSearchFrom -= discardUpTo
+                    channelsSearchFrom = (channelsSearchFrom - discardUpTo).coerceAtLeast(0)
+                    if (programmesSearchFrom < 0) programmesSearchFrom = 0
                 }
             }
         }

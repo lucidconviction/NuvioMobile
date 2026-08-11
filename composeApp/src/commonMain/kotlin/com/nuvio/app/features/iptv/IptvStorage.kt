@@ -13,4 +13,8 @@ internal expect object IptvStorage {
 
     fun loadDeadUrls(): String?
     fun saveDeadUrls(data: String)
+
+    fun loadEpgSourceContent(id: String): String?
+    fun saveEpgSourceContent(id: String, content: String)
+    fun deleteEpgSourceContent(id: String)
 }

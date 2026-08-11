@@ -9,6 +9,7 @@ import androidx.media3.datasource.TransferListener
 import com.nuvio.app.features.hub.FileDownloadState
 import com.nuvio.app.features.hub.TelegramTdEngine
 import java.io.File
+import java.io.IOException
 import java.io.RandomAccessFile
 
 @UnstableApi
@@ -29,9 +30,31 @@ class TdlibGrowingFileDataSource(
     override fun open(dataSpec: DataSpec): Long {
         uri = dataSpec.uri
         startTimeMs = System.currentTimeMillis()
-        val realFile = File(dataSpec.uri.path!!)
-        file = RandomAccessFile(realFile, "r")
-        file?.seek(dataSpec.position)
+        val rawPath = dataSpec.uri.path
+        if (rawPath.isNullOrBlank()) {
+            throw IOException("Telegram playback missing local file path")
+        }
+        var opened: RandomAccessFile? = null
+        var attempts = 0
+        while (attempts < 60) {
+            val realFile = File(rawPath)
+            if (realFile.exists() && realFile.canRead()) {
+                try {
+                    opened = RandomAccessFile(realFile, "r").also { it.seek(dataSpec.position) }
+                    break
+                } catch (_: Exception) {}
+            }
+            try {
+                Thread.sleep(250L)
+            } catch (_: InterruptedException) {
+                break
+            }
+            attempts++
+        }
+        if (opened == null) {
+            throw IOException("Telegram download not ready yet: $rawPath")
+        }
+        file = opened
         currentPosition = dataSpec.position
         return C.LENGTH_UNSET.toLong()
     }

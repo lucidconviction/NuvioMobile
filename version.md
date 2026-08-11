@@ -8,6 +8,75 @@ export ANDROID_HOME=~/Library/Android/sdk
 ```
 APK: `androidApp/build/outputs/apk/full/debug/androidApp-full-debug.apk`
 
+### v0.18.1 — EPG Now/Next in Overlay, Instant Quick Channels, Overhauled Channel Switcher (August 10, 2026)
+
+#### Player Overlay
+- **EPG now/next on every channel row** — history, quick, favorites, and full channel list items in the overlay now show a red **NOW** + cyan **NEXT** strip below the channel name (Xtream channels only)
+- **Favorites rendering fix** — the favorites-only mode (tap the star tab) now uses correct channel indices for URLs, logos, and switching (was showing wrong data for non-first pages)
+- **Quick channels instant** — precomputed eagerly on playlist load so switching to the Quick tab shows results immediately with zero loading state
+- **"Loading guide…" placeholder** — items show a subtle placeholder while EPG data fetches, then the now/next strip appears
+- **Channel list auto-scroll to current** — overlay automatically scrolls the currently-playing channel into view on open
+
+#### IPTV Everywhere
+- **Channel nav arrows (◀ ▶) on all launches** — the hideaway prev/next buttons now appear when IPTV is launched from any screen (was previously limited to home tab only)
+- **Auto-hide nav arrows** — arrows appear with controls, auto-hide after 3s of inactivity; each tap resets the timer
+- **Clean channel switch** — switching channels now resets playback position so streams start fresh
+
+#### Quick Channels Expansion
+- **~60 new entries** — News (Newsmax, NewsNation, Fox Business, OAN, Real America's Voice, Newsy, Cheddar, ABC News Live, CBS News 24/7, NBC News Now, Fox Weather, CBN, i24, CGTN, NHK World Japan, Dubai One, GB News, TalkTV, LBC, STV News, Sky News/Fox News/ABC News Australia), Sports (NHL Network, Fox Soccer Plus, GolTV, Willow Cricket, TVG, Stadium, Pac-12, Fight Network, ESPN Deportes, Fox Deportes, TUDN, Viaplay, Eleven, Setanta, Sport Klub, Sky Sport Italia/DE, RAI, RMC, Canal+ Sport, Match TV, Nova Sports, Star/Sony India, ESPN Caribbean, Sportsnet World), Premium (FXM, Sony Movies, Movies!, AXN, Warner TV, Criterion, MUBI, Film4, Great! Movies), US Broadcast (ION, MeTV, Cozi, Buzzr, This TV, Decades, Rewind, Antenna TV, Grit, Bounce, UPtv, Pop, TV Land, Game Show Network, Telemundo, UniMas, TruTV, A&E, OWN, Freeform, E!, BBC America, VICE, CMT, Universal Kids), UK (Sky Arts/Crime/History/Witness, W, Dave, Gold, Drama, Yesterday, Challenge, Talking Pictures TV, Blaze, ITVBe, Movies4Men, London Live, 4Music, Now 80s, Kerrang!, Magic, The Box, Clubland, CBeebies, Milkshake!, POP), Canada (CPAC, TVA, Noovo, Vrak, AMI, ABC Spark, CTV Comedy/Drama, Discovery Science, Much, Stingray, YTV, Treehouse, Family, TVOKids), International (Zee, Colors, Star Plus, Sony, Hum, Geo, ARY, Aaj Tak, Times Now, Republic, NDTV, Asianet, Sun, Vijay, ETV, Gemini, Dunya, SAMAA, Bollywood Movies), Bay Area/Sacramento Locals (KMAX, KOFY, KTNC, KXTV, KCRA, KOVR, KTXL, KVIE, KFVT, KFSF)
+- **New region tokens** — `LA` (Latin America) and `AU` (Australia)
+
+#### IPTV Screen
+- **EPG sources in "Your Playlists"** — added EPG guides show as cards with status (Loading/Loaded/Pending), refresh, and delete
+- **Add EPG source UX** — new "EPG" tab in Add Source sheet: URL sub-tab for XML URL, FILE sub-tab for local file upload
+- **Long-press EPG sheet** — long-press any channel card to open bottom sheet with up to 8 upcoming programs (time, title, description); currently-playing program highlighted
+- **History clear button** — TV mode now has a "Clear" button next to "Recently Watched"
+
+#### IPTV Engine
+- **Faster channel switching** — buffer reduced from 50MB→24MB with tighter time thresholds (3s/30s forward, 1s/3s back); prioritizes time over byte thresholds
+- **Telegram playback reliability** — `TdlibGrowingFileDataSource` waits up to 15s for downloaded files to become readable; `TeleNutzRepository` waits for 64KB minimum before returning URI
+- **IPTV buffer tuning** — faster zapping between IPTV channels
+
+### v0.18.0 — Live EPG, IPTV Persistence Overhaul, Portal Nutz Speedup, Stream Validation, Quick Channel Expansion (August 10, 2026)
+
+#### Live EPG (`get_short_epg`)
+- **`ShortEpgClient`** — fetches per-portal `player_api.php?action=get_short_epg&stream_id=…`; decodes base64 titles/descriptions and handles both unix-seconds and `yyyy-MM-dd HH:mm:ss` timestamps
+- **`ShortEpgCache`** — in-memory `async` dedup keyed by `server|streamId` so N cards on one stream make a single HTTP call; scoped to the active account
+- **Now/Next strips** — `EpgNowNextRow` shows a red **NOW** + cyan **NEXT** line on TV, mobile, and history channel cards plus home Quick Channel tiles (Xtream channels only)
+- **EPG bottom sheet** — long-press a channel card opens a sheet with up to 8 upcoming programs (time, title, description)
+- Renders nothing while loading or when a portal ships no EPG — never breaks the grid
+- **EPG sources in "Your Playlists"** — added EPG guides now show as EPG cards (with refresh/delete) in both mobile `PlaylistsSection` and TV `PlaylistsTvSection`
+
+#### EPG Stability
+- **Stream buffer bound** — `EpgParser.parseXmltvStream` caps the working buffer (8MB) and trims it during the channel-header phase too, so oversized/garbage feeds fail gracefully instead of `OutOfMemoryError`
+- **OOM guardrails** — `refreshEpg` catches `OutOfMemoryError` per-source and globally; `saveEpgCache` skips persisting when the feed exceeds 150k programs or an 8MB JSON payload (was crashing the app during `encodeToString`)
+
+#### IPTV Persistence
+- **Channel cache separation** — channel lists stripped out of SharedPreferences settings and stored in per-source cache files (M3U keyed by URL, Xtream/Stalker by account id); rehydrated on settings load so large playlists no longer stall startup
+- **Cache invalidation** — caches cleared when a playlist/account is deleted; flushed after refresh and local-file import
+- **Auto EPG on iptv-org** — adding the iptv-org M3U playlist now auto-adds the MJH EPG source and refreshes EPG
+- **Uploaded EPG files** — add a local EPG file (`file://` sources) parsed via `EpgParser.parseXmltv`; removing the source deletes the stored file
+
+#### Portal Nutz
+- **Faster portal search** — 4s fetch timeouts, up to 24 parallel fetches, and byte caps prevent slow/rogue hosts from hanging the scan
+- **Dedup by credentials** — portals deduplicated on the `url|username|password` triple across all sources
+- **New sources** — Telegram channel posts, Reddit subreddit RSS, paste services (pastebin/pastes.dev/rentry raw), base64-encoded portal strings, and GitHub world-repo fallback channel files
+
+#### Stream Validation
+- **`StreamValidationController`/`StreamValidator`/`StreamValidationStore`** — multi-source scans with alive/dead tracking, 10-minute dead cooldown, and a persisted dead-URL list
+- **Quick Channel status** — home Quick Channel sheets and MW channel sources resolve each match's live state (✓ Live / checking / Play) with working counts and group filtering + search
+
+#### Quick Channels
+- **~60 new entries** — News (Newsmax, NewsNation, Fox Business, OAN, Real America's Voice, Newsy, Cheddar, ABC News Live, CBS News 24/7, NBC News Now, Fox Weather, CBN, i24, CGTN, NHK World Japan, Dubai One, GB News, TalkTV, LBC, STV News, Sky News/Fox News/ABC News Australia), Sports (NHL Network, Fox Soccer Plus, GolTV, Willow Cricket, TVG, Stadium, Pac-12, Fight Network, ESPN Deportes, Fox Deportes, TUDN, Viaplay, Eleven, Setanta, Sport Klub, Sky Sport Italia/DE, RAI, RMC, Canal+ Sport, Match TV, Nova Sports, Star/Sony India, ESPN Caribbean, Sportsnet World)
+- **New region tokens** — `LA` (Latin America) and `AU` (Australia) added to Quick Channel region filtering
+
+#### Player
+- **Quick Channels in switcher overlay** — new Quick tab resolves matches against installed playlists with live statuses; tap to zap to the first working source
+- **IPTV nav arrows everywhere** — hideaway ◀ ▶ channel arrows now appear when IPTV is launched from any screen, not just the home tab
+
+#### Docs
+- **`Docs/short-epg-plan.md`** — implementation plan for the live `get_short_epg` EPG path
+
 ### v0.17.0 — BKFC/PFL/PowerSlap Scrapers, Quick Channel Region Bundles, SportNutz Overhaul, Prev/Next Player Arrows (August 8, 2026)
 
 #### New Features

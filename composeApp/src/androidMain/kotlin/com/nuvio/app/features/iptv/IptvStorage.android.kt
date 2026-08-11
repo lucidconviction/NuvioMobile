@@ -65,4 +65,24 @@ actual object IptvStorage {
         val file = File(dir, "dead_urls.json")
         file.writeText(data)
     }
+
+    private fun epgSourcePath(id: String): File? {
+        val dir = cacheDir ?: return null
+        return File(dir, "epg_src_${id.hashCode()}.xml")
+    }
+
+    actual fun loadEpgSourceContent(id: String): String? {
+        val file = epgSourcePath(id) ?: return null
+        return if (file.exists()) file.readText() else null
+    }
+
+    actual fun saveEpgSourceContent(id: String, content: String) {
+        val file = epgSourcePath(id) ?: return
+        file.writeText(content)
+    }
+
+    actual fun deleteEpgSourceContent(id: String) {
+        val file = epgSourcePath(id) ?: return
+        if (file.exists()) file.delete()
+    }
 }

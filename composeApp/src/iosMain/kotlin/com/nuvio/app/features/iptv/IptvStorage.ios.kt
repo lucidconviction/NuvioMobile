@@ -1,5 +1,8 @@
+@file:OptIn(ExperimentalForeignApi::class)
+
 package com.nuvio.app.features.iptv
 
+import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSUserDefaults
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSCachesDirectory
@@ -74,5 +77,29 @@ actual object IptvStorage {
     actual fun saveDeadUrls(data: String) {
         val path = deadUrlsPath()
         (data as NSString).writeToFile(path, atomically = true, encoding = NSUTF8StringEncoding, error = null)
+    }
+
+    private fun epgSourcePath(id: String): String {
+        val paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true)
+        val dir = paths.first() as String
+        return "$dir/epg_src_${id.hashCode()}.xml"
+    }
+
+    actual fun loadEpgSourceContent(id: String): String? {
+        val path = epgSourcePath(id)
+        return NSString.stringWithContentsOfFile(path, encoding = NSUTF8StringEncoding, error = null) as? String
+    }
+
+    actual fun saveEpgSourceContent(id: String, content: String) {
+        val path = epgSourcePath(id)
+        (content as NSString).writeToFile(path, atomically = true, encoding = NSUTF8StringEncoding, error = null)
+    }
+
+    actual fun deleteEpgSourceContent(id: String) {
+        val path = epgSourcePath(id)
+        val fileManager = platform.Foundation.NSFileManager.defaultManager
+        if (fileManager.fileExistsAtPath(path)) {
+            fileManager.removeItemAtPath(path, error = null)
+        }
     }
 }

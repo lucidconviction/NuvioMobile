@@ -1,8 +1,11 @@
 package com.nuvio.app.features.player
 
+import com.nuvio.app.features.iptv.EpgProgram
 import com.nuvio.app.features.iptv.EspnClient
 import com.nuvio.app.features.iptv.IptvChannel
 import com.nuvio.app.features.iptv.IptvRepository
+import com.nuvio.app.features.iptv.QuickChannel
+import com.nuvio.app.features.iptv.QuickChannelList
 import com.nuvio.app.features.iptv.SportEvent
 import com.nuvio.app.features.sports.DaddyLiveEvent
 import com.nuvio.app.features.trakt.TraktPlatformClock
@@ -15,6 +18,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -40,6 +45,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,6 +54,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,8 +68,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import com.nuvio.app.features.p2p.P2pLoadingStatus
 import com.nuvio.app.features.player.skip.NextEpisodeCard
 import com.nuvio.app.features.player.skip.NextEpisodeInfo
@@ -118,6 +127,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
     channelLogos: List<String>? = null,
     channelIds: List<String>? = null,
     favoriteIds: Set<String>? = null,
+    epgLoader: (suspend (channelId: String?, channelName: String) -> Pair<EpgProgram?, EpgProgram?>)? = null,
     historyNames: List<String>? = null,
     historyUrls: List<String>? = null,
     historyLogos: List<String>? = null,
@@ -387,14 +397,32 @@ internal fun BoxScope.PlayerPlaybackOverlays(
     if (channelNames != null && channelUrls != null && onSwitchChannel != null && !playerControlsLocked) {
         var overlayMode by remember { mutableStateOf<String?>(null) }
         var searchQuery by remember { mutableStateOf("") }
-        val accentPurple = Color(0xFF7C3AED)
-        val accentPurpleLight = Color(0xFFD2BBFF)
-        val onSurface = Color(0xFFDAE2FD)
-        val onSurfaceVariant = Color(0xFFCCC3D8)
-        val selectedBg = Color(0xFF2D3449).copy(alpha = 0.5f)
+
+        val colors = MaterialTheme.colorScheme
+        val accentPurple = colors.primary
+        val onSurface = colors.onSurface
+        val onSurfaceVariant = colors.onSurfaceVariant
+        val selectedBg = colors.surfaceContainerHigh.copy(alpha = 0.6f)
+        val sheetBg = colors.surfaceContainerLow
+        val chipBg = colors.surfaceContainerHigh
 
         val hasHistory = historyNames != null && historyNames.isNotEmpty()
         val hasFavorites = favoriteIds != null && favoriteIds.isNotEmpty()
+
+        val showingQuick = overlayMode == "quick"
+
+        val allQuickMatches = remember(channelNames) {
+            val names = channelNames ?: emptyList()
+            QuickChannelList.all.mapNotNull { qc ->
+                val matched = names.mapIndexedNotNull { idx, n -> if (quickChannelNameMatches(qc, n)) idx else null }
+                if (matched.isEmpty()) null
+                else QuickChannelRow(qc.displayName, matched.size, matched.first())
+            }
+        }
+        val quickMatches by remember(allQuickMatches, searchQuery) {
+            val q = searchQuery.trim().lowercase()
+            mutableStateOf(if (q.isEmpty()) allQuickMatches else allQuickMatches.filter { it.name.lowercase().contains(q) })
+        }
 
         LaunchedEffect(channelOverlayTrigger) {
             if (channelOverlayTrigger > 0L) {
@@ -415,8 +443,78 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                 modifier = Modifier
                     .fillMaxSize()
                     .align(Alignment.Center)
-                    .clickable { overlayMode = null; searchQuery = "" },
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { overlayMode = null; searchQuery = "" },
             )
+
+            val accentPurpleLight = colors.primary.copy(alpha = 0.75f)
+            val listState = rememberLazyListState()
+            var lastScrollTime by remember(overlayMode) { mutableStateOf(0L) }
+            LaunchedEffect(overlayMode) {
+                if (currentChannelIndex > 0 && overlayMode == "list") {
+                    listState.animateScrollToItem(currentChannelIndex)
+                }
+            }
+            LaunchedEffect(overlayMode) {
+                if (overlayMode != null) {
+                    lastScrollTime = TraktPlatformClock.nowEpochMs()
+                }
+            }
+            LaunchedEffect(overlayMode, listState) {
+                if (overlayMode == null) return@LaunchedEffect
+                snapshotFlow {
+                    listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+                }.collect {
+                    lastScrollTime = TraktPlatformClock.nowEpochMs()
+                }
+            }
+            LaunchedEffect(overlayMode) {
+                if (overlayMode == null) return@LaunchedEffect
+                while (true) {
+                    delay(500)
+                    val idleMs = TraktPlatformClock.nowEpochMs() - lastScrollTime
+                    if (idleMs >= 8_000L) {
+                        overlayMode = null
+                        searchQuery = ""
+                        break
+                    }
+                }
+            }
+
+            val showingHistory = overlayMode == "history"
+            val showingFavorites = overlayMode == "favorites"
+            val favoriteIndices = remember(channelNames, channelIds, favoriteIds) {
+                channelNames.indices.filter { idx ->
+                    channelIds?.getOrNull(idx)?.let { id -> favoriteIds?.contains(id) } == true
+                }
+            }
+            val entries = when (overlayMode) {
+                "history" -> historyNames ?: emptyList()
+                "favorites" -> favoriteIndices.map { channelNames[it] }
+                else -> channelNames
+            }
+            val entryUrls = when (overlayMode) {
+                "history" -> historyUrls ?: emptyList()
+                else -> channelUrls
+            }
+            val entryLogos = when (overlayMode) {
+                "history" -> historyLogos ?: emptyList()
+                else -> channelLogos
+            }
+            val entryIds = when (overlayMode) {
+                "history" -> historyIds ?: emptyList()
+                else -> channelIds
+            }
+
+            val query = searchQuery.trim().lowercase()
+            val filteredHistoryIndices = if (showingHistory) {
+                entries.indices.filter { query.isEmpty() || entries[it].lowercase().contains(query) }
+            } else emptyList()
+            val filteredListIndices = if (!showingHistory) {
+                entries.indices.filter { query.isEmpty() || entries[it].lowercase().contains(query) }
+            } else emptyList()
 
             AnimatedVisibility(
                 visible = overlayMode != null,
@@ -424,96 +522,38 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                 exit = slideOutVertically { it } + fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter),
             ) {
-                val listState = rememberLazyListState()
-                var lastScrollTime by remember(overlayMode) { mutableStateOf(0L) }
-                LaunchedEffect(overlayMode) {
-                    if (currentChannelIndex > 0 && overlayMode == "list") {
-                        listState.animateScrollToItem(currentChannelIndex)
-                    }
-                }
-                LaunchedEffect(overlayMode) {
-                    if (overlayMode != null) {
-                        lastScrollTime = TraktPlatformClock.nowEpochMs()
-                    }
-                }
-                LaunchedEffect(overlayMode, listState) {
-                    if (overlayMode == null) return@LaunchedEffect
-                    snapshotFlow {
-                        listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
-                    }.collect {
-                        lastScrollTime = TraktPlatformClock.nowEpochMs()
-                    }
-                }
-                LaunchedEffect(overlayMode) {
-                    if (overlayMode == null) return@LaunchedEffect
-                    while (true) {
-                        delay(500)
-                        val idleMs = TraktPlatformClock.nowEpochMs() - lastScrollTime
-                        if (idleMs >= 8_000L) {
-                            overlayMode = null
-                            searchQuery = ""
-                            break
-                        }
-                    }
-                }
-
-                val showingHistory = overlayMode == "history"
-                val showingFavorites = overlayMode == "favorites"
-                val entries = when (overlayMode) {
-                    "history" -> historyNames ?: emptyList()
-                    "favorites" -> {
-                        val favIndices = channelNames.indices.filter {
-                            channelIds?.getOrNull(it)?.let { id -> favoriteIds?.contains(id) } == true
-                        }
-                        favIndices.map { channelNames[it] }
-                    }
-                    else -> channelNames
-                }
-                val entryUrls = when (overlayMode) {
-                    "history" -> historyUrls ?: emptyList()
-                    "favorites" -> emptyList()
-                    else -> channelUrls
-                }
-                val entryLogos = when (overlayMode) {
-                    "history" -> historyLogos ?: emptyList()
-                    "favorites" -> emptyList()
-                    else -> channelLogos
-                }
-                val entryIds = when (overlayMode) {
-                    "history" -> historyIds ?: emptyList()
-                    "favorites" -> emptyList()
-                    else -> channelIds
-                }
-
-                val query = searchQuery.trim().lowercase()
-                val filteredHistoryIndices = if (showingHistory) {
-                    entries.indices.filter { query.isEmpty() || entries[it].lowercase().contains(query) }
-                } else emptyList()
-                val filteredListIndices = if (!showingHistory) {
-                    entries.indices.filter { query.isEmpty() || entries[it].lowercase().contains(query) }
-                } else emptyList()
-
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .fillMaxSize()
-                        .background(Color(0xFF0B1326).copy(alpha = 0.20f))
+                        .fillMaxHeight(0.65f)
+                        .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                        .background(sheetBg)
                         .padding(bottom = overlayBottomPadding),
                 ) {
                     Column(modifier = Modifier.fillMaxSize()) {
+                        Box(
+                            modifier = Modifier
+                                .padding(top = 8.dp)
+                                .align(Alignment.CenterHorizontally)
+                                .width(40.dp)
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(onSurfaceVariant.copy(alpha = 0.3f)),
+                        )
+
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFF000000).copy(alpha = 0.25f))
-                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                                .padding(horizontal = 20.dp, vertical = 6.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
                                 when (overlayMode) {
-                                    "favorites" -> "⭐ Favorites"
-                                    "history" -> "🕐 History"
-                                    else -> "📋 Channels"
+                                    "quick" -> "Quick Channels"
+                                    "favorites" -> "Favorites"
+                                    "history" -> "History"
+                                    else -> "Channels"
                                 },
                                 color = onSurface,
                                 fontWeight = FontWeight.Bold,
@@ -521,10 +561,14 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    "${if (showingHistory) filteredHistoryIndices.size else filteredListIndices.size}",
+                                    when {
+                                        showingQuick -> "${quickMatches?.size ?: 0}"
+                                        showingHistory -> "${filteredHistoryIndices.size}"
+                                        else -> "${filteredListIndices.size}"
+                                    },
                                     color = onSurfaceVariant.copy(alpha = 0.6f),
                                     fontWeight = FontWeight.Medium,
-                                    fontSize = 14.sp,
+                                    fontSize = 13.sp,
                                 )
                                 Spacer(Modifier.width(16.dp))
                                 Text(
@@ -536,27 +580,60 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                             }
                         }
 
+                        val tabs = buildList {
+                            add("list" to "Channels")
+                            add("quick" to "Quick Channels")
+                            if (hasFavorites) add("favorites" to "Favorites")
+                            if (hasHistory) add("history" to "History")
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            tabs.forEach { (id, label) ->
+                                val selected = overlayMode == id
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(999.dp))
+                                        .background(if (selected) accentPurple else chipBg)
+                                        .clickable { overlayMode = id; searchQuery = "" }
+                                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                                ) {
+                                    Text(
+                                        label,
+                                        color = if (selected) colors.onPrimary else onSurfaceVariant,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                        maxLines = 1,
+                                    )
+                                }
+                            }
+                        }
+
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search...", color = onSurfaceVariant.copy(alpha = 0.3f), fontSize = 14.sp) },
+                            placeholder = { Text("Search channels...", color = onSurfaceVariant.copy(alpha = 0.4f), fontSize = 14.sp) },
                             singleLine = true,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 10.dp),
                             textStyle = androidx.compose.ui.text.TextStyle(color = onSurface, fontSize = 14.sp),
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(12.dp),
                             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = accentPurple,
                                 unfocusedBorderColor = onSurfaceVariant.copy(alpha = 0.2f),
                                 cursorColor = accentPurple,
-                                focusedContainerColor = Color(0xFF0F172A).copy(alpha = 0.6f),
-                                unfocusedContainerColor = Color(0xFF0F172A).copy(alpha = 0.6f),
+                                focusedContainerColor = chipBg,
+                                unfocusedContainerColor = chipBg,
                             ),
                         )
 
                         if (showingHistory) {
-                            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                            LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
                                 if (filteredHistoryIndices.isEmpty()) {
                                     item { Text("No history", color = onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(20.dp)) }
                                 }
@@ -564,6 +641,11 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                     item(key = "hist_$idx") {
                                         val histId = historyIds?.getOrNull(idx)
                                         val isFav = histId?.let { favoriteIds?.contains(it) } == true
+                                        val chName = historyNames?.getOrNull(idx)
+                                        var nowNext by remember(histId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
+                                        LaunchedEffect(histId, chName) {
+                                            nowNext = if (epgLoader != null) epgLoader(histId, chName ?: entries[idx]) else null
+                                        }
                                         ChannelListItem(
                                             index = idx,
                                             name = entries[idx],
@@ -571,11 +653,52 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                             url = historyUrls?.getOrNull(idx),
                                             isCurrent = false,
                                             isFavorite = isFav,
+                                            nowNext = nowNext,
+                                            epgEnabled = epgLoader != null,
                                             onTap = { overlayMode = null; onSwitchChannel(findChannelIndex(historyIds, channelIds, histId).coerceAtLeast(0)) },
                                             onToggleFav = { histId?.let { onToggleFavorite?.invoke(it) } },
                                             onAddMultiView = onAddToMultiView,
                                             accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
                                             onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
+                                        )
+                                    }
+                                }
+                            }
+                        } else if (showingQuick) {
+                            LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
+                                if (quickMatches.isEmpty()) {
+                                    item { Text("No quick channels match \"$searchQuery\"", color = onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(20.dp)) }
+                                }
+                                quickMatches.forEach { m ->
+                                    item(key = "quick_${m.name}") {
+                                        val chId = channelIds?.getOrNull(m.firstIndex)
+                                        val chName = channelNames?.getOrNull(m.firstIndex)
+                                        var nowNext by remember(chId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
+                                        LaunchedEffect(chId, chName) {
+                                            nowNext = if (epgLoader != null) epgLoader(chId, chName ?: m.name) else null
+                                        }
+                                        ChannelListItem(
+                                            index = m.firstIndex,
+                                            name = m.name,
+                                            logo = null,
+                                            url = channelUrls?.getOrNull(m.firstIndex),
+                                            isCurrent = m.firstIndex == currentChannelIndex,
+                                            isFavorite = false,
+                                            nowNext = nowNext,
+                                            epgEnabled = epgLoader != null,
+                                            onTap = { overlayMode = null; onSwitchChannel(m.firstIndex) },
+                                            onToggleFav = null,
+                                            onAddMultiView = onAddToMultiView,
+                                            accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
+                                            onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
+                                        )
+                                    }
+                                    item(key = "quick_count_${m.name}") {
+                                        Text(
+                                            "${m.count} channel${if (m.count == 1) "" else "s"} · tap to zap",
+                                            color = onSurfaceVariant.copy(alpha = 0.6f),
+                                            fontSize = 11.sp,
+                                            modifier = Modifier.padding(start = 68.dp, bottom = 6.dp),
                                         )
                                     }
                                 }
@@ -588,22 +711,30 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                             } else emptyList()
                             val nonFavIndices = filteredListIndices.filter { it !in favIndices }
 
-                            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                            LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
                                 if (showingFavorites) {
                                     if (filteredListIndices.isEmpty()) {
                                         item { Text("No favorites yet", color = onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(20.dp)) }
                                     }
                                     filteredListIndices.forEach { idx ->
-                                        item(key = "fav_$idx") {
-                                            val chId = channelIds?.getOrNull(idx)
+                                        val realIdx = favoriteIndices.getOrNull(idx) ?: return@forEach
+                                        item(key = "fav_$realIdx") {
+                                            val chId = channelIds?.getOrNull(realIdx)
+                                            val chName = channelNames.getOrNull(realIdx)
+                                            var nowNext by remember(chId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
+                                            LaunchedEffect(chId, chName) {
+                                                nowNext = if (epgLoader != null) epgLoader(chId, chName ?: entries[idx]) else null
+                                            }
                                             ChannelListItem(
-                                                index = idx,
+                                                index = realIdx,
                                                 name = entries[idx],
-                                                logo = entryLogos?.getOrNull(idx),
-                                                url = channelUrls?.getOrNull(idx),
-                                                isCurrent = idx == currentChannelIndex && !showingFavorites,
+                                                logo = channelLogos?.getOrNull(realIdx),
+                                                url = channelUrls?.getOrNull(realIdx),
+                                                isCurrent = realIdx == currentChannelIndex,
                                                 isFavorite = true,
-                                                onTap = { overlayMode = null; onSwitchChannel(idx) },
+                                                nowNext = nowNext,
+                                                epgEnabled = epgLoader != null,
+                                                onTap = { overlayMode = null; onSwitchChannel(realIdx) },
                                                 onToggleFav = { chId?.let { onToggleFavorite?.invoke(it) } },
                                                 onAddMultiView = onAddToMultiView,
                                                 accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
@@ -619,10 +750,17 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                         favIndices.forEach { idx ->
                                             item(key = "fav_$idx") {
                                                 val chId = channelIds?.getOrNull(idx)
+                                                val chName = channelNames.getOrNull(idx)
+                                                var nowNext by remember(chId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
+                                                LaunchedEffect(chId, chName) {
+                                                    nowNext = if (epgLoader != null) epgLoader(chId, chName ?: entries[idx]) else null
+                                                }
                                                 ChannelListItem(
                                                     index = idx, name = entries[idx], logo = entryLogos?.getOrNull(idx),
                                                     url = channelUrls?.getOrNull(idx),
                                                     isCurrent = idx == currentChannelIndex, isFavorite = true,
+                                                    nowNext = nowNext,
+                                                    epgEnabled = epgLoader != null,
                                                     onTap = { overlayMode = null; onSwitchChannel(idx) },
                                                     onToggleFav = { chId?.let { onToggleFavorite?.invoke(it) } },
                                                     onAddMultiView = onAddToMultiView,
@@ -641,11 +779,18 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                     nonFavIndices.forEach { idx ->
                                         item(key = "ch_$idx") {
                                             val chId = channelIds?.getOrNull(idx)
+                                            val chName = channelNames.getOrNull(idx)
+                                            var nowNext by remember(chId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
+                                            LaunchedEffect(chId, chName) {
+                                                nowNext = if (epgLoader != null) epgLoader(chId, chName ?: entries[idx]) else null
+                                            }
                                             ChannelListItem(
                                                 index = idx, name = entries[idx], logo = entryLogos?.getOrNull(idx),
                                                 url = channelUrls?.getOrNull(idx),
                                                 isCurrent = idx == currentChannelIndex,
                                                 isFavorite = chId?.let { favoriteIds?.contains(it) } == true,
+                                                nowNext = nowNext,
+                                                epgEnabled = epgLoader != null,
                                                 onTap = { overlayMode = null; onSwitchChannel(idx) },
                                                 onToggleFav = { chId?.let { onToggleFavorite?.invoke(it) } },
                                                 onAddMultiView = onAddToMultiView,
@@ -672,6 +817,13 @@ private fun findChannelIndex(historyIds: List<String>?, channelIds: List<String>
     return channelIds.indexOf(targetId).coerceAtLeast(0)
 }
 
+private data class QuickChannelRow(val name: String, val count: Int, val firstIndex: Int)
+
+private fun quickChannelNameMatches(qc: QuickChannel, channelName: String): Boolean {
+    if (channelName.contains(qc.displayName, ignoreCase = true)) return true
+    return qc.aliases.any { alias -> channelName.contains(alias, ignoreCase = true) }
+}
+
 @Composable
 private fun PopupOption(text: String, onClick: () -> Unit) {
     Text(
@@ -695,6 +847,8 @@ private fun ChannelListItem(
     url: String?,
     isCurrent: Boolean,
     isFavorite: Boolean,
+    nowNext: Pair<EpgProgram?, EpgProgram?>? = null,
+    epgEnabled: Boolean = false,
     onTap: () -> Unit,
     onToggleFav: (() -> Unit)?,
     onAddMultiView: ((name: String, url: String, logo: String?) -> Unit)?,
@@ -713,7 +867,7 @@ private fun ChannelListItem(
             .then(if (isFocused) Modifier.border(2.dp, accentPurple.copy(alpha = 0.6f), RoundedCornerShape(12.dp)) else Modifier)
             .clickable(onClick = onTap)
             .background(if (isCurrent) selectedBg else if (isFocused) focusBg else Color.Transparent)
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -735,14 +889,45 @@ private fun ChannelListItem(
             }
         }
         Spacer(Modifier.width(12.dp))
-        Text(
-            text = name,
-            color = if (isCurrent) accentPurpleLight else onSurface.copy(alpha = 0.85f),
-            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-            fontSize = 15.sp,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        Column(
             modifier = Modifier.weight(1f),
-        )
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = name,
+                color = if (isCurrent) accentPurpleLight else onSurface.copy(alpha = 0.85f),
+                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                fontSize = 15.sp,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            val current = nowNext?.first
+            val next = nowNext?.second
+            if (nowNext == null && epgEnabled && !isCurrent) {
+                Text(
+                    text = "Loading guide…",
+                    color = onSurfaceVariant.copy(alpha = 0.45f),
+                    fontSize = 11.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (current != null && !isCurrent) {
+                Text(
+                    text = "NOW ${formatEpgTime(current.startTime)} ${current.title}",
+                    color = accentPurpleLight.copy(alpha = 0.9f),
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (next != null) {
+                Text(
+                    text = "NEXT ${formatEpgTime(next.startTime)} ${next.title}",
+                    color = onSurfaceVariant.copy(alpha = 0.65f),
+                    fontSize = 11.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
         if (onAddMultiView != null && url != null) {
             Text(
                 "MW",
@@ -770,4 +955,11 @@ private fun ChannelListItem(
         }
     }
     HorizontalDivider(color = onSurfaceVariant.copy(alpha = 0.06f))
+}
+
+private fun formatEpgTime(epochMs: Long): String {
+    val totalSeconds = epochMs / 1000L
+    val hours = ((totalSeconds / 3600) % 24).toInt()
+    val minutes = ((totalSeconds / 60) % 60).toInt()
+    return "${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}"
 }

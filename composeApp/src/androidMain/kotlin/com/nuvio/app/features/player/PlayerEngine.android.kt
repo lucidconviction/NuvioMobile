@@ -356,14 +356,14 @@ private fun ExoPlayerSurface(
 
         val loadControl = when {
             isIptvStream -> DefaultLoadControl.Builder()
-                .setTargetBufferBytes(50 * 1024 * 1024)
+                .setTargetBufferBytes(24 * 1024 * 1024)
                 .setBufferDurationsMs(
-                    10_000,
-                    60_000,
                     3_000,
-                    5_000
+                    30_000,
+                    1_000,
+                    3_000
                 )
-                .setPrioritizeTimeOverSizeThresholds(false)
+                .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
             isLiveStream -> DefaultLoadControl.Builder()
                 .setTargetBufferBytes(8 * 1024 * 1024)
@@ -1069,7 +1069,7 @@ private class NuvioLibmpvView(
         val sourceUrl = currentSourceUrl ?: return
         applyRequestHeaders(currentRequestHeaders)
         setPaused(!playWhenReady)
-        mpv.command("loadfile", sourceUrl, "replace")
+        mpv.command("loadfile", resolvePlaybackUri(sourceUrl), "replace")
         currentSourceAudioUrl?.takeIf { it.isNotBlank() }?.let { sourceAudioUrl ->
             mpv.command("audio-add", sourceAudioUrl, "auto")
         }
@@ -1078,6 +1078,11 @@ private class NuvioLibmpvView(
             mpv.command("sub-add", subtitle.url, flag)
         }
         setPaused(!playWhenReady)
+    }
+
+    private fun resolvePlaybackUri(sourceUrl: String): String {
+        if (!sourceUrl.startsWith("tdlib://")) return sourceUrl
+        return "/" + sourceUrl.removePrefix("tdlib://").substringAfter('/')
     }
 
     fun setPaused(paused: Boolean) {

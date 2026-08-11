@@ -42,10 +42,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nuvio.app.features.iptv.EpgNowNextRow
 import com.nuvio.app.features.iptv.IptvChannel
 import com.nuvio.app.features.iptv.IptvRepository
 import com.nuvio.app.features.iptv.QuickChannel
 import com.nuvio.app.features.iptv.QuickChannelList
+import com.nuvio.app.features.iptv.rememberEpgSteps
+import com.nuvio.app.features.trakt.TraktPlatformClock
 
 private val SurfaceCard = Color(0xCC1F1F1F)
 private val OnSurface = Color(0xFFE2E2E2)
@@ -76,6 +79,8 @@ fun HomeQuickChannelsSection(
     var selectedQc by remember { mutableStateOf<QuickChannel?>(null) }
     var qcMatches by remember { mutableStateOf<List<IptvChannel>>(emptyList()) }
     var aliveByUrl by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    val xtreamAccountById = remember { IptvRepository.getXtreamAccounts().associateBy { it.id } }
+    val now = TraktPlatformClock.nowEpochMs()
     val liveMatches = qcMatches.filter { aliveByUrl[it.url] != false }
     val checkingCount = qcMatches.count { aliveByUrl[it.url] == null }
     val workingCount = qcMatches.count { aliveByUrl[it.url] == true }
@@ -189,6 +194,7 @@ fun HomeQuickChannelsSection(
                                     if (ch.group != null) {
                                         Text(ch.group, color = OnSurface.copy(alpha = 0.5f), fontSize = 10.sp, maxLines = 1)
                                     }
+                                    EpgNowNextRow(programs = rememberEpgSteps(xtreamAccountById[ch.sourceId], ch, limit = 2), now = now)
                                 }
                                 Spacer(Modifier.width(8.dp))
                                 when (aliveByUrl[ch.url]) {

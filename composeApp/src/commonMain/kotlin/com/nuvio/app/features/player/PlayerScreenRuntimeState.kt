@@ -98,6 +98,8 @@ internal class PlayerScreenRuntime(
     var gestureController: PlayerGestureController? = null
 
     var controlsVisible by mutableStateOf(true)
+    var iptvChannelNavVisible by mutableStateOf(false)
+    var iptvChannelNavTouch by mutableStateOf(0L)
     var playerControlsLocked by mutableStateOf(false)
     var activeSourceUrl by mutableStateOf(sourceUrl)
     var activeSourceAudioUrl by mutableStateOf(sourceAudioUrl)

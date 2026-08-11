@@ -82,6 +82,7 @@ data class IptvUiState(
     val error: String? = null,
     val epgPrograms: Map<String, List<EpgProgram>> = emptyMap(),
     val epgProgramsByName: Map<String, List<EpgProgram>> = emptyMap(),
+    val epgProgramsByNormId: Map<String, List<EpgProgram>> = emptyMap(),
     val epgLoading: Boolean = false,
     val epgError: String? = null,
     val epgMatchCount: Int = 0,

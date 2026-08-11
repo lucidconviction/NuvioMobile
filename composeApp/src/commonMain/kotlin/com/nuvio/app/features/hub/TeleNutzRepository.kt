@@ -1,6 +1,8 @@
 package com.nuvio.app.features.hub
 
 import com.nuvio.app.features.player.PlayerLaunch
+import com.nuvio.app.features.trakt.TraktPlatformClock
+import kotlinx.coroutines.delay
 
 object TeleNutzRepository {
     val engine = TelegramTdEngine()
@@ -78,16 +80,14 @@ object TeleNutzRepository {
                     TeleNutzStore.saveDownload(video.copy(localPath = existing.path, isDownloaded = true))
                 } else {
                     val localPath = engine.startProgressiveDownload(video.fileId)
-                    if (!localPath.isNullOrBlank()) {
+                    if (!localPath.isNullOrBlank() && waitForTelegramBytes(video.fileId, minBytes = 64L * 1024L, timeoutMs = 15_000L)) {
                         playUrl = "tdlib://${video.fileId}$localPath"
                     }
                 }
             } catch (_: Exception) {}
         }
 
-        if (playUrl.isNullOrBlank()) {
-            playUrl = "https://t.me/${video.chatTitle}/${video.id}"
-        }
+        if (playUrl.isNullOrBlank()) return null
 
         return PlayerLaunch(
             profileId = 0,
@@ -98,6 +98,17 @@ object TeleNutzRepository {
             parentMetaId = "telenutz",
             parentMetaType = "telenutz",
         )
+    }
+
+    private suspend fun waitForTelegramBytes(fileId: Int, minBytes: Long, timeoutMs: Long): Boolean {
+        val deadline = TraktPlatformClock.nowEpochMs() + timeoutMs
+        while (TraktPlatformClock.nowEpochMs() < deadline) {
+            val state = try { engine.peekFileDownloadState(fileId) } catch (_: Exception) { null }
+            if (state != null && state.downloadedSize >= minBytes) return true
+            delay(250L)
+        }
+        val finalState = try { engine.peekFileDownloadState(fileId) } catch (_: Exception) { null }
+        return finalState != null && finalState.downloadedSize >= minBytes
     }
 
     fun TdMessage.toTeleNutzVideo(isBookmarked: Boolean = false, isDownloaded: Boolean = false): TeleNutzVideo {

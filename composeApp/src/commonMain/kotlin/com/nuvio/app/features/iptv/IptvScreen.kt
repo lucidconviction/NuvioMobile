@@ -8,9 +8,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -128,6 +130,8 @@ private val errorColor = Color(0xFFFFB4AB)
 private val onError = Color(0xFF690005)
 private val errorContainer = Color(0xFF93000A)
 private val FavoriteRed = Color(0xFFE91E63)
+private val EpgNowColor = Color(0xFFE53935)
+private val EpgNextColor = Color(0xFF4DD0E1)
 private val tvMargin = 48.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -238,6 +242,8 @@ private fun IptvTvMode(
     }
 
     var showSearch by remember { mutableStateOf(false) }
+    var epgSheetChannel: IptvChannel? by remember { mutableStateOf(null) }
+    val xtreamAccountById = remember(uiState.xtreamAccounts) { uiState.xtreamAccounts.associateBy { it.id } }
 
     var lastRefreshing by remember { mutableStateOf(uiState.refreshingSourceIds) }
     LaunchedEffect(uiState.refreshingSourceIds) {
@@ -370,6 +376,8 @@ private fun IptvTvMode(
                         isFavorite = channel.id in uiState.favoriteChannelIds,
                         isQuickPinned = com.nuvio.app.features.iptv.QuickChannelList.isPinned(channel.name),
                         now = now,
+                        epgAccount = xtreamAccountById[channel.sourceId],
+                        onLongPress = { epgSheetChannel = channel },
                         onPlay = { playChannel(channel, onPlayChannel) },
                         onToggleFavorite = { IptvRepository.toggleFavorite(channel.id) },
                         onToggleQuickPin = { com.nuvio.app.features.iptv.QuickChannelList.togglePin(channel.name) },
@@ -385,6 +393,9 @@ private fun IptvTvMode(
                 m3uPlaylists = uiState.m3uPlaylists,
                 xtreamAccounts = uiState.xtreamAccounts,
                 stalkerAccounts = uiState.stalkerAccounts,
+                epgSources = uiState.epgSources,
+                epgLoading = uiState.epgLoading,
+                epgMatchCount = uiState.epgMatchCount,
                 refreshingIds = uiState.refreshingSourceIds,
                 onAddClick = onAddSource,
                 onRefreshM3u = { IptvRepository.refreshM3uChannels(it) },
@@ -414,6 +425,13 @@ private fun IptvTvMode(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("Recently Watched", color = primary, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+                    Text(
+                        "✕ Clear",
+                        color = onsurfaceContainerHigh,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.clickable { IptvRepository.clearHistory() },
+                    )
                 }
                 Spacer(Modifier.height(12.dp))
                 LazyRow(
@@ -423,6 +441,9 @@ private fun IptvTvMode(
                     itemsIndexed(history.take(12), key = { i, ch -> "tv_hist_${i}_${ch.id}_${ch.sourceId}" }) { _, channel ->
                         HistoryTvCard(
                             channel = channel,
+                            now = now,
+                            epgAccount = xtreamAccountById[channel.sourceId],
+                            onLongPress = { epgSheetChannel = channel },
                             onPlay = { playChannel(channel, onPlayChannel) },
                             onAddToMultiWindow = { sendToNextMultiWindowSlot(channel, onPickerChannel) },
                         )
@@ -458,6 +479,14 @@ private fun IptvTvMode(
                 fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace)
             TvClock()
         }
+    }
+
+    epgSheetChannel?.let { channel ->
+        EpgProgramSheet(
+            channel = channel,
+            account = xtreamAccountById[channel.sourceId],
+            onDismiss = { epgSheetChannel = null },
+        )
     }
 }
 
@@ -721,11 +750,123 @@ private fun StreamStatusDot(url: String, size: Dp) {
 }
 
 @Composable
+internal fun rememberEpgSteps(account: XtreamAccount?, channel: IptvChannel, limit: Int): List<EpgProgram> {
+    var programs by remember(channel.sourceId, channel.id, account?.server, limit) {
+        mutableStateOf<List<EpgProgram>?>(null)
+    }
+    LaunchedEffect(channel.sourceId, channel.id, account?.server, limit) {
+        programs = if (account != null && channel.sourceType == SourceType.Xtream) {
+            ShortEpgCache.getOrLoad(account, channel, limit)
+        } else {
+            emptyList()
+        }
+    }
+    return programs ?: emptyList()
+}
+
+@Composable
+internal fun EpgNowNextRow(programs: List<EpgProgram>, now: Long) {
+    if (programs.isEmpty()) return
+    val current = programs.firstOrNull { now in it.startTime until it.endTime }
+    val next = programs.firstOrNull { it.startTime > now }
+    if (current == null && next == null) return
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        current?.let {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(6.dp).clip(CircleShape).background(EpgNowColor))
+                Spacer(Modifier.width(5.dp))
+                Text("${formatTime(it.startTime)} ${it.title}", color = onSurface,
+                    fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        next?.let {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(6.dp).clip(CircleShape).background(EpgNextColor))
+                Spacer(Modifier.width(5.dp))
+                Text("${formatTime(it.startTime)} ${it.title}", color = onsurfaceContainerHigh,
+                    fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EpgProgramSheet(
+    channel: IptvChannel,
+    account: XtreamAccount?,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var programs by remember(channel.sourceId, channel.id, account?.server) { mutableStateOf<List<EpgProgram>?>(null) }
+    LaunchedEffect(channel.sourceId, channel.id, account?.server) {
+        programs = if (account != null && channel.sourceType == SourceType.Xtream) {
+            ShortEpgCache.getOrLoad(account, channel, 8)
+        } else {
+            emptyList()
+        }
+    }
+    val now = TraktPlatformClock.nowEpochMs()
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = surfaceContainerLow,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+            Text(
+                channel.name,
+                color = onSurface,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            )
+            when {
+                programs == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = primary)
+                }
+                programs.isNullOrEmpty() -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Text("No EPG available for this channel", color = onsurfaceContainerHigh, fontSize = 13.sp)
+                }
+                else -> LazyColumn(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                    items(programs ?: emptyList(), key = { "${it.startTime}_${it.title}" }) { program ->
+                        val isNow = now in program.startTime until program.endTime
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(Modifier.width(52.dp)) {
+                                Text(formatTime(program.startTime), color = if (isNow) EpgNowColor else onsurfaceContainerHigh,
+                                    fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                            }
+                            Box(Modifier.width(10.dp)) {
+                                if (isNow) Box(Modifier.size(8.dp).clip(CircleShape).background(EpgNowColor))
+                            }
+                            Column(Modifier.weight(1f)) {
+                                Text(program.title, color = if (isNow) onSurface.copy(alpha = 0.95f) else onsurfaceContainerHigh,
+                                    fontSize = 13.sp, fontWeight = if (isNow) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                if (!program.description.isNullOrBlank()) {
+                                    Text(program.description, color = onsurfaceContainerHigh.copy(alpha = 0.6f),
+                                        fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
 private fun TvChannelCard(
     channel: IptvChannel,
     isFavorite: Boolean,
     isQuickPinned: Boolean,
     now: Long,
+    epgAccount: XtreamAccount? = null,
+    onLongPress: (() -> Unit)? = null,
     onPlay: () -> Unit,
     onToggleFavorite: () -> Unit,
     onToggleQuickPin: () -> Unit,
@@ -736,7 +877,12 @@ private fun TvChannelCard(
             .clip(RoundedCornerShape(12.dp))
             .background(surfaceContainerHigh)
             .border(0.5.dp, outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-            .clickable(onClick = onPlay),
+            .then(
+                if (onLongPress != null)
+                    Modifier.combinedClickable(onClick = onPlay, onLongClick = onLongPress)
+                else
+                    Modifier.clickable(onClick = onPlay)
+            ),
     ) {
         if (!channel.logo.isNullOrBlank()) {
             AsyncImage(model = channel.logo, contentDescription = channel.name,
@@ -778,19 +924,34 @@ private fun TvChannelCard(
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(channel.group?.uppercase() ?: "LIVE", color = onsurfaceContainerHigh, fontSize = 10.sp,
                     fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(4.dp))
+                EpgNowNextRow(programs = rememberEpgSteps(epgAccount, channel, limit = 2), now = now)
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HistoryTvCard(channel: IptvChannel, onPlay: () -> Unit, onAddToMultiWindow: () -> Unit) {
+private fun HistoryTvCard(
+    channel: IptvChannel,
+    now: Long,
+    epgAccount: XtreamAccount? = null,
+    onLongPress: (() -> Unit)? = null,
+    onPlay: () -> Unit,
+    onAddToMultiWindow: () -> Unit,
+) {
     Box(
         modifier = Modifier.width(240.dp).aspectRatio(16f / 9f)
             .clip(RoundedCornerShape(12.dp))
             .background(surfaceContainerHigh)
             .border(0.5.dp, outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-            .clickable(onClick = onPlay),
+            .then(
+                if (onLongPress != null)
+                    Modifier.combinedClickable(onClick = onPlay, onLongClick = onLongPress)
+                else
+                    Modifier.clickable(onClick = onPlay)
+            ),
     ) {
         if (!channel.logo.isNullOrBlank()) {
             AsyncImage(model = channel.logo, contentDescription = channel.name,
@@ -807,8 +968,12 @@ private fun HistoryTvCard(channel: IptvChannel, onPlay: () -> Unit, onAddToMulti
             }
         }
         Box(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
-            Text(channel.name, color = primary, fontWeight = FontWeight.Bold, fontSize = 14.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column {
+                Text(channel.name, color = primary, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(4.dp))
+                EpgNowNextRow(programs = rememberEpgSteps(epgAccount, channel, limit = 2), now = now)
+            }
         }
         Box(Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp).fillMaxWidth(0.85f)) {
             Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(primary.copy(alpha = 0.2f))) {
@@ -824,6 +989,9 @@ private fun PlaylistsTvSection(
     m3uPlaylists: List<M3uPlaylist>,
     xtreamAccounts: List<XtreamAccount>,
     stalkerAccounts: List<StalkerAccount>,
+    epgSources: List<EpgSource> = emptyList(),
+    epgLoading: Boolean = false,
+    epgMatchCount: Int = 0,
     refreshingIds: Set<String>,
     onAddClick: () -> Unit,
     onRefreshM3u: (String) -> Unit,
@@ -841,7 +1009,7 @@ private fun PlaylistsTvSection(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("Your Playlists", color = primary, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
-        val hasPlaylists = m3uPlaylists.isNotEmpty() || xtreamAccounts.isNotEmpty() || stalkerAccounts.isNotEmpty()
+        val hasPlaylists = m3uPlaylists.isNotEmpty() || xtreamAccounts.isNotEmpty() || stalkerAccounts.isNotEmpty() || epgSources.isNotEmpty()
         if (hasPlaylists) {
             Box(Modifier.clip(RoundedCornerShape(8.dp)).background(surfaceContainerHigh).clickable(onClick = onValidateAll)
                 .padding(horizontal = 14.dp, vertical = 8.dp)) {
@@ -914,6 +1082,24 @@ private fun PlaylistsTvSection(
                 onRefresh = { onRefreshStalker(acc.id) },
                 onValidate = { onValidateSource(acc.id, acc.channels) },
                 onDelete = { onDeleteStalker(acc.id) },
+            )
+        }
+        epgSources.forEach { source ->
+            TvPlaylistCard(
+                iconLabel = "EPG",
+                name = source.name,
+                channelCount = epgMatchCount,
+                scanState = null,
+                status = when {
+                    epgLoading -> "Loading"
+                    epgMatchCount > 0 -> "Loaded"
+                    else -> "Pending"
+                },
+                statusColor = if (epgLoading || epgMatchCount > 0) Color(0xFF4CAF50) else outlineVariant,
+                isRefreshing = epgLoading,
+                onRefresh = { IptvRepository.refreshEpg() },
+                onValidate = { IptvRepository.refreshEpg() },
+                onDelete = { IptvRepository.removeEpgSource(source.id) },
             )
         }
     }
@@ -1000,6 +1186,8 @@ private fun IptvMobileMode(
 ) {
     val listState = rememberLazyListState()
     var expandedGroups by remember { mutableStateOf(setOf<String>()) }
+    var epgSheetChannel: IptvChannel? by remember { mutableStateOf(null) }
+    val xtreamAccountById = remember(uiState.xtreamAccounts) { uiState.xtreamAccounts.associateBy { it.id } }
     LaunchedEffect(scrollToTopRequests) {
         scrollToTopRequests.collect { listState.animateScrollToItem(0) }
     }
@@ -1168,6 +1356,8 @@ private fun IptvMobileMode(
                                             now = now,
                                             isFavorite = channel.id in uiState.favoriteChannelIds,
                                             isQuickPinned = com.nuvio.app.features.iptv.QuickChannelList.isPinned(channel.name),
+                                            epgAccount = xtreamAccountById[channel.sourceId],
+                                            onLongPress = { epgSheetChannel = channel },
                                             onPlay = { playChannel(channel, onPlayChannel) },
                                             onToggleFavorite = { IptvRepository.toggleFavorite(channel.id) },
                                             onToggleQuickPin = { com.nuvio.app.features.iptv.QuickChannelList.togglePin(channel.name) },
@@ -1214,6 +1404,8 @@ private fun IptvMobileMode(
                                             channel = channel,
                                             now = nowFav,
                                             isFavorite = channel.id in uiState.favoriteChannelIds,
+                                            epgAccount = xtreamAccountById[channel.sourceId],
+                                            onLongPress = { epgSheetChannel = channel },
                                             onPlay = { playChannel(channel, onPlayChannel) },
                                             onToggleFavorite = { IptvRepository.toggleFavorite(channel.id) },
                                             onAddToMultiWindow = { sendToNextMultiWindowSlot(channel, onPickerChannel) },
@@ -1238,6 +1430,14 @@ private fun IptvMobileMode(
                 item { Spacer(Modifier.height(32.dp)) }
             }
         }
+    }
+
+    epgSheetChannel?.let { channel ->
+        EpgProgramSheet(
+            channel = channel,
+            account = xtreamAccountById[channel.sourceId],
+            onDismiss = { epgSheetChannel = null },
+        )
     }
 }
 
@@ -1278,6 +1478,9 @@ private fun QuickAccessSection(
     onAddToMultiWindow: (IptvChannel) -> Unit,
 ) {
     val favorites = IptvRepository.getFavoriteChannels()
+    val now = TraktPlatformClock.nowEpochMs()
+    val xtreamAccountById = remember(uiState.xtreamAccounts) { uiState.xtreamAccounts.associateBy { it.id } }
+    var epgSheetChannel: IptvChannel? by remember { mutableStateOf(null) }
 
     Column {
         Row(
@@ -1316,11 +1519,22 @@ private fun QuickAccessSection(
             itemsIndexed(favorites.take(10), key = { index, channel -> "fav_${index}_${channel.id}_${channel.sourceId}" }) { index, channel ->
                 QuickAccessCard(
                     channel = channel,
+                    now = now,
+                    epgAccount = xtreamAccountById[channel.sourceId],
+                    onLongPress = { epgSheetChannel = channel },
                     onPlay = { playChannel(channel, onPlayChannel) },
                     onAddToMultiWindow = { onAddToMultiWindow(channel) },
                 )
             }
         }
+    }
+
+    epgSheetChannel?.let { channel ->
+        EpgProgramSheet(
+            channel = channel,
+            account = xtreamAccountById[channel.sourceId],
+            onDismiss = { epgSheetChannel = null },
+        )
     }
 }
 
@@ -1332,6 +1546,9 @@ private fun HistorySection(
 ) {
     val history = IptvRepository.getHistoryChannels()
     if (history.isEmpty()) return
+    val now = TraktPlatformClock.nowEpochMs()
+    val xtreamAccountById = remember(uiState.xtreamAccounts) { uiState.xtreamAccounts.associateBy { it.id } }
+    var epgSheetChannel: IptvChannel? by remember { mutableStateOf(null) }
 
     Column {
         Row(
@@ -1340,6 +1557,13 @@ private fun HistorySection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("History", color = onSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+            Text(
+                "✕ Clear",
+                color = onsurfaceContainerHigh,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clickable { IptvRepository.clearHistory() },
+            )
         }
         Spacer(Modifier.height(8.dp))
 
@@ -1347,18 +1571,42 @@ private fun HistorySection(
             itemsIndexed(history.take(15), key = { index, channel -> "hist_${index}_${channel.id}_${channel.sourceId}" }) { index, channel ->
                 QuickAccessCard(
                     channel = channel,
+                    now = now,
+                    epgAccount = xtreamAccountById[channel.sourceId],
+                    onLongPress = { epgSheetChannel = channel },
                     onPlay = { playChannel(channel, onPlayChannel) },
                     onAddToMultiWindow = { onAddToMultiWindow(channel) },
                 )
             }
         }
     }
+
+    epgSheetChannel?.let { channel ->
+        EpgProgramSheet(
+            channel = channel,
+            account = xtreamAccountById[channel.sourceId],
+            onDismiss = { epgSheetChannel = null },
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun QuickAccessCard(channel: IptvChannel, onPlay: () -> Unit, onAddToMultiWindow: () -> Unit) {
+private fun QuickAccessCard(
+    channel: IptvChannel,
+    now: Long,
+    epgAccount: XtreamAccount? = null,
+    onLongPress: (() -> Unit)? = null,
+    onPlay: () -> Unit,
+    onAddToMultiWindow: () -> Unit,
+) {
     Card(
-        modifier = Modifier.width(140.dp).clickable(onClick = onPlay),
+        modifier = Modifier.width(140.dp).then(
+            if (onLongPress != null)
+                Modifier.combinedClickable(onClick = onPlay, onLongClick = onLongPress)
+            else
+                Modifier.clickable(onClick = onPlay)
+        ),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = surfaceContainerLow),
     ) {
@@ -1395,6 +1643,8 @@ private fun QuickAccessCard(channel: IptvChannel, onPlay: () -> Unit, onAddToMul
                 Column {
                     Text(text = channel.name, color = onSurface, fontWeight = FontWeight.Medium, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(text = channel.group ?: "Live", color = onSurface, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(2.dp))
+                    EpgNowNextRow(programs = rememberEpgSteps(epgAccount, channel, limit = 2), now = now)
                 }
             }
             Box(
@@ -1526,12 +1776,15 @@ private fun CategoryChip(selected: Boolean, onClick: () -> Unit, label: String) 
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChannelCard(
     channel: IptvChannel,
     now: Long,
     isFavorite: Boolean,
     isQuickPinned: Boolean = false,
+    epgAccount: XtreamAccount? = null,
+    onLongPress: (() -> Unit)? = null,
     onPlay: () -> Unit,
     onToggleFavorite: () -> Unit,
     onToggleQuickPin: (() -> Unit)? = null,
@@ -1545,7 +1798,12 @@ private fun ChannelCard(
     Card(
         modifier = Modifier.fillMaxWidth().scale(focusScale)
             .then(if (isFocused) Modifier.border(2.dp, primary, RoundedCornerShape(12.dp)) else Modifier)
-            .clickable(onClick = onPlay)
+            .then(
+                if (onLongPress != null)
+                    Modifier.combinedClickable(onClick = onPlay, onLongClick = onLongPress)
+                else
+                    Modifier.clickable(onClick = onPlay)
+            )
             .focusable()
             .onFocusChanged { isFocused = it.isFocused },
         shape = RoundedCornerShape(12.dp),
@@ -1587,6 +1845,8 @@ private fun ChannelCard(
                     Column {
                         Text(text = channel.name, color = onSurface, fontWeight = FontWeight.Medium, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(text = channel.group ?: "Live", color = onSurface, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Spacer(Modifier.height(2.dp))
+                        EpgNowNextRow(programs = rememberEpgSteps(epgAccount, channel, limit = 2), now = now)
                     }
                 }
 
@@ -1631,7 +1891,7 @@ private fun PlaylistsSection(
     onValidateSource: (String, List<IptvChannel>) -> Unit,
     onValidateAll: () -> Unit,
 ) {
-    val hasPlaylists = uiState.m3uPlaylists.isNotEmpty() || uiState.xtreamAccounts.isNotEmpty() || uiState.stalkerAccounts.isNotEmpty()
+    val hasPlaylists = uiState.m3uPlaylists.isNotEmpty() || uiState.xtreamAccounts.isNotEmpty() || uiState.stalkerAccounts.isNotEmpty() || uiState.epgSources.isNotEmpty()
     Column {
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -1688,7 +1948,7 @@ private fun PlaylistsSection(
 
         AnimatedVisibility(visible = uiState.playlistsExpanded) {
             Column {
-                if (uiState.m3uPlaylists.isEmpty() && uiState.xtreamAccounts.isEmpty() && uiState.stalkerAccounts.isEmpty()) {
+                if (uiState.m3uPlaylists.isEmpty() && uiState.xtreamAccounts.isEmpty() && uiState.stalkerAccounts.isEmpty() && uiState.epgSources.isEmpty()) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -1755,6 +2015,27 @@ private fun PlaylistsSection(
                             onRefresh = { IptvRepository.refreshStalkerChannels(account.id) },
                             onValidate = { onValidateSource(account.id, account.channels) },
                             onDelete = { IptvRepository.removeStalkerAccount(account.id) },
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+
+                    uiState.epgSources.forEach { source ->
+                        PlaylistCard(
+                            name = source.name,
+                            channelCount = uiState.epgMatchCount,
+                            scanState = null,
+                            status = when {
+                                uiState.epgLoading -> "Loading"
+                                uiState.epgMatchCount > 0 -> "Loaded"
+                                else -> "Pending"
+                            },
+                            statusColor = if (uiState.epgLoading || uiState.epgMatchCount > 0) onSurface else outlineVariant,
+                            iconLabel = "EPG",
+                            isRefreshing = uiState.epgLoading,
+                            onClick = {},
+                            onRefresh = { IptvRepository.refreshEpg() },
+                            onValidate = { IptvRepository.refreshEpg() },
+                            onDelete = { IptvRepository.removeEpgSource(source.id) },
                         )
                         Spacer(Modifier.height(8.dp))
                     }
@@ -1863,9 +2144,6 @@ private fun playChannel(channel: IptvChannel, onPlayChannel: ((PlayerLaunch) -> 
         historyChannelUrls = history.map { it.url },
         historyChannelLogos = history.map { it.logo ?: "" },
         historyChannelIds = history.map { it.id },
-        autoPlayQueueUrls = channelUrls,
-        autoPlayQueueTitles = channelNames,
-        autoPlayQueueIndex = startIdx,
     )
     val id = PlayerLaunchStore.put(launch)
     PlayerLaunchStore.get(id)?.let { onPlayChannel?.invoke(it) }
@@ -1905,7 +2183,7 @@ private fun AddSourceBottomSheet(
             Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(surfaceContainerLow).padding(4.dp),
             ) {
-                listOf("xtreme" to "XTREME", "m3u" to "M3U URL", "m3ufile" to "M3U FILE", "stalker" to "STALKER", "portal" to "PORTAL").forEach { (id, label) ->
+                listOf("xtreme" to "XTREME", "m3u" to "M3U URL", "m3ufile" to "M3U FILE", "stalker" to "STALKER", "portal" to "PORTAL", "epg" to "EPG").forEach { (id, label) ->
                     Surface(
                         onClick = { mode = id },
                         shape = RoundedCornerShape(12.dp),
@@ -1927,6 +2205,7 @@ private fun AddSourceBottomSheet(
                 "m3ufile" -> M3uFileForm(onSuccess = onSuccess)
                 "stalker" -> StalkerForm(onSuccess = onSuccess)
                 "portal" -> PortalForm(onSuccess = onSuccess)
+                "epg" -> EpgForm(onSuccess = onSuccess)
             }
 
             Spacer(Modifier.height(16.dp))
@@ -2049,6 +2328,128 @@ private fun M3uFileForm(onSuccess: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), color = primary, strokeWidth = 2.dp)
                 Text("Loading playlist...", color = onsurfaceContainerHigh, fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EpgForm(onSuccess: () -> Unit) {
+    var subMode by remember { mutableStateOf("url") }
+
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(surfaceContainerLow).padding(4.dp),
+        ) {
+            listOf("url" to "URL", "file" to "FILE").forEach { (id, label) ->
+                Surface(
+                    onClick = { subMode = id },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (subMode == id) primary else Color.Transparent,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                        Text(label, color = if (subMode == id) onPrimary else onsurfaceContainerHigh,
+                            fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.6.sp)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        when (subMode) {
+            "url" -> EpgUrlForm(onSuccess = onSuccess)
+            "file" -> EpgFileForm(onSuccess = onSuccess)
+        }
+    }
+}
+
+@Composable
+private fun EpgUrlForm(onSuccess: () -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var url by remember { mutableStateOf("") }
+
+    Column {
+        Text(
+            "Add an EPG guide by URL. The iptv-org EPG is added automatically when you add the iptv-org playlist.",
+            color = onsurfaceContainerHigh,
+            fontSize = 12.sp,
+        )
+        Spacer(Modifier.height(16.dp))
+        InputField(label = "EPG XML URL", value = url, onValueChange = { url = it }, placeholder = "https://domain.com/epg.xml")
+        Spacer(Modifier.height(16.dp))
+        InputField(label = "GUIDE NAME (OPTIONAL)", value = name, onValueChange = { name = it }, placeholder = "My EPG Guide")
+        Spacer(Modifier.height(24.dp))
+        Button(
+            onClick = {
+                if (url.isNotBlank()) {
+                    IptvRepository.addEpgSource(name.ifBlank { "EPG Guide" }, url)
+                    onSuccess()
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = primary),
+            enabled = url.isNotBlank(),
+        ) {
+            Text("ADD EPG GUIDE", color = onPrimary, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        }
+    }
+}
+
+@Composable
+private fun EpgFileForm(onSuccess: () -> Unit) {
+    var selectedFileName by remember { mutableStateOf<String?>(null) }
+    var parseError by remember { mutableStateOf<String?>(null) }
+    var isUploading by remember { mutableStateOf(false) }
+
+    val pickFile = rememberFilePickerLauncher { name, content ->
+        selectedFileName = name
+        parseError = null
+        isUploading = true
+        try {
+            IptvRepository.addUploadedEpgSource(name.removeSuffix(".xml").removeSuffix(".gz").take(30).ifBlank { "EPG Guide" }, content)
+            onSuccess()
+        } catch (e: Exception) {
+            parseError = e.message ?: "Failed to read EPG file"
+        }
+        isUploading = false
+    }
+
+    Column {
+        Text("SELECT EPG XML FILE", color = onsurfaceContainerHigh, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.6.sp)
+        Spacer(Modifier.height(12.dp))
+
+        Button(
+            onClick = { pickFile() },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = primary),
+            enabled = !isUploading,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.Add, null, tint = onPrimary, modifier = Modifier.size(20.dp))
+                Text("CHOOSE FILE", color = onPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            }
+        }
+
+        if (selectedFileName != null) {
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF4CAF50)))
+                Text(selectedFileName!!, color = onSurface, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+
+        if (parseError != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(parseError!!, color = errorColor, fontSize = 13.sp)
+        }
+
+        if (isUploading) {
+            Spacer(Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = primary, strokeWidth = 2.dp)
+                Text("Uploading guide...", color = onsurfaceContainerHigh, fontSize = 13.sp)
             }
         }
     }
@@ -2364,6 +2765,8 @@ private fun QuickChannelSourcesSheet(
     val sourceNameForId = remember(sourceNames, sourceIds) {
         sourceIds.zip(sourceNames).toMap()
     }
+    val xtreamAccountById = remember { IptvRepository.getXtreamAccounts().associateBy { it.id } }
+    val now = TraktPlatformClock.nowEpochMs()
 
     var matches by remember { mutableStateOf<List<IptvChannel>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -2470,6 +2873,7 @@ private fun QuickChannelSourcesSheet(
                                                 CircularProgressIndicator(modifier = Modifier.size(12.dp), color = primary.copy(alpha = 0.6f), strokeWidth = 2.dp)
                                             }
                                         }
+                                        EpgNowNextRow(programs = rememberEpgSteps(xtreamAccountById[ch.sourceId], ch, limit = 2), now = now)
                                     }
                                     Spacer(Modifier.width(8.dp))
                                     if (alive == true) {
