@@ -218,116 +218,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             p2pRebufferMessage = p2pRebufferMessage,
             p2pRebufferProgress = p2pRebufferProgress,
         )
-        if (args.autoPlayQueueUrls.isNotEmpty()) {
-            LaunchedEffect(navOverlayVisible, controlsVisible) {
-                if (navOverlayVisible || controlsVisible) {
-                    delay(3000)
-                    if (navOverlayVisible) navOverlayVisible = false
-                }
-            }
-            val currentIndex = args.autoPlayQueueIndex
-            val queueSize = args.autoPlayQueueUrls.size
-            val hasPrev = currentIndex > 0
-            val hasNext = currentIndex < queueSize - 1
-            if (hasPrev || hasNext) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(start = 8.dp, end = 8.dp),
-                ) {
-                    if (hasPrev) {
-                        Box(
-                            modifier = Modifier
-                                .size(52.dp)
-                                .align(Alignment.CenterStart)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.45f))
-                                .clickable {
-                                    navOverlayVisible = true
-                                    val newIndex = currentIndex - 1
-                                    val nextUrl = args.autoPlayQueueUrls[newIndex]
-                                    val nextTitle = args.autoPlayQueueTitles.getOrElse(newIndex) { "" }
-                                    val resolved = if (nextUrl.startsWith("yt://")) {
-                                        runCatching { runBlocking { com.nuvio.app.features.sports.YouTubeStreamResolver.resolveStream(nextUrl.removePrefix("yt://")) } }.getOrNull()
-                                    } else null
-                                    val nextLaunch = PlayerLaunch(
-                                        profileId = args.profileId, title = nextTitle,
-                                        sourceUrl = resolved?.url ?: nextUrl,
-                                        sourceHeaders = resolved?.headers ?: emptyMap(),
-                                        sourceAudioUrl = resolved?.audioUrl,
-                                        qualities = resolved?.qualities ?: emptyList(),
-                                        streamTitle = nextTitle,
-                                        providerName = if (nextUrl.startsWith("yt://")) "YouTube" else args.providerName,
-                                        streamSubtitle = args.streamSubtitle,
-                                        parentMetaId = args.parentMetaId, parentMetaType = args.parentMetaType,
-                                        poster = args.poster, logo = args.logo,
-                                        autoPlayQueueUrls = args.autoPlayQueueUrls,
-                                        autoPlayQueueTitles = args.autoPlayQueueTitles,
-                                        autoPlayQueueIndex = newIndex,
-                                        channelNames = args.iptvChannelNames,
-                                        channelUrls = args.iptvChannelUrls,
-                                        channelLogos = args.iptvChannelLogos,
-                                        channelIds = args.iptvChannelIds,
-                                        currentChannelIndex = if (args.parentMetaId == "iptv") newIndex else 0,
-                                    )
-                                    flushWatchProgress()
-                                    val onSwitch = if (args.parentMetaId == "iptv") args.onSwitchIptvChannel else args.onAutoPlayNext
-                                    onSwitch?.invoke(PlayerLaunchStore.put(nextLaunch))
-                                }
-                                .padding(14.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text("\u25C0", color = Color.White, fontSize = 22.sp)
-                        }
-                    }
-                    if (hasNext) {
-                        Box(
-                            modifier = Modifier
-                                .size(52.dp)
-                                .align(Alignment.CenterEnd)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.45f))
-                                .clickable {
-                                    navOverlayVisible = true
-                                    val newIndex = currentIndex + 1
-                                    val nextUrl = args.autoPlayQueueUrls[newIndex]
-                                    val nextTitle = args.autoPlayQueueTitles.getOrElse(newIndex) { "" }
-                                    val resolved = if (nextUrl.startsWith("yt://")) {
-                                        runCatching { runBlocking { com.nuvio.app.features.sports.YouTubeStreamResolver.resolveStream(nextUrl.removePrefix("yt://")) } }.getOrNull()
-                                    } else null
-                                    val nextLaunch = PlayerLaunch(
-                                        profileId = args.profileId, title = nextTitle,
-                                        sourceUrl = resolved?.url ?: nextUrl,
-                                        sourceHeaders = resolved?.headers ?: emptyMap(),
-                                        sourceAudioUrl = resolved?.audioUrl,
-                                        qualities = resolved?.qualities ?: emptyList(),
-                                        streamTitle = nextTitle,
-                                        providerName = if (nextUrl.startsWith("yt://")) "YouTube" else args.providerName,
-                                        streamSubtitle = args.streamSubtitle,
-                                        parentMetaId = args.parentMetaId, parentMetaType = args.parentMetaType,
-                                        poster = args.poster, logo = args.logo,
-                                        autoPlayQueueUrls = args.autoPlayQueueUrls,
-                                        autoPlayQueueTitles = args.autoPlayQueueTitles,
-                                        autoPlayQueueIndex = newIndex,
-                                        channelNames = args.iptvChannelNames,
-                                        channelUrls = args.iptvChannelUrls,
-                                        channelLogos = args.iptvChannelLogos,
-                                        channelIds = args.iptvChannelIds,
-                                        currentChannelIndex = if (args.parentMetaId == "iptv") newIndex else 0,
-                                    )
-                                    flushWatchProgress()
-                                    val onSwitch = if (args.parentMetaId == "iptv") args.onSwitchIptvChannel else args.onAutoPlayNext
-                                    onSwitch?.invoke(PlayerLaunchStore.put(nextLaunch))
-                                }
-                                .padding(14.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text("\u25B6", color = Color.White, fontSize = 22.sp)
-                        }
-                    }
-                }
-            }
-        }
+        
 
         // IPTV channel navigation arrows (hideaway, shown with controls)
         val iptvChUrls = args.iptvChannelUrls
@@ -460,7 +351,7 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
     }
 }
 
-private fun PlayerScreenRuntime.navigateQueue(newIndex: Int, queueUrls: List<String>, queueTitles: List<String>) {
+internal fun PlayerScreenRuntime.navigateQueue(newIndex: Int, queueUrls: List<String>, queueTitles: List<String>) {
     val nextEntry = queueUrls.getOrNull(newIndex) ?: return
     val nextTitle = queueTitles.getOrElse(newIndex) { "" }
     val resolved = if (nextEntry.startsWith("yt://")) {
@@ -633,7 +524,7 @@ private fun BoxScope.RenderPlaybackOverlays(
             val allCh = com.nuvio.app.features.iptv.IptvRepository.getAllChannels()
             iptvChannelNames = allCh.map { it.name }
             iptvChannelUrls = allCh.map { it.url }
-            iptvChannelLogos = allCh.mapNotNull { it.logo }
+            iptvChannelLogos = allCh.map { it.logo ?: "" }
             iptvChannelIds = allCh.map { it.id }
         }
         val iptvFavoriteIds = args.iptvFavoriteIds
@@ -651,56 +542,56 @@ private fun BoxScope.RenderPlaybackOverlays(
             playerControlsLocked = playerControlsLocked,
             lockedOverlayVisible = lockedOverlayVisible,
             playbackSnapshot = playbackSnapshot,
-        displayedPositionMs = displayedPositionMs,
-        metrics = metrics,
-        horizontalSafePadding = horizontalSafePadding,
-        onUnlock = { unlockPlayerControls() },
-        showOpeningOverlay = playerSettingsUiState.showLoadingOverlay && !initialLoadCompleted && errorMessage == null,
-        backdropArtwork = background ?: poster,
-        logo = logo,
-        title = title,
-        onBackWithProgress = {
-            flushWatchProgress()
-            args.onBack()
-        },
-        p2pInitialLoadingMessage = p2pInitialLoadingMessage,
-        p2pInitialLoadingProgress = p2pInitialLoadingProgress,
-        showP2pRebufferStats = showP2pRebufferStats,
-        p2pRebufferMessage = p2pRebufferMessage,
-        p2pRebufferProgress = p2pRebufferProgress,
-        currentGestureFeedback = currentGestureFeedback,
-        renderedGestureFeedback = renderedGestureFeedback,
-        initialLoadCompleted = initialLoadCompleted,
-        pausedOverlayVisible = pausedOverlayVisible,
-        activeSkipInterval = activeSkipInterval,
-        skipIntervalDismissed = skipIntervalDismissed,
-        controlsVisible = controlsVisible,
-        onSkipInterval = { interval ->
-            playerController?.seekTo((interval.endTime * 1000).toLong())
-            scheduleProgressSyncAfterSeek()
-            skipIntervalDismissed = true
-        },
-        onDismissSkipInterval = { skipIntervalDismissed = true },
-        sliderEdgePadding = sliderEdgePadding,
-        overlayBottomPadding = overlayBottomPadding,
-        isSeries = isSeries,
-        nextEpisodeInfo = nextEpisodeInfo,
-        showNextEpisodeCard = showNextEpisodeCard,
-        nextEpisodeAutoPlaySearching = nextEpisodeAutoPlaySearching,
-        nextEpisodeAutoPlaySourceName = nextEpisodeAutoPlaySourceName,
-        nextEpisodeAutoPlayCountdown = nextEpisodeAutoPlayCountdown,
-        onPlayNextEpisode = {
-            nextEpisodeAutoPlayJob?.cancel()
-            playNextEpisode()
-        },
-        onDismissNextEpisode = {
-            nextEpisodeAutoPlayJob?.cancel()
-            showNextEpisodeCard = false
-            nextEpisodeAutoPlaySearching = false
-            nextEpisodeAutoPlaySourceName = null
-            nextEpisodeAutoPlayCountdown = null
-        },
-        errorMessage = errorMessage,
+            displayedPositionMs = displayedPositionMs,
+            metrics = metrics,
+            horizontalSafePadding = horizontalSafePadding,
+            onUnlock = { unlockPlayerControls() },
+            showOpeningOverlay = playerSettingsUiState.showLoadingOverlay && !initialLoadCompleted && errorMessage == null,
+            backdropArtwork = background ?: poster,
+            logo = logo,
+            title = title,
+            onBackWithProgress = {
+                flushWatchProgress()
+                args.onBack()
+            },
+            p2pInitialLoadingMessage = p2pInitialLoadingMessage,
+            p2pInitialLoadingProgress = p2pInitialLoadingProgress,
+            showP2pRebufferStats = showP2pRebufferStats,
+            p2pRebufferMessage = p2pRebufferMessage,
+            p2pRebufferProgress = p2pRebufferProgress,
+            currentGestureFeedback = currentGestureFeedback,
+            renderedGestureFeedback = renderedGestureFeedback,
+            initialLoadCompleted = initialLoadCompleted,
+            pausedOverlayVisible = pausedOverlayVisible,
+            activeSkipInterval = activeSkipInterval,
+            skipIntervalDismissed = skipIntervalDismissed,
+            controlsVisible = controlsVisible,
+            onSkipInterval = { interval ->
+                playerController?.seekTo((interval.endTime * 1000).toLong())
+                scheduleProgressSyncAfterSeek()
+                skipIntervalDismissed = true
+            },
+            onDismissSkipInterval = { skipIntervalDismissed = true },
+            sliderEdgePadding = sliderEdgePadding,
+            overlayBottomPadding = overlayBottomPadding,
+            isSeries = isSeries,
+            nextEpisodeInfo = nextEpisodeInfo,
+            showNextEpisodeCard = showNextEpisodeCard,
+            nextEpisodeAutoPlaySearching = nextEpisodeAutoPlaySearching,
+            nextEpisodeAutoPlaySourceName = nextEpisodeAutoPlaySourceName,
+            nextEpisodeAutoPlayCountdown = nextEpisodeAutoPlayCountdown,
+            onPlayNextEpisode = {
+                nextEpisodeAutoPlayJob?.cancel()
+                playNextEpisode()
+            },
+            onDismissNextEpisode = {
+                nextEpisodeAutoPlayJob?.cancel()
+                showNextEpisodeCard = false
+                nextEpisodeAutoPlaySearching = false
+                nextEpisodeAutoPlaySourceName = null
+                nextEpisodeAutoPlayCountdown = null
+            },
+            errorMessage = errorMessage,
             onDismissError = {
                 flushWatchProgress()
                 args.onBack()
@@ -715,7 +606,9 @@ private fun BoxScope.RenderPlaybackOverlays(
             historyLogos = iptvHistoryLogos,
             historyIds = iptvHistoryIds,
             currentChannelIndex = iptvCurrentChannelIndex,
-            onToggleFavorite = args.onToggleIptvFavorite,
+            onToggleFavorite = { channelId ->
+                com.nuvio.app.features.iptv.IptvRepository.toggleFavorite(channelId)
+            },
             onAddToMultiView = { chName, chUrl, chLogo ->
                 channelPickerName = chName
                 channelPickerUrl = chUrl
@@ -723,9 +616,20 @@ private fun BoxScope.RenderPlaybackOverlays(
                 showChannelMultiViewPicker = true
             },
             onSwitchChannel = { index ->
-                if (iptvChannelUrls != null && iptvChannelNames != null && index < iptvChannelUrls.size && index < iptvChannelNames.size) {
+                if (iptvChannelUrls != null && iptvChannelNames != null && index >= 0 && index < iptvChannelUrls.size && index < iptvChannelNames.size) {
                     val newLogo = iptvChannelLogos?.getOrNull(index).takeIf { !it.isNullOrBlank() }
-                    val newLaunch = iptvLaunch?.copy(
+                    val baseLaunch = iptvLaunch ?: PlayerLaunch(
+                        profileId = args.profileId,
+                        title = iptvChannelNames[index],
+                        sourceUrl = iptvChannelUrls[index],
+                        streamTitle = iptvChannelNames[index],
+                        providerName = args.providerName.ifBlank { "IPTV" },
+                        parentMetaId = args.parentMetaId.ifBlank { "iptv" },
+                        parentMetaType = args.parentMetaType.ifBlank { "iptv" },
+                        logo = newLogo,
+                        poster = newLogo,
+                    )
+                    val newLaunch = baseLaunch.copy(
                         title = iptvChannelNames[index],
                         sourceUrl = iptvChannelUrls[index],
                         streamTitle = iptvChannelNames[index],
@@ -743,10 +647,8 @@ private fun BoxScope.RenderPlaybackOverlays(
                         historyChannelLogos = iptvHistoryLogos,
                         historyChannelIds = iptvHistoryIds,
                     )
-                    if (newLaunch != null) {
-                        flushWatchProgress()
-                        args.onSwitchIptvChannel?.invoke(PlayerLaunchStore.put(newLaunch))
-                    }
+                    flushWatchProgress()
+                    args.onSwitchIptvChannel?.invoke(PlayerLaunchStore.put(newLaunch))
                 }
             },
         )

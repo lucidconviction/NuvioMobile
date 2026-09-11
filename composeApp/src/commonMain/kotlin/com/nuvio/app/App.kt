@@ -4,6 +4,11 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -28,6 +33,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -62,7 +68,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
@@ -110,6 +118,8 @@ import dev.chrisbanes.haze.rememberHazeState
 import com.nuvio.app.core.ui.NuvioStatusModal
 import com.nuvio.app.core.ui.PlatformBackHandler
 import com.nuvio.app.core.ui.platformExitApp
+import com.nuvio.app.features.trakt.TraktPlatformClock
+import kotlinx.coroutines.delay
 import com.nuvio.app.core.ui.configurePlatformImageLoader
 import com.nuvio.app.core.ui.NuvioToastHost
 import com.nuvio.app.core.ui.NuvioToastController
@@ -155,9 +165,11 @@ import com.nuvio.app.features.tmdb.TmdbEntityKind
 import com.nuvio.app.features.home.HomeCatalogSection
 import com.nuvio.app.features.home.HomeScreen
 import com.nuvio.app.features.home.MetaPreview
+import com.nuvio.app.features.hub.BufferingOverlay
 import com.nuvio.app.features.hub.HubReturnStore
 import com.nuvio.app.features.hub.MultiWindowStore
 import com.nuvio.app.features.hub.RobbdeezeNutzHubScreen
+import com.nuvio.app.features.hub.VideoSelectionFeedback
 import com.nuvio.app.features.iptv.IptvRepository
 import com.nuvio.app.features.sports.SportsRepository
 import com.nuvio.app.features.sports.SportsScreen
@@ -356,6 +368,34 @@ fun disposeRoute(route: AppRoute) {
     }
 }
 
+/** Drifting liquid-glass gradient backdrop behind the whole app. */
+@Composable
+private fun LiquidGlassBackground(content: @Composable () -> Unit) {
+    val transition = rememberInfiniteTransition(label = "liquidGlass")
+    val driftX by transition.animateFloat(
+        -120f, 120f,
+        animationSpec = infiniteRepeatable(tween(9000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "driftX",
+    )
+    val driftY by transition.animateFloat(
+        -80f, 80f,
+        animationSpec = infiniteRepeatable(tween(11000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "driftY",
+    )
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFF0A0D12))) {
+        val w = maxWidth
+        val h = maxHeight
+        Box(Modifier.fillMaxSize().graphicsLayer { translationX = driftX; translationY = driftY }) {
+            Box(Modifier.size(w * 0.9f).offset(x = w * -0.12f, y = h * 0.04f).background(Brush.radialGradient(listOf(Color(0xFF4A90D9).copy(alpha = 0.32f), Color.Transparent))))
+            Box(Modifier.size(w * 0.85f).offset(x = w * 0.55f, y = h * 0.10f).background(Brush.radialGradient(listOf(Color(0xFFE8553A).copy(alpha = 0.26f), Color.Transparent))))
+            Box(Modifier.size(w * 0.95f).offset(x = w * 0.05f, y = h * 0.55f).background(Brush.radialGradient(listOf(Color(0xFF6C5CE7).copy(alpha = 0.26f), Color.Transparent))))
+            Box(Modifier.size(w * 0.8f).offset(x = w * 0.45f, y = h * 0.62f).background(Brush.radialGradient(listOf(Color(0xFF00CEC9).copy(alpha = 0.22f), Color.Transparent))))
+        }
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.05f), Color.Transparent))))
+        content()
+    }
+}
+
 private data class PosterActionTarget(
     val preview: MetaPreview,
     val libraryItem: LibraryItem? = null,
@@ -444,6 +484,11 @@ fun App(
             .crossfade(true)
             .diskCachePolicy(CachePolicy.ENABLED)
             .memoryCachePolicy(CachePolicy.ENABLED)
+            .memoryCache {
+                coil3.memory.MemoryCache.Builder()
+                    .maxSizePercent(context, percent = 0.25)
+                    .build()
+            }
             .components {
                 add(SvgDecoder.Factory())
             }
@@ -662,6 +707,7 @@ fun App(
             }
         }
 
+        LiquidGlassBackground {
         AnimatedContent(
             targetState = gateScreen,
             label = "app_gate",
@@ -749,6 +795,7 @@ fun App(
                 }
             }
         }
+        }
     }
 }
 
@@ -797,7 +844,16 @@ private fun MainAppContent(
         val uriHandler = LocalUriHandler.current
         val coroutineScope = rememberCoroutineScope()
         var selectedTab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
+        var previousTab by rememberSaveable { mutableStateOf(AppScreenTab.Home) }
         var hubResetCounter by remember { mutableStateOf(0) }
+        // Guard: when the MW quick-nav pill triggers a programmatic Hub
+        // activation targeting the Multi sub-screen, the subsequent native
+        // tab-activation callback would otherwise fire handleRootTabClick and
+        // clobber HubReturnStore.subScreen back to "Hub". The guard is
+        // self-expiring (2s) so it cannot leak and suppress legitimate root
+        // clicks after the Multi view has rendered.
+        var pendingMultiNav by remember { mutableStateOf(false) }
+        var multiNavTs by remember { mutableStateOf(0L) }
         var searchFocusRequestCount by remember { mutableStateOf(0) }
         val homeScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
         val searchScrollToTopRequests = remember { MutableSharedFlow<Unit>(extraBufferCapacity = 1) }
@@ -906,6 +962,9 @@ private fun MainAppContent(
     var watchSourceReconnectPending by remember { mutableStateOf(false) }
 
     fun activateTab(tab: AppScreenTab) {
+        if (selectedTab != tab) {
+            previousTab = selectedTab
+        }
         if (useNativeNavigation && onActivate != null) {
             onActivate(tab)
         } else {
@@ -930,8 +989,17 @@ private fun MainAppContent(
             AppScreenTab.RobbdeezeNutzHub -> {
                 iptvScrollToTopRequests.tryEmit(Unit)
                 sportsScrollToTopRequests.tryEmit(Unit)
-                HubReturnStore.subScreen = "Hub"
-                hubResetCounter++
+                if (pendingMultiNav) {
+                    // The MW quick-nav pill already targeted the Multi
+                    // sub-screen; consume the guard so the requested view
+                    // survives this native activation callback, while
+                    // subsequent legitimate root clicks still reset to Hub.
+                    pendingMultiNav = false
+                    multiNavTs = 0
+                } else {
+                    HubReturnStore.subScreen = "Hub"
+                    hubResetCounter++
+                }
             }
         }
     }
@@ -987,6 +1055,26 @@ private fun MainAppContent(
         NativeTabBridge.publishSelectedTab(selectedTab.toNativeNavigationTab())
         if (selectedTab != AppScreenTab.Search) {
             searchFocusRequestCount = 0
+        }
+        // Consume the MW pill guard once the Hub tab actually becomes
+        // active in the Compose-only (non-native) path, where
+        // handleRootTabClick is never invoked to clear it.
+        if (selectedTab == AppScreenTab.RobbdeezeNutzHub && pendingMultiNav) {
+            pendingMultiNav = false
+            multiNavTs = 0
+        }
+    }
+
+    // Self-expire the MW pill guard so a stale flag can never suppress a
+    // legitimate Hub root-click on a subsequent visit.
+    LaunchedEffect(pendingMultiNav) {
+        if (!pendingMultiNav) return@LaunchedEffect
+        delay(2_000)
+        if (pendingMultiNav && multiNavTs > 0 &&
+            TraktPlatformClock.nowEpochMs() - multiNavTs >= 2_000
+        ) {
+            pendingMultiNav = false
+            multiNavTs = 0
         }
     }
 
@@ -1821,8 +1909,7 @@ private fun MainAppContent(
 
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.nuvio.colors.background),
+                .fillMaxSize(),
         ) {
             Box(
                 modifier = Modifier
@@ -1833,8 +1920,7 @@ private fun MainAppContent(
                         } else {
                             Modifier
                         },
-                    )
-                    .background(MaterialTheme.nuvio.colors.background),
+                    ),
             ) {
             SharedTransitionLayout {
                 CompositionLocalProvider(
@@ -1852,7 +1938,8 @@ private fun MainAppContent(
                         enabled = true,
                         onBack = {
                             if (selectedTab != AppScreenTab.Home) {
-                                activateTab(AppScreenTab.Home)
+                                val target = previousTab.takeIf { it != selectedTab } ?: AppScreenTab.Home
+                                activateTab(target)
                             } else {
                                 showExitConfirmation = !showExitConfirmation
                             }
@@ -1942,8 +2029,10 @@ private fun MainAppContent(
                                         sportsScrollToTopRequests = sportsScrollToTopRequests,
                                         hubResetTrigger = hubResetCounter,
                                         onOpenMultiWindow = {
-                                            activateTab(AppScreenTab.RobbdeezeNutzHub)
                                             HubReturnStore.subScreen = "Multi"
+                                            pendingMultiNav = true
+                                            multiNavTs = TraktPlatformClock.nowEpochMs()
+                                            activateTab(AppScreenTab.RobbdeezeNutzHub)
                                         },
                                         animateHomeCollectionGifs = tabsRouteActive,
                                         onCatalogClick = onCatalogClick,
@@ -3802,6 +3891,10 @@ private fun AppTabHost(
                 }
             }
         }
+
+        // Global video-selection buffering overlay — shown while a tapped video's
+        // stream is resolving, before the player opens. Covers every video hub.
+        BufferingOverlay()
     }
 }
 

@@ -87,4 +87,18 @@ actual object IptvStorage {
         val file = epgSourcePath(id) ?: return
         if (file.exists()) try { file.delete() } catch (e: SecurityException) { Logger.e(e) { "Failed to delete EPG source $id" } }
     }
+
+    actual fun loadLicense(): String? =
+        preferences?.getString("portal_license", null)
+
+    actual fun saveLicense(data: String) {
+        preferences?.edit()?.putString("portal_license", data)?.apply()
+    }
+
+    actual fun loadFingerprint(): String? =
+        preferences?.getString("portal_fingerprint", null)
+
+    actual fun saveFingerprint(data: String) {
+        preferences?.edit()?.putString("portal_fingerprint", data)?.apply()
+    }
 }

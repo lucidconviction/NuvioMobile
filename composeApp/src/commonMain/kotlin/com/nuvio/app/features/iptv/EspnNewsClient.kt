@@ -22,6 +22,11 @@ object EspnNewsClient {
         return emptyList()
     }
 
+    /** League-specific news (ESPN news feed for the sport/league). */
+    suspend fun fetchNewsForLeague(sport: String, league: String): List<EspnNewsArticle> {
+        return tryFetch("https://site.api.espn.com/apis/site/v2/sports/$sport/$league/news")
+    }
+
     private suspend fun tryFetch(url: String): List<EspnNewsArticle> {
         return try {
             val response = httpGetText(url)

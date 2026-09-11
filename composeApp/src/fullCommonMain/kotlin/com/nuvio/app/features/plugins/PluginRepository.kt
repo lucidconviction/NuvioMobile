@@ -52,6 +52,19 @@ private data class PluginPushItem(
     @SerialName("sort_order") val sortOrder: Int = 0,
 )
 
+/** Plugin repositories pre-installed on every fresh install (kept in sync with the addon defaults). */
+private val DEFAULT_PLUGIN_REPOS = listOf(
+    "https://hdhub.thevolecitor.qzz.io/eyJ0b3Jib3giOiJ1bnNldCIsInF1YWxpdGllcyI6IjIxNjBwLDEwODBwLDcyMHAsNDgwcCIsInNvcnQiOiJkZXNjIiwiY2F0YWxvZ3MiOiJmZWF0dXJlZCxwb3B1bGFyIn0",
+    "https://mediafusion.elfhosted.com/D-NpFBMMJFCws06gObWz2gq4CA_duUjy6nUK-VbjPi2uWv6pAtUpzLwS7t89VaoMqtOz792MkGEeSTweVfY6msu4p89PZmISOXOuL0V4VKOiICzA-nj13qFBtLKoB9q8jzMi-RD9iZNCOVMA81ILXK2HeRyteevl1eS3pib6fKep_cdYJ-waojnaSn9ApTBVbADMCGyn9sc1WotOLDlAUZfHxsUyTyfaRA_9Tz8VbyRtBHDhint0iOg4HAl5dARz9P3Jy-vly3skUz2ZEI0vFaNMtlCYPddppC2FDIs_3786noXT9_EzJYj_0z-HcQmLJI-ZIYnzaUdKwLQ_iFlMX3BoC1SrmM-Fvshy2vl8QlRMs6jhnSMRLh9XOsH9tWXi8UNtClkwBkqDrFxdZsh53z3uYcd7_mmwMrpCtjha-q8f8cBL95JI9WCDp4mJQcscHJWWopz_-f4EDCEy-4o6X9V55jUzyUkC2ykbDeIq0A17oz1-seNhMNFDihEqhnO6mbHYsbiZW9nulTvN1ezdKidsmdao1wBZ9j5P5gIj6tzf2Pqm6Q6zvuKRr8aHCTsIQnrPE4fKAx6eUXZuxZlWYNzYcurgOGUIDHt__g1S6_egkiJ8EKvCNGeGm2Wn29XHaTAIKD2szucWWjZTM9SoS74PJvnPWcZ1ow7uZrSJ6n-lqBh-AOemZEIkOY4gxe98jaQIw-CCyfZmbpuAX6OLm5YyrAskDfYiIQJWAr2b7d1z6dgr9h96VA22zfIfcwAMPTHf6nXnClgRdBCvD-SXb7HEVD346ic6ESxihD0llXGljkpp5yAdebSJFR6YPIU5jZbQGQoJMAZLjKXzh-vsJFLUGUgI6Cnna79b0wGd6iAN1eT6m6SGZoim7tt_wsFChZNIHCKgf0mLSBCuz_9gHRv9CF_PvtcT6t0GxpATcyzS_CWFvH6n0nuGEyGROa7HZoT3qxJ6CbMWZorQAl9tEYtwH1NX7xZk2ecnC3gvHEjqp1_qh2uua6ERpvJMDPXVW1F-Tw4TMsxDl69UmTM0dtWA",
+    "https://87d6a6ef6b58-webstreamrmbg.baby-beamup.club/%7B%22multi%22%3A%22on%22%7D",
+    "https://torrentio.strem.fun",
+    "https://live-sport-plugin-g0l1.onrender.com",
+    "https://torrentsdb.com",
+    "https://pengu.uk",
+    "https://ytztvio.galacticcapsule.workers.dev",
+    "https://nodebrid.fly.dev",
+)
+
 actual object PluginRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val log = Logger.withTag("PluginRepository")
@@ -523,6 +536,7 @@ actual object PluginRepository {
 
     private fun loadStateAsUiState(profileId: Int): PluginsUiState {
         val stored = loadStoredState(profileId)
+            ?: getDefaultPluginsState().also { PluginStorage.saveState(profileId, json.encodeToString(it)) }
         return PluginsUiState(
             pluginsEnabled = stored?.pluginsEnabled ?: true,
             groupStreamsByRepository = stored?.groupStreamsByRepository ?: false,
@@ -562,6 +576,19 @@ actual object PluginRepository {
                 ?: emptyList(),
         )
     }
+
+    /** Default plugin repositories installed on every fresh install (mirrors the addon defaults). */
+    private fun getDefaultPluginsState(): StoredPluginsState = StoredPluginsState(
+        pluginsEnabled = true,
+        groupStreamsByRepository = false,
+        repositories = DEFAULT_PLUGIN_REPOS.map { url ->
+            StoredPluginRepository(
+                manifestUrl = ensureManifestSuffix(url),
+                name = "",
+            )
+        },
+        scrapers = emptyList(),
+    )
 
     private fun dedupeManifestUrls(urls: List<String>): List<String> =
         urls.map(::ensureManifestSuffix).distinct()

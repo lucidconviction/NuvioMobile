@@ -68,7 +68,7 @@ object YouTubeHighlightClient {
 
     private suspend fun tryInvidious(instance: String, query: String): List<YouTubeVideo>? {
         return try {
-            val url = "$instance/api/v1/search?q=${query}+highlights&type=video&sort=relevance"
+            val url = "$instance/api/v1/search?q=${query}+highlights&type=video&sort=relevance&date=month"
             val response = httpGetText(url)
             val raw = json.decodeFromString<List<InvidiousVideo>>(response)
             if (raw.isEmpty()) return null

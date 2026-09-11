@@ -17,4 +17,10 @@ internal expect object IptvStorage {
     fun loadEpgSourceContent(id: String): String?
     fun saveEpgSourceContent(id: String, content: String)
     fun deleteEpgSourceContent(id: String)
+
+    fun loadLicense(): String?
+    fun saveLicense(data: String)
+
+    fun loadFingerprint(): String?
+    fun saveFingerprint(data: String)
 }

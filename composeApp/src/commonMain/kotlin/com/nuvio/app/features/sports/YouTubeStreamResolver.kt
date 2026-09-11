@@ -334,5 +334,5 @@ object YouTubeStreamResolver {
     private val API_KEY_REGEX = Regex("\"INNERTUBE_API_KEY\":\"([^\"]+)\"")
     private val VISITOR_DATA_REGEX = Regex("\"VISITOR_DATA\":\"([^\"]+)\"")
 
-    private fun currentTimeMillis(): Long = System.currentTimeMillis()
+    private fun currentTimeMillis(): Long = com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs()
 }

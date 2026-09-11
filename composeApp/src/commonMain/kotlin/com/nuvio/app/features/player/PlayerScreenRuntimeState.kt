@@ -194,7 +194,7 @@ internal class PlayerScreenRuntime(
     var showSubtitleModal by mutableStateOf(false)
     var showVideoSettingsModal by mutableStateOf(false)
     var showMultiViewPicker by mutableStateOf(false)
-    var navOverlayVisible by mutableStateOf(false)
+    
     var navOverlayHideJob by mutableStateOf<Job?>(null)
     var audioTracks by mutableStateOf<List<AudioTrack>>(emptyList())
     var subtitleTracks by mutableStateOf<List<SubtitleTrack>>(emptyList())

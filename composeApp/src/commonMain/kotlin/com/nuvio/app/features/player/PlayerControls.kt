@@ -444,44 +444,31 @@ private fun CenterControls(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(metrics.centerGap),
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (onPrev != null) {
-            SideControlButton(
-                icon = Icons.Rounded.SkipPrevious,
-                contentDescription = "Previous",
-                metrics = metrics,
-                onClick = onPrev,
-            )
-        }
+        // Left arrow — far left
         SideControlButton(
-            icon = Icons.Rounded.Replay10,
-            contentDescription = stringResource(Res.string.compose_player_seek_back_10),
+            icon = Icons.Rounded.SkipPrevious,
+            contentDescription = "Previous",
             metrics = metrics,
-            onClick = onSeekBack,
+            onClick = onPrev ?: onSeekBack,
         )
+        // Pause / play — center
         PlayPauseControlButton(
             isPlaying = snapshot.isPlaying,
             isBuffering = snapshot.isLoading,
             metrics = metrics,
             onClick = onTogglePlayback,
         )
+        // Right arrow — far right
         SideControlButton(
-            icon = Icons.Rounded.Forward10,
-            contentDescription = stringResource(Res.string.compose_player_seek_forward_10),
+            icon = Icons.Rounded.SkipNext,
+            contentDescription = "Next",
             metrics = metrics,
-            onClick = onSeekForward,
+            onClick = onNext ?: onSeekForward,
         )
-        if (onNext != null) {
-            SideControlButton(
-                icon = Icons.Rounded.SkipNext,
-                contentDescription = "Next",
-                metrics = metrics,
-                onClick = onNext,
-            )
-        }
     }
 }
 

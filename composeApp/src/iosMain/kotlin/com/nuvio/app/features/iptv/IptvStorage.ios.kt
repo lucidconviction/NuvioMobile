@@ -102,4 +102,18 @@ actual object IptvStorage {
             fileManager.removeItemAtPath(path, error = null)
         }
     }
+
+    actual fun loadLicense(): String? =
+        NSUserDefaults.standardUserDefaults.stringForKey("portal_license")
+
+    actual fun saveLicense(data: String) {
+        NSUserDefaults.standardUserDefaults.setObject(data, forKey = "portal_license")
+    }
+
+    actual fun loadFingerprint(): String? =
+        NSUserDefaults.standardUserDefaults.stringForKey("portal_fingerprint")
+
+    actual fun saveFingerprint(data: String) {
+        NSUserDefaults.standardUserDefaults.setObject(data, forKey = "portal_fingerprint")
+    }
 }

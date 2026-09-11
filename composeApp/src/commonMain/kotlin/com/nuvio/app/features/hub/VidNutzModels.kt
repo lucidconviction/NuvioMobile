@@ -1,5 +1,8 @@
 package com.nuvio.app.features.hub
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class VidNutzVideo(
     val videoId: String,
     val title: String,
@@ -11,6 +14,7 @@ data class VidNutzVideo(
     val isLive: Boolean = false,
 )
 
+@Serializable
 enum class VidNutzCategory(val displayName: String) {
     TRENDING("Trending"),
     LIVE("Live"),
@@ -27,6 +31,24 @@ enum class VidNutzCategory(val displayName: String) {
     FOOD_DRINK("Food & Drink"),
 }
 
+/** A sub-collection / rail within a hub. */
+@Serializable
+data class VidNutzSub(
+    val id: String,
+    val name: String,
+    val count: Int = 0,
+    val queries: List<String> = emptyList(),
+)
+
+/** A VidNutz hub shown as a chip; its subs render as video rails. */
+@Serializable
+data class VidNutzHub(
+    val id: String,
+    val displayName: String,
+    val subs: List<VidNutzSub>,
+)
+
+@Serializable
 data class VidNutzUiState(
     val selectedCategory: VidNutzCategory = VidNutzCategory.TRENDING,
     val videos: List<VidNutzVideo> = emptyList(),
@@ -40,4 +62,12 @@ data class VidNutzUiState(
     val searchHasMore: Boolean = true,
     val resolvingVideoId: String? = null,
     val recentSearches: List<String> = emptyList(),
+    val selectedHubId: String = "trending",
+    val hubSections: Map<String, List<VidNutzVideo>> = emptyMap(),
+    val hubLoading: Boolean = false,
+    val refreshingSubIds: Set<String> = emptySet(),
+    val viewingSubId: String? = null,
+    val subVideos: List<VidNutzVideo> = emptyList(),
+    val subHasMore: Boolean = true,
+    val subPage: Int = 1,
 )

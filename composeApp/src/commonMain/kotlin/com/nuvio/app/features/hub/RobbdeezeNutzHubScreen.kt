@@ -1,6 +1,7 @@
 package com.nuvio.app.features.hub
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -46,18 +47,32 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.build.AppVersionConfig
 import com.nuvio.app.features.iptv.IptvScreen
 import com.nuvio.app.features.player.PlayerLaunch
+import com.nuvio.app.core.ui.PlatformBackHandler
 import com.nuvio.app.features.sports.SportsScreen
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
 import androidx.compose.runtime.snapshotFlow
+import nuvio.composeapp.generated.resources.Res
+import nuvio.composeapp.generated.resources.hub_iptv
+import nuvio.composeapp.generated.resources.hub_multi
+import nuvio.composeapp.generated.resources.hub_music
+import nuvio.composeapp.generated.resources.hub_pod
+import nuvio.composeapp.generated.resources.hub_sport
+import nuvio.composeapp.generated.resources.hub_vid
+import nuvio.composeapp.generated.resources.rdnutz_banner
+import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.painterResource
 
 // ─── Obsidian Media Hub Design Tokens ────────────────────────────────────
 private val ObsidianBg = Color(0xFF131313)
@@ -71,21 +86,36 @@ private val CardBorder = Color(0x1AFFFFFF)
 private val Primary = Color(0xFFFDFDFC)
 private val GlassBg = Color(0x991E1E1E)
 
-private enum class HubSubScreen { Hub, Iptv, Sports, VidNutz, Music, Multi, TeleNutz }
+private enum class HubSubScreen { Hub, Iptv, Sports, VidNutz, Music, Pod, Multi }
 
 private data class HubItem(
     val title: String,
     val iconText: String,
     val target: HubSubScreen,
+    val bgRes: DrawableResource? = null,
 )
 
 private val hubItems = listOf(
-    HubItem("IPTVNutz Hub", "TV", HubSubScreen.Iptv),
-    HubItem("SportNutz Hub", "SP", HubSubScreen.Sports),
-    HubItem("VidNutz Hub", "VN", HubSubScreen.VidNutz),
-    HubItem("MusicNutz Hub", "MU", HubSubScreen.Music),
-    HubItem("MultiNutz Hub", "MW", HubSubScreen.Multi),
-    HubItem("TeleNutz Hub", "TG", HubSubScreen.TeleNutz),
+    HubItem("IPTVNutz Hub", "TV", HubSubScreen.Iptv, Res.drawable.hub_iptv),
+    HubItem("SportNutz Hub", "SP", HubSubScreen.Sports, Res.drawable.hub_sport),
+    HubItem("VidNutz Hub", "VN", HubSubScreen.VidNutz, Res.drawable.hub_vid),
+    HubItem("MusicNutz Hub", "MU", HubSubScreen.Music, Res.drawable.hub_music),
+    HubItem("PodNutz Hub", "PO", HubSubScreen.Pod, Res.drawable.hub_pod),
+    HubItem("MultiNutz Hub", "MW", HubSubScreen.Multi, Res.drawable.hub_multi),
+)
+
+private const val TELEGRAM_HANDLE = "@RnutzNuvioUpdates"
+private const val TELEGRAM_URL = "https://t.me/RnutzNuvioUpdates"
+private const val RD_TV_USDT = "0xf42b556E240b5a3820365414cE91BCaCd5bBA287"
+private const val RD_TV_PAYPAL = "https://paypal.me/robbdeeze"
+
+private val hubDescriptions = mapOf(
+    HubSubScreen.Iptv to "Live TV & sources",
+    HubSubScreen.Sports to "Scores, standings & fights",
+    HubSubScreen.VidNutz to "Video search & playlists",
+    HubSubScreen.Music to "Music streaming",
+    HubSubScreen.Pod to "Podcasts with resume",
+    HubSubScreen.Multi to "Multi-window streaming",
 )
 
 @Composable
@@ -102,11 +132,28 @@ fun RobbdeezeNutzHubScreen(
             when (HubReturnStore.subScreen) {
                 "Iptv" -> HubSubScreen.Iptv; "Sports" -> HubSubScreen.Sports
                 "VidNutz" -> HubSubScreen.VidNutz; "Music" -> HubSubScreen.Music
+                "Pod" -> HubSubScreen.Pod
                 "Multi" -> HubSubScreen.Multi
-                "TeleNutz" -> HubSubScreen.TeleNutz
                 else -> HubSubScreen.Hub
             },
         )
+    }
+    var backStack by remember(resetTrigger) { mutableStateOf<List<HubSubScreen>>(emptyList()) }
+
+    fun pushNav(next: HubSubScreen) {
+        if (next == subScreen) return
+        if (subScreen != HubSubScreen.Hub) {
+            backStack = backStack + subScreen
+        }
+        subScreen = next
+        HubReturnStore.subScreen = next.name
+    }
+
+    fun navigateBack() {
+        val prev = backStack.lastOrNull()
+        backStack = if (backStack.isEmpty()) backStack else backStack.dropLast(1)
+        subScreen = prev ?: HubSubScreen.Hub
+        HubReturnStore.subScreen = subScreen.name
     }
 
     LaunchedEffect(Unit) {
@@ -117,12 +164,12 @@ fun RobbdeezeNutzHubScreen(
                     val restored = when (saved) {
                         "Iptv" -> HubSubScreen.Iptv; "Sports" -> HubSubScreen.Sports
                         "VidNutz" -> HubSubScreen.VidNutz; "Music" -> HubSubScreen.Music
+                        "Pod" -> HubSubScreen.Pod
                         "Multi" -> HubSubScreen.Multi
-                        "TeleNutz" -> HubSubScreen.TeleNutz
                         else -> null
                     }
                     if (restored != null && restored != subScreen) {
-                        subScreen = restored
+                        pushNav(restored)
                     }
                 }
             }
@@ -135,10 +182,13 @@ fun RobbdeezeNutzHubScreen(
         }
     }
 
+    PlatformBackHandler(enabled = subScreen != HubSubScreen.Hub) {
+        navigateBack()
+    }
+
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(ObsidianBg)
             .windowInsetsPadding(WindowInsets.statusBars),
     ) {
         val isTablet = maxWidth >= 768.dp
@@ -148,8 +198,7 @@ fun RobbdeezeNutzHubScreen(
                 detectTapGestures(
                     onDoubleTap = {
                         if (MultiWindowStore.allStreams.isNotEmpty() && subScreen != HubSubScreen.Multi) {
-                            HubReturnStore.subScreen = "Multi"
-                            subScreen = HubSubScreen.Multi
+                            pushNav(HubSubScreen.Multi)
                         }
                     },
                 )
@@ -166,25 +215,26 @@ fun RobbdeezeNutzHubScreen(
                     ) {
                         Text("RobbdeezeNutz", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
-                    Spacer(Modifier.height(20.dp))
-                    HubGrid(onNavigate = { subScreen = it })
+                    HubPageHeader()
+                    Spacer(Modifier.height(8.dp))
+                    HubGrid(modifier = Modifier.weight(1f), onNavigate = { pushNav(it) })
                 }
                 HubSubScreen.Iptv -> {
                     Column(Modifier.fillMaxSize()) {
                         Row(Modifier.fillMaxWidth().padding(start = 2.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { HubReturnStore.subScreen = "Hub"; subScreen = HubSubScreen.Hub }) {
+                            IconButton(onClick = { navigateBack() }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = OnSurface)
                             }
                         }
                         Box(Modifier.fillMaxSize()) {
-                            IptvScreen(modifier = Modifier.fillMaxSize(), onPlayChannel = onPlayChannelSave, scrollToTopRequests = iptvScrollToTopRequests, onMultiWindowAdded = { subScreen = HubSubScreen.Multi }, isTabletLayout = isTablet)
+                            IptvScreen(modifier = Modifier.fillMaxSize(), onPlayChannel = onPlayChannelSave, scrollToTopRequests = iptvScrollToTopRequests, onMultiWindowAdded = { pushNav(HubSubScreen.Multi) }, isTabletLayout = isTablet)
                         }
                     }
                 }
                 HubSubScreen.Sports -> {
                     Column(Modifier.fillMaxSize()) {
                         Row(Modifier.fillMaxWidth().padding(start = 2.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { HubReturnStore.subScreen = "Hub"; subScreen = HubSubScreen.Hub }) {
+                            IconButton(onClick = { navigateBack() }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = OnSurface)
                             }
                         }
@@ -196,7 +246,7 @@ fun RobbdeezeNutzHubScreen(
                 HubSubScreen.VidNutz -> {
                     Column(Modifier.fillMaxSize()) {
                         Row(Modifier.fillMaxWidth().padding(start = 2.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { HubReturnStore.subScreen = "Hub"; subScreen = HubSubScreen.Hub }) {
+                            IconButton(onClick = { navigateBack() }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = OnSurface)
                             }
                         }
@@ -206,36 +256,36 @@ fun RobbdeezeNutzHubScreen(
                 HubSubScreen.Music -> {
                     Column(Modifier.fillMaxSize()) {
                         Row(Modifier.fillMaxWidth().padding(start = 2.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { HubReturnStore.subScreen = "Hub"; subScreen = HubSubScreen.Hub }) {
+                            IconButton(onClick = { navigateBack() }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = OnSurface)
                             }
                         }
                         Box(Modifier.fillMaxSize()) { MusicNutzScreen(onPlayChannel = onPlayChannelSave) }
                     }
                 }
+                HubSubScreen.Pod -> {
+                    Column(Modifier.fillMaxSize()) {
+                        Row(Modifier.fillMaxWidth().padding(start = 2.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { navigateBack() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = OnSurface)
+                            }
+                        }
+                        Box(Modifier.fillMaxSize()) { PodNutzScreen(onPlayChannel = onPlayChannelSave) }
+                    }
+                }
                 HubSubScreen.Multi -> {
                     Column(Modifier.fillMaxSize()) {
                         Row(Modifier.fillMaxWidth().padding(start = 2.dp, top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { HubReturnStore.subScreen = "Hub"; subScreen = HubSubScreen.Hub }) {
+                            IconButton(onClick = { navigateBack() }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = OnSurface)
                             }
                         }
                         Box(Modifier.fillMaxSize()) {
                             MultiWindowContent(
-                                onSubScreenChange = { subScreen = it },
+                                onSubScreenChange = { pushNav(it) },
                                 onPlayChannel = onPlayChannelSave,
                             )
                         }
-                    }
-                }
-                HubSubScreen.TeleNutz -> {
-                    Column(Modifier.fillMaxSize()) {
-                        Row(Modifier.fillMaxWidth().padding(start = 2.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { HubReturnStore.subScreen = "Hub"; subScreen = HubSubScreen.Hub }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = OnSurface)
-                            }
-                        }
-                        Box(Modifier.fillMaxSize()) { TeleNutzScreen(onPlayChannel = onPlayChannelSave) }
                     }
                 }
             }
@@ -245,11 +295,59 @@ fun RobbdeezeNutzHubScreen(
     }
 }
 
+@Composable
+private fun HubPageHeader() {
+    val uriHandler = LocalUriHandler.current
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Box(
+            Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(10.dp))
+                .border(0.5.dp, CardBorder, RoundedCornerShape(10.dp)),
+        ) {
+            Image(
+                painter = painterResource(Res.drawable.rdnutz_banner),
+                contentDescription = "RD Nutz TV",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)))
+            Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
+                Text("RD Nutz TV Playlist", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text("Unlock everything with an $8/month per device donation:", color = Color.White.copy(alpha = 0.92f), fontSize = 12.sp)
+                Spacer(Modifier.height(4.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    listOf(
+                        "⚡ 5,000+ Premium Channels — every major network in crystal HD",
+                        "🔥 XXX & Adult Networks",
+                        "🏆 All Live Sports — every league, every game",
+                        "🥊 PPV Events & Big Fights",
+                        "🎬 Unlimited Movies & Series",
+                        "🧒 Dedicated Kids Networks",
+                    ).forEach { perk ->
+                        Text(perk, color = Color.White.copy(alpha = 0.92f), fontSize = 11.sp)
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Questions? Ask us at Telegram: ", color = Color.White.copy(alpha = 0.92f), fontSize = 12.sp)
+                    Text(
+                        TELEGRAM_HANDLE,
+                        color = Color(0xFF4A90D9),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { uriHandler.openUri(TELEGRAM_URL) },
+                    )
+                }
+            }
+        }
+    }
+}
+
 // ─── Hub Grid ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun HubGrid(onNavigate: (HubSubScreen) -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+private fun HubGrid(onNavigate: (HubSubScreen) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.padding(horizontal = 16.dp)) {
         Spacer(Modifier.height(5.dp))
 
         LazyVerticalGrid(
@@ -263,18 +361,13 @@ private fun HubGrid(onNavigate: (HubSubScreen) -> Unit) {
                 HubGridCard(
                     title = item.title,
                     iconText = item.iconText,
+                    description = hubDescriptions[item.target] ?: "",
+                    backgroundImage = item.bgRes,
                     onClick = { onNavigate(item.target) },
                 )
             }
         }
 
-        Text(
-            text = "Version ${AppVersionConfig.VERSION_NAME} (${AppVersionConfig.VERSION_CODE})",
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            color = OnSurfaceVariant,
-            fontSize = 11.sp,
-            textAlign = TextAlign.Center,
-        )
     }
 }
 
@@ -284,6 +377,8 @@ private fun HubGrid(onNavigate: (HubSubScreen) -> Unit) {
 private fun HubGridCard(
     title: String,
     iconText: String,
+    description: String,
+    backgroundImage: DrawableResource?,
     onClick: () -> Unit,
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -308,6 +403,15 @@ private fun HubGridCard(
             .padding(16.dp),
         contentAlignment = Alignment.Center,
     ) {
+        if (backgroundImage != null) {
+            Image(
+                painter = painterResource(backgroundImage),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)))
+        }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
@@ -336,6 +440,17 @@ private fun HubGridCard(
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
             )
+            if (description.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = description,
+                    color = OnSurfaceVariant,
+                    fontSize = 10.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

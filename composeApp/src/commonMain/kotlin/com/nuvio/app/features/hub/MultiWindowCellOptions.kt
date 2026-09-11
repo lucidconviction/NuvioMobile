@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
@@ -46,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.nuvio.app.features.iptv.ChannelQuickSearchStore
 import com.nuvio.app.features.iptv.IptvChannel
 import com.nuvio.app.features.iptv.IptvRepository
 import com.nuvio.app.features.iptv.QuickChannel
@@ -92,6 +95,15 @@ fun MultiWindowCellOptions(
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
     ) {
         when (overlayMode) {
+            "saved" -> SavedSearchOverlay(
+                currentSlotIndex = stream.slotIndex,
+                onSelect = {
+                    MultiWindowStore.addToSlot(it, stream.slotIndex)
+                    overlayMode = null
+                    onDismiss()
+                },
+                onBack = { overlayMode = null },
+            )
             "swap" -> SwapPositionOverlay(
                 currentSlotIndex = stream.slotIndex,
                 onSelect = { targetSlot ->
@@ -115,8 +127,6 @@ fun MultiWindowCellOptions(
                 currentSlotIndex = stream.slotIndex,
                 onSelect = {
                     MultiWindowStore.addToSlot(it, stream.slotIndex)
-                    overlayMode = null
-                    onDismiss()
                 },
                 onBack = { overlayMode = null },
             )
@@ -161,7 +171,7 @@ fun MultiWindowCellOptions(
                     }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("CH" to "channels", "History" to "history", "Fav" to "favorites", "Quick" to "quick").forEach { (label, mode) ->
+                        listOf("Saved" to "saved", "History" to "history", "Fav" to "favorites", "Quick" to "quick").forEach { (label, mode) ->
                             Box(Modifier.clip(RoundedCornerShape(16.dp)).background(SurfaceCard).clickable { overlayMode = mode }.padding(horizontal = 14.dp, vertical = 7.dp)) {
                                 Text(label, color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
@@ -261,6 +271,69 @@ fun MultiWindowCellOptions(
 }
 
 @Composable
+private fun SavedSearchOverlay(
+    currentSlotIndex: Int,
+    onSelect: (IptvChannel) -> Unit,
+    onBack: () -> Unit,
+) {
+    val allChannels = remember { IptvRepository.getAllChannels() }
+    var savedTerms by remember { mutableStateOf(ChannelQuickSearchStore.loadTerms()) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp).fillMaxWidth().height(480.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.clip(RoundedCornerShape(8.dp)).background(SurfaceCard).clickable(onClick = onBack).padding(horizontal = 10.dp, vertical = 5.dp)) {
+                Text("← Back", color = OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.width(12.dp))
+            Text("Saved Searches", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Spacer(Modifier.weight(1f))
+            Text("${savedTerms.size}", color = OnSurfaceVariant, fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(8.dp))
+
+        if (savedTerms.isEmpty()) {
+            Column(modifier = Modifier.fillMaxWidth().fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Text("No saved searches yet", color = OnSurfaceVariant, fontSize = 14.sp)
+                Spacer(Modifier.height(8.dp))
+                Text("Save searches from the channel picker or player overlay", color = OnSurfaceVariant.copy(alpha = 0.6f), fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 24.dp))
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(savedTerms) { term ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(SurfaceLow).clickable {
+                            searchQuery = term
+                            ChannelQuickSearchStore.addTerm(term)
+                            val filtered = allChannels.filter { it.name.lowercase().contains(term.lowercase()) }
+                            if (filtered.isNotEmpty()) {
+                                onSelect(filtered[0])
+                            }
+                        }.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(term, color = OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            val matchCount = allChannels.count { it.name.lowercase().contains(term.lowercase()) }
+                            if (matchCount > 0) {
+                                Text("$matchCount channel${if (matchCount == 1) "" else "s"} match", color = OnSurfaceVariant.copy(alpha = 0.6f), fontSize = 10.sp)
+                            }
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Box(Modifier.clip(CircleShape).clickable {
+                            ChannelQuickSearchStore.removeTerm(term)
+                            savedTerms = ChannelQuickSearchStore.loadTerms()
+                        }.padding(6.dp)) {
+                            Text("✕", color = OnSurfaceVariant, fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun SwapPositionOverlay(currentSlotIndex: Int, onSelect: (Int) -> Unit, onBack: () -> Unit) {
     val maxSlots = 9
     Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp).fillMaxWidth()) {
@@ -319,7 +392,7 @@ private fun ChannelOverlay(mode: String, currentSlotIndex: Int, onSelect: (IptvC
     var selectedGroup by remember { mutableStateOf("") }
 
     val filtered = remember(channels, searchQuery, selectedSource, selectedGroup) {
-        var result = channels
+        var result = channels.filter { !StreamValidationStore.isKnownDeadSync(it.url) }
         if (selectedSource >= 0 && selectedSource < sourceIds.size) {
             val sid = sourceIds[selectedSource]
             result = result.filter { it.sourceId == sid }
@@ -329,7 +402,7 @@ private fun ChannelOverlay(mode: String, currentSlotIndex: Int, onSelect: (IptvC
         }
         if (searchQuery.isNotBlank()) {
             val q = searchQuery.lowercase()
-            result = result.filter { it.name.lowercase().contains(q) }
+            result = result.filter { it.name.lowercase().contains(q) || (it.group?.lowercase()?.contains(q) == true) }
         }
         result
     }
@@ -358,6 +431,44 @@ private fun ChannelOverlay(mode: String, currentSlotIndex: Int, onSelect: (IptvC
         Spacer(Modifier.height(8.dp))
 
         if (mode == "channels") {
+            // Saved Search Terms
+            var savedTerms by remember { mutableStateOf(ChannelQuickSearchStore.loadTerms()) }
+            if (savedTerms.isNotEmpty()) {
+                Text("Quick Searches", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(bottom = 4.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(savedTerms) { term ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(SurfaceCard)
+                                .clickable {
+                                    searchQuery = term
+                                    ChannelQuickSearchStore.addTerm(term)
+                                    savedTerms = ChannelQuickSearchStore.loadTerms()
+                                }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(term, color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                Spacer(Modifier.width(4.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .clickable {
+                                            ChannelQuickSearchStore.removeTerm(term)
+                                            savedTerms = ChannelQuickSearchStore.loadTerms()
+                                        }
+                                        .padding(2.dp),
+                                ) {
+                                    Text("✕", color = OnSurfaceVariant.copy(alpha = 0.5f), fontSize = 9.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+            }
+
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -450,7 +561,7 @@ private sealed class QcLoadState {
 }
 
 @Composable
-private fun QuickChannelOverlay(
+internal fun QuickChannelOverlay(
     currentSlotIndex: Int,
     onSelect: (IptvChannel) -> Unit,
     onBack: () -> Unit,
@@ -465,14 +576,16 @@ private fun QuickChannelOverlay(
     var aliveByUrl by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
 
     val filtered = remember(qcFilter) {
-        QuickChannelList.all.filter { qc ->
-            when (qcFilter) {
-                "All" -> true; "US" -> "US" in qc.regions; "UK" -> "UK" in qc.regions
-                "CA" -> "CA" in qc.regions; "Premium" -> "premium" in qc.tags
-                "Sports" -> "sports" in qc.tags; "News" -> "news" in qc.tags
-                "Bay Area" -> "bay-area" in qc.regions
-                else -> true
-            }
+        when (qcFilter) {
+            "All" -> QuickChannelList.all
+            "US" -> QuickChannelList.getChannelsForCategory("us")
+            "UK" -> QuickChannelList.getChannelsForCategory("uk")
+            "CA" -> QuickChannelList.getChannelsForCategory("ca")
+            "Bay Area" -> QuickChannelList.getChannelsForCategory("bay-area")
+            "Premium" -> QuickChannelList.getChannelsForCategory("premium")
+            "Sports" -> QuickChannelList.getChannelsForCategory("sports")
+            "News" -> QuickChannelList.getChannelsForCategory("news")
+            else -> QuickChannelList.all
         }
     }
 
@@ -605,7 +718,7 @@ private fun QuickChannelOverlay(
 }
 
 @Composable
-private fun QuickChannelMatchOverlay(
+internal fun QuickChannelMatchOverlay(
     quickChannel: QuickChannel,
     matchedChannels: List<IptvChannel>,
     aliveByUrl: Map<String, Boolean>,
@@ -618,13 +731,14 @@ private fun QuickChannelMatchOverlay(
     var searchQuery by remember { mutableStateOf("") }
     var selectedSource by remember { mutableStateOf(-1) }
     var selectedGroup by remember { mutableStateOf("") }
+    var savedTerms by remember { mutableStateOf(ChannelQuickSearchStore.loadTerms()) }
 
     val sourceNameForId = remember(sourceNames, sourceIds) {
         sourceIds.zip(sourceNames).toMap()
     }
 
     val liveChannels = remember(matchedChannels, aliveByUrl) {
-        matchedChannels.filter { aliveByUrl[it.url] != false }
+        matchedChannels.filter { aliveByUrl[it.url] != false && !StreamValidationStore.isKnownDeadSync(it.url) }
     }
 
     val filtered = remember(liveChannels, searchQuery, selectedSource, selectedGroup) {
@@ -665,6 +779,43 @@ private fun QuickChannelMatchOverlay(
             Text("$workingCount working${if (checkingCount > 0) " · checking $checkingCount" else ""}", color = OnSurfaceVariant, fontSize = 12.sp)
         }
         Spacer(Modifier.height(8.dp))
+
+        // Saved Search Terms
+        if (savedTerms.isNotEmpty()) {
+            Text("Quick Searches", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(bottom = 4.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(savedTerms) { term ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(SurfaceCard)
+                            .clickable {
+                                searchQuery = term
+                                ChannelQuickSearchStore.addTerm(term)
+                                savedTerms = ChannelQuickSearchStore.loadTerms()
+                            }
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(term, color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                            Spacer(Modifier.width(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        ChannelQuickSearchStore.removeTerm(term)
+                                        savedTerms = ChannelQuickSearchStore.loadTerms()
+                                    }
+                                    .padding(2.dp),
+                            ) {
+                                Text("✕", color = OnSurfaceVariant.copy(alpha = 0.5f), fontSize = 9.sp)
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
 
         OutlinedTextField(
             value = searchQuery,

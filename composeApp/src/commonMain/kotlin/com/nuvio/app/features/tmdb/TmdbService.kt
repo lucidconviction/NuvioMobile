@@ -11,9 +11,17 @@ import kotlinx.serialization.json.Json
 object TmdbService {
     private val log = Logger.withTag("TmdbService")
     private val json = Json { ignoreUnknownKeys = true }
+    private const val MAX_CACHE_ENTRIES = 500
     private val imdbToTmdbCache = linkedMapOf<String, String>()
     private val tmdbToImdbCache = linkedMapOf<String, String>()
     private val cacheMutex = Mutex()
+
+    private fun <K, V> trimLruMap(map: LinkedHashMap<K, V>, maxSize: Int) {
+        while (map.size > maxSize) {
+            val firstKey = map.keys.firstOrNull() ?: break
+            map.remove(firstKey)
+        }
+    }
 
     suspend fun ensureTmdbId(videoId: String, mediaType: String): String? {
         val apiKey = currentApiKey() ?: return null
@@ -51,6 +59,8 @@ object TmdbService {
         cacheMutex.withLock {
             tmdbToImdbCache[cacheKey] = imdbId
             imdbToTmdbCache["$imdbId:${normalizeMediaType(mediaType)}"] = tmdbId.toString()
+            trimLruMap(tmdbToImdbCache, MAX_CACHE_ENTRIES)
+            trimLruMap(imdbToTmdbCache, MAX_CACHE_ENTRIES)
         }
         return imdbId
     }
@@ -78,6 +88,8 @@ object TmdbService {
             cacheMutex.withLock {
                 imdbToTmdbCache[cacheKey] = resultId
                 tmdbToImdbCache["$resultId:$normalizedType"] = imdbId
+                trimLruMap(imdbToTmdbCache, MAX_CACHE_ENTRIES)
+                trimLruMap(tmdbToImdbCache, MAX_CACHE_ENTRIES)
             }
         } else {
             log.d { "No TMDB ID found for $imdbId ($normalizedType)" }

@@ -4,6 +4,8 @@ import androidx.compose.runtime.mutableStateMapOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -108,6 +110,8 @@ object StreamValidationStore {
         return age >= if (record.alive) StreamValidator.TTL_MS else DEAD_COOLDOWN_MS
     }
 
+    private var pendingPersist: kotlinx.coroutines.Job? = null
+
     fun remember(results: Map<String, Boolean>) {
         ensureLoaded()
         if (results.isEmpty()) return
@@ -118,7 +122,7 @@ object StreamValidationStore {
             }
         }
         snapshot()
-        persist()
+        schedulePersist()
     }
 
     fun rememberAll(results: Collection<Pair<String, Boolean>>) = remember(results.toMap())
@@ -143,7 +147,17 @@ object StreamValidationStore {
         persist()
     }
 
+    private fun schedulePersist() {
+        pendingPersist?.cancel()
+        pendingPersist = backgroundScope.launch {
+            delay(2000L)
+            persist()
+        }
+    }
+
     private fun persist() {
+        pendingPersist?.cancel()
+        pendingPersist = null
         runCatching {
             IptvStorage.saveDeadUrls(json.encodeToString(cache.values.toList()))
         }

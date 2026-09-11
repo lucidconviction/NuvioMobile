@@ -5,11 +5,15 @@ package com.nuvio.app.features.iptv
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.addons.httpGetTextWithHeaders
 import com.nuvio.app.features.addons.httpGetTextWithHeadersLimited
+import com.nuvio.app.features.trakt.TraktPlatformClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -30,13 +34,39 @@ data class PortalNutzEntry(
     val password: String,
     val channelCount: Int,
     val domain: String,
+    val expDate: Long? = null,
+    val maxConnections: Int? = null,
+    val activeConnections: Int? = null,
+    val status: String? = null,
+    val isTrial: Boolean? = null,
 )
 
 object PortalNutzScraper {
 
     private var currentJob: Job? = null
 
+    data class PendingSearch(
+        val searchTerm: String,
+        val job: Job,
+        val onEvent: (ScrapeEvent) -> Unit,
+    )
+    private var pendingSearches = mutableMapOf<String, PendingSearch>()
+
     fun cancel() {
+        currentJob?.cancel()
+        currentJob = null
+        pendingSearches.values.forEach { it.job.cancel() }
+        pendingSearches.clear()
+    }
+
+    fun cancelSearch(searchTerm: String) {
+        pendingSearches.remove(searchTerm)?.job?.cancel()
+    }
+
+    fun isSearching(searchTerm: String): Boolean = pendingSearches.containsKey(searchTerm)
+
+    /** Cancel only the active foreground scrape (no search term path), leaving background searches intact. */
+    fun cancelCurrentJob() {
         currentJob?.cancel()
         currentJob = null
     }
@@ -45,15 +75,91 @@ object PortalNutzScraper {
 
     private val UA = "Mozilla/5.0 (Linux; Android 11; NuvioTV) AppleWebKit/537.36"
 
-    private const val FETCH_TIMEOUT_MS = 4_000L
-    private const val MAX_PARALLEL_FETCHES = 24
-    private const val MAX_COUNT_PARALLEL = 48
+    private const val FETCH_TIMEOUT_MS = 2_500L
+    private const val MAX_PARALLEL_FETCHES = 6
+    private const val MAX_COUNT_PARALLEL = 6
     private const val MAX_VERIFY_BYTES = 2 * 1024 * 1024
     private const val MAX_COUNT_BYTES = 8 * 1024 * 1024
     private const val MAX_RAW_FILE_BYTES = 8 * 1024 * 1024
+    private const val CANDIDATE_POOL_SIZE = 150
+    private const val CACHE_TTL_MS = 60 * 60 * 1000L
+    private const val CACHE_MAX = 100
+    internal const val MAX_SEARCH_RESULTS = 20
+    private const val SEARCH_BATCH_SIZE = 30
 
     private data class Portal(val url: String, val username: String, val password: String, val source: String)
-    private data class VerifiedPortal(val portal: Portal, val name: String, val domain: String)
+    private data class VerifiedPortal(
+        val portal: Portal,
+        val name: String,
+        val domain: String,
+        val expDate: Long? = null,
+        val maxConnections: Int? = null,
+        val activeConnections: Int? = null,
+        val status: String? = null,
+        val isTrial: Boolean? = null,
+    )
+    private data class CachedPortal(
+        val url: String,
+        val username: String,
+        val password: String,
+        val name: String,
+        val domain: String,
+        val channelCount: Int,
+        val expDate: Long?,
+        val maxConnections: Int?,
+        val activeConnections: Int?,
+        val status: String?,
+        val isTrial: Boolean?,
+        val verifiedAt: Long,
+    )
+    private data class CountedPortal(val verified: VerifiedPortal, val count: Int)
+
+    private class PortalCache {
+        private val map = LinkedHashMap<String, CachedPortal>(CACHE_MAX, 0.75f, true)
+
+        @Synchronized
+        fun retrieve(key: String): CachedPortal? {
+            sweepInternal()
+            val p = map[key] ?: return null
+            if (TraktPlatformClock.nowEpochMs() - p.verifiedAt > CACHE_TTL_MS) {
+                map.remove(key)
+                return null
+            }
+            return p
+        }
+
+        @Synchronized
+        fun put(key: String, portal: CachedPortal) {
+            map[key] = portal
+            while (map.size > CACHE_MAX) {
+                val it = map.keys.iterator()
+                it.next().let { k -> it.remove(); map.remove(k) }
+            }
+        }
+
+        @Synchronized
+        fun putAll(entries: List<Pair<String, CachedPortal>>) {
+            entries.forEach { (k, p) -> map[k] = p }
+            while (map.size > CACHE_MAX) {
+                val it = map.keys.iterator()
+                it.next().let { k -> it.remove(); map.remove(k) }
+            }
+        }
+
+        @Synchronized
+        fun snapshot(): List<CachedPortal> {
+            sweepInternal()
+            return map.values.toList()
+        }
+
+        private fun sweepInternal() {
+            val now = TraktPlatformClock.nowEpochMs()
+            val expired = map.filterValues { now - it.verifiedAt > CACHE_TTL_MS }.keys
+            expired.forEach { map.remove(it) }
+        }
+    }
+
+    private val portalCache = PortalCache()
 
     private data class GitHubRepo(
         val owner: String,
@@ -477,7 +583,17 @@ object PortalNutzScraper {
                     val status = info["status"]?.jsonPrimitive?.contentOrNull ?: ""
                     if (auth == "1" || status == "active" || element.containsKey("user_info")) {
                         val name = info["username"]?.jsonPrimitive?.contentOrNull ?: p.username
-                        return VerifiedPortal(p, name, extractDomain(p.url))
+                        val accountInfo = XtreamClient.parseAccountInfo(body)
+                        return VerifiedPortal(
+                            portal = p,
+                            name = name,
+                            domain = extractDomain(p.url),
+                            expDate = accountInfo?.expDate,
+                            maxConnections = accountInfo?.maxConnections,
+                            activeConnections = accountInfo?.activeConnections,
+                            status = accountInfo?.status,
+                            isTrial = accountInfo?.isTrial,
+                        )
                     }
                 }
             } catch (_: Exception) {}
@@ -521,20 +637,230 @@ object PortalNutzScraper {
         return 0
     }
 
+    /**
+     * Fast channel search for a single portal. Returns up to maxMatches matching channel names.
+     */
+    private suspend fun searchChannelsForPortal(
+        p: Portal,
+        termLower: String,
+        maxMatches: Int = 3,
+    ): List<String> {
+        if (termLower.isEmpty()) return emptyList()
+        val matches = mutableListOf<String>()
+        try {
+            val url = "${p.url}/player_api.php?username=${p.username}&password=${p.password}&action=get_live_streams"
+            val text = fetchTextWithHeadersLimited(url, mapOf("User-Agent" to "VLC/3.0.20"), MAX_COUNT_BYTES) ?: return emptyList()
+            try {
+                val arr = json.parseToJsonElement(text).jsonArray
+                for (elem in arr) {
+                    if (matches.size >= maxMatches) break
+                    val obj = elem.jsonObject
+                    val title = obj["name"]?.jsonPrimitive?.contentOrNull ?: continue
+                    if (title.lowercase().contains(termLower)) matches.add(title)
+                }
+            } catch (_: Exception) {}
+        } catch (_: Exception) {}
+        if (matches.isEmpty()) {
+            try {
+                val url = "${p.url}/player_api.php?username=${p.username}&password=${p.password}&action=get_vod_streams"
+                val text = fetchTextWithHeadersLimited(url, mapOf("User-Agent" to "VLC/3.0.20"), MAX_COUNT_BYTES) ?: return matches
+                try {
+                    val arr = json.parseToJsonElement(text).jsonArray
+                    for (elem in arr) {
+                        if (matches.size >= maxMatches) break
+                        val obj = elem.jsonObject
+                        val title = obj["name"]?.jsonPrimitive?.contentOrNull ?: continue
+                        if (title.lowercase().contains(termLower)) matches.add(title)
+                    }
+                } catch (_: Exception) {}
+            } catch (_: Exception) {}
+        }
+        return matches
+    }
+
+    private fun cacheKey(vp: VerifiedPortal): String =
+        "${domainKey(vp.portal.url)}|${vp.portal.username}|${vp.portal.password}".lowercase()
+
+    private fun CountedPortal.toCachedPortal(): CachedPortal = CachedPortal(
+        url = verified.portal.url,
+        username = verified.portal.username,
+        password = verified.portal.password,
+        name = verified.name,
+        domain = verified.domain,
+        channelCount = min(count, 500),
+        expDate = verified.expDate,
+        maxConnections = verified.maxConnections,
+        activeConnections = verified.activeConnections,
+        status = verified.status,
+        isTrial = verified.isTrial,
+        verifiedAt = TraktPlatformClock.nowEpochMs(),
+    )
+
+    private fun CachedPortal.toEntry(label: String): PortalNutzEntry = PortalNutzEntry(
+        label = label,
+        url = url,
+        username = username,
+        password = password,
+        channelCount = channelCount,
+        domain = domain,
+        expDate = expDate,
+        maxConnections = maxConnections,
+        activeConnections = activeConnections,
+        status = status,
+        isTrial = isTrial,
+    )
+
+    private suspend fun verifyGoalOriented(
+        candidates: List<Portal>,
+        maxResults: Int,
+        onTested: (Int) -> Unit,
+        onVerified: (VerifiedPortal) -> Unit,
+    ): Int {
+        if (candidates.isEmpty() || maxResults <= 0) return 0
+        val workers = min(MAX_PARALLEL_FETCHES, candidates.size)
+        var accepted = 0
+        val work = Channel<Portal>(Channel.UNLIMITED)
+        val out = Channel<VerifiedPortal?>(Channel.UNLIMITED)
+        coroutineScope {
+            val workerJobs = List(workers) {
+                launch { for (p in work) out.send(verifyPortal(p)) }
+            }
+            launch {
+                candidates.forEach { work.send(it) }
+                work.close()
+            }
+            var tested = 0
+            for (v in out) {
+                tested++
+                onTested(tested)
+                if (v != null) {
+                    onVerified(v)
+                    accepted++
+                    if (accepted >= maxResults) break
+                }
+                if (tested >= candidates.size) break
+            }
+            coroutineContext.cancelChildren()
+            work.close()
+        }
+        return accepted
+    }
+
+    private suspend fun countPortals(
+        verified: List<VerifiedPortal>,
+        onProgress: (Int, Int) -> Unit,
+    ): List<CountedPortal> {
+        val result = mutableListOf<CountedPortal>()
+        var done = 0
+        for (chunk in verified.chunked(MAX_COUNT_PARALLEL)) {
+            val counted = coroutineScope {
+                chunk.map { vp -> async { CountedPortal(vp, getChannelCount(vp.portal)) } }.awaitAll()
+            }
+            result.addAll(counted)
+            done += counted.size
+            onProgress(done, verified.size)
+        }
+        return result
+    }
+
+    private fun presentEntries(
+portals: List<CountedPortal>,
+          maxPortals: Int,
+          minChannels: Int,
+          noAdult: Boolean,
+          adultOnly: Boolean,
+          englishOnly: Boolean,
+          sportsOnly: Boolean,
+          searchTerm: String = "",
+      ): List<PortalNutzEntry> {
+           var num = 0
+           val termLower = searchTerm.trim().lowercase()
+           return portals
+               .filter { it.count >= minChannels }
+               .filter { if (noAdult) !isAdultText(it.verified.name) else true }
+               .filter { if (adultOnly) isAdultText(it.verified.name) else true }
+               .filter { if (englishOnly) !hasNonLatinScript(it.verified.name) else true }
+               .filter { if (sportsOnly) SPORTS_KEYWORDS.any { k -> it.verified.name.lowercase().contains(k) || it.verified.domain.lowercase().contains(k) } else true }
+               .filter { termLower.isEmpty() || it.verified.name.lowercase().contains(termLower) || it.verified.domain.lowercase().contains(termLower) }
+               .sortedByDescending { it.count }
+               .take(maxPortals)
+            .map { cp ->
+                num++
+                PortalNutzEntry(
+                    label = "list$num",
+                    url = cp.verified.portal.url,
+                    username = cp.verified.portal.username,
+                    password = cp.verified.portal.password,
+                    channelCount = min(cp.count, 500),
+                    domain = cp.verified.domain,
+                    expDate = cp.verified.expDate,
+                    maxConnections = cp.verified.maxConnections,
+                    activeConnections = cp.verified.activeConnections,
+                    status = cp.verified.status,
+                    isTrial = cp.verified.isTrial,
+                )
+            }
+    }
+
     fun scrape(
         englishOnly: Boolean = true,
         noAdult: Boolean = true,
         sportsOnly: Boolean = false,
         adultOnly: Boolean = false,
         excludeServers: Set<String> = emptySet(),
+        searchTerm: String = "",
+        unlimited: Boolean = false,
         onEvent: (ScrapeEvent) -> Unit,
+        onComplete: () -> Unit = {},
     ) {
+        cancel()
+        if (searchTerm.trim().isNotEmpty()) {
+            // Use smart channel-aware search when a term is provided
+            val scope = CoroutineScope(Dispatchers.Default + Job())
+            currentJob = scope.launch {
+                try {
+                    doSearchPortals(
+                        englishOnly = englishOnly,
+                        noAdult = noAdult,
+                        sportsOnly = sportsOnly,
+                        adultOnly = adultOnly,
+                        excludeServers = excludeServers,
+                        searchTerm = searchTerm,
+                        unlimited = unlimited,
+                        onEvent = onEvent,
+                    )
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                catch (e: Exception) { onEvent(ScrapeEvent.Error("Dropped a nutz! ${e.message ?: "Something went wrong"}")) }
+                finally { onComplete() }
+            }
+            return
+        }
+        // Legacy path — no search term, just return top cached portals
         cancel()
         val scope = CoroutineScope(Dispatchers.Main.immediate + Job())
         currentJob = scope.launch {
             try {
-                val raw = mutableListOf<Portal>()
+                 val maxPortals = if (unlimited) Int.MAX_VALUE else if (sportsOnly) 10 else 5
+                 val candidatePool = if (unlimited) CANDIDATE_POOL_SIZE * 3 else CANDIDATE_POOL_SIZE
+                val excludedDomains = excludeServers.mapTo(mutableSetOf()) { domainKey(it) }
 
+                // 1. Fast path — 1-hour verified cache already has good portals
+                val cached = portalCache.snapshot()
+                    .filter { domainKey(it.url) !in excludedDomains }
+                    .filter { if (noAdult) !isAdultText(it.name) else true }
+                    .filter { if (adultOnly) isAdultText(it.name) else true }
+                    .filter { if (englishOnly) !hasNonLatinScript(it.name) else true }
+                    .filter { if (sportsOnly) SPORTS_KEYWORDS.any { k -> it.name.lowercase().contains(k) || it.domain.lowercase().contains(k) } else true }
+                    .sortedByDescending { it.channelCount }
+                    .take(maxPortals)
+
+                if (cached.isNotEmpty()) {
+                    onEvent(ScrapeEvent.Progress("Serving fresh nutz from the stash..."))
+                    onEvent(ScrapeEvent.Result(cached.mapIndexed { i, cp -> cp.toEntry("list${i + 1}") }))
+                    return@launch
+                }
+
+                // 2. Harvest candidates from all sources, in parallel
                 onEvent(ScrapeEvent.Progress("Throwing nutz at portals..."))
                 val fetched = coroutineScope {
                     listOf(
@@ -544,11 +870,10 @@ object PortalNutzScraper {
                         async { fetchAmzPortals(onEvent) },
                     ).awaitAll()
                 }
-                fetched.forEach { raw.addAll(it) }
+                val raw = fetched.flatten()
 
                 onEvent(ScrapeEvent.Progress("Cracking ${raw.size} shells to find the good ones..."))
 
-                val excludedDomains = excludeServers.mapTo(mutableSetOf()) { domainKey(it) }
                 val byCreds = mutableMapOf<String, Portal>()
                 for (p in raw) byCreds.putIfAbsent("${p.username}|${p.password}".lowercase(), p)
 
@@ -556,56 +881,34 @@ object PortalNutzScraper {
                     .filter { domainKey(it.url) !in excludedDomains }
                     .toList()
                     .shuffled()
-                    .take(50)
+                    .take(candidatePool)
 
-                onEvent(ScrapeEvent.Progress("Testing ${freshPool.size} fresh nutz..."))
-
-                val maxPortals = if (sportsOnly) 10 else 5
-                val results = mutableListOf<PortalNutzEntry>()
-                var portalNum = 0
-
-                for (chunk in freshPool.chunked(MAX_PARALLEL_FETCHES)) {
-                    if (results.size >= maxPortals) break
-
-                    val verified = coroutineScope {
-                        chunk.map { p -> async { verifyPortal(p) } }.awaitAll().filterNotNull()
-                    }
-                    if (verified.isEmpty()) continue
-
-                    val withCounts = coroutineScope {
-                        verified.chunked(MAX_COUNT_PARALLEL).flatMap { countChunk ->
-                            coroutineScope {
-                                countChunk.map { vp -> async { vp to getChannelCount(vp.portal) } }.awaitAll()
-                            }
-                        }
-                    }.sortedByDescending { (_, count) -> count }
-
-                    for ((vp, totalCount) in withCounts) {
-                        if (results.size >= maxPortals) break
-                        if (totalCount < 5) continue
-                        if (noAdult && isAdultText(vp.name)) continue
-                        if (adultOnly && !isAdultText(vp.name)) continue
-                        if (englishOnly && hasNonLatinScript(vp.name)) continue
-                        if (sportsOnly && !SPORTS_KEYWORDS.any { vp.name.lowercase().contains(it) || vp.domain.lowercase().contains(it) }) continue
-
-                        portalNum++
-                        val count = min(totalCount, 500)
-                        results.add(PortalNutzEntry(
-                            label = "portal$portalNum",
-                            url = vp.portal.url,
-                            username = vp.portal.username,
-                            password = vp.portal.password,
-                            channelCount = count,
-                            domain = vp.domain,
-                        ))
-                    }
+                // 3. Goal-oriented verify — emit results as they come in
+                onEvent(ScrapeEvent.Progress("Testing nutz... 0/${freshPool.size}"))
+                val accumulated = mutableListOf<PortalNutzEntry>()
+                val verifiedList = mutableListOf<VerifiedPortal>()
+                verifyGoalOriented(freshPool, maxPortals, { tested ->
+                    onEvent(ScrapeEvent.Progress("Testing nutz... $tested/${freshPool.size}"))
+                }) { vp ->
+                    verifiedList.add(vp)
+                    accumulated.addAll(presentEntries(listOf(CountedPortal(vp, 0)), maxPortals = maxPortals, minChannels = 0,
+                        noAdult = noAdult, adultOnly = adultOnly, englishOnly = englishOnly, sportsOnly = sportsOnly, searchTerm = searchTerm))
+                    onEvent(ScrapeEvent.Result(accumulated.toList()))
+                }
+                if (verifiedList.isEmpty()) {
+                    onEvent(ScrapeEvent.Error("No ripe nutz found — try different filters!"))
+                    return@launch
                 }
 
-                if (results.isEmpty()) {
-                    onEvent(ScrapeEvent.Error("No ripe nutz found — try different filters!"))
-                } else {
-                    onEvent(ScrapeEvent.Progress("Roasted the duds, here are the premium nutz!"))
-                    onEvent(ScrapeEvent.Result(results))
+                // 4. Background: fetch channel counts, then cache + re-emit with real counts
+                val counted = countPortals(verifiedList) { done, total ->
+                    onEvent(ScrapeEvent.Progress("Counting channels... $done/$total"))
+                }
+                portalCache.putAll(counted.map { cacheKey(it.verified) to it.toCachedPortal() })
+                val full = presentEntries(counted, maxPortals = maxPortals, minChannels = 5,
+                    noAdult = noAdult, adultOnly = adultOnly, englishOnly = englishOnly, sportsOnly = sportsOnly, searchTerm = searchTerm)
+                if (full.isNotEmpty()) {
+                    onEvent(ScrapeEvent.Result(full.toList()))
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -613,5 +916,295 @@ object PortalNutzScraper {
                 onEvent(ScrapeEvent.Error("Dropped a nutz! ${e.message ?: "Something went wrong"}"))
             }
         }
+    }
+
+    fun scrapeInBackground(
+        englishOnly: Boolean = true,
+        noAdult: Boolean = true,
+        sportsOnly: Boolean = false,
+        adultOnly: Boolean = false,
+        excludeServers: Set<String> = emptySet(),
+        searchTerm: String = "",
+        unlimited: Boolean = false,
+        onEvent: (ScrapeEvent) -> Unit,
+    ) {
+        if (pendingSearches.containsKey(searchTerm)) return
+        val scope = CoroutineScope(Dispatchers.Default + Job())
+        val job = scope.launch {
+            val searchJob = coroutineContext[Job]!!
+            val pending = PendingSearch(searchTerm, searchJob, onEvent)
+            pendingSearches[searchTerm] = pending
+            try {
+                scrape(
+                    englishOnly = englishOnly,
+                    noAdult = noAdult,
+                    sportsOnly = sportsOnly,
+                    adultOnly = adultOnly,
+                    excludeServers = excludeServers,
+                    searchTerm = searchTerm,
+                    unlimited = unlimited,
+                    onEvent = onEvent,
+                )
+            } finally {
+                pendingSearches.remove(searchTerm)
+            }
+        }
+    }
+
+    /**
+     * Smart channel-aware portal search. Finds portals whose actual channel lists contain
+     * the search term, not just portals named after the term.
+     */
+    fun searchPortals(
+        englishOnly: Boolean = true,
+        noAdult: Boolean = true,
+        sportsOnly: Boolean = false,
+        adultOnly: Boolean = false,
+        excludeServers: Set<String> = emptySet(),
+        searchTerm: String = "",
+        unlimited: Boolean = false,
+        onEvent: (ScrapeEvent) -> Unit,
+    ) {
+        if (pendingSearches.containsKey(searchTerm)) return
+        val scope = CoroutineScope(Dispatchers.Default + Job())
+        val job = scope.launch {
+            val searchJob = coroutineContext[Job]!!
+            val pending = PendingSearch(searchTerm, searchJob, onEvent)
+            pendingSearches[searchTerm] = pending
+            try {
+                doSearchPortals(
+                    englishOnly = englishOnly,
+                    noAdult = noAdult,
+                    sportsOnly = sportsOnly,
+                    adultOnly = adultOnly,
+                    excludeServers = excludeServers,
+                    searchTerm = searchTerm,
+                    unlimited = unlimited,
+                    onEvent = onEvent,
+                )
+            } finally {
+                pendingSearches.remove(searchTerm)
+            }
+        }
+    }
+
+    private suspend fun doSearchPortals(
+        englishOnly: Boolean,
+        noAdult: Boolean,
+        sportsOnly: Boolean,
+        adultOnly: Boolean,
+        excludeServers: Set<String>,
+        searchTerm: String,
+        unlimited: Boolean,
+        onEvent: (ScrapeEvent) -> Unit,
+    ) {
+        val maxResults = if (unlimited) Int.MAX_VALUE else MAX_SEARCH_RESULTS
+        val termLower = searchTerm.trim().lowercase()
+        val termTokens = termLower.split(" ").filter { it.isNotBlank() }.toSet()
+        val excludedDomains = excludeServers.mapTo(mutableSetOf()) { domainKey(it) }
+        val accumulated = mutableListOf<PortalNutzEntry>()
+        val seenUrls = mutableSetOf<String>()
+
+        fun addToAccumulated(entry: PortalNutzEntry) {
+            if (entry.url !in seenUrls) {
+                seenUrls.add(entry.url)
+                if (!noAdult && isAdultText(entry.domain)) return
+                if (adultOnly && !isAdultText(entry.domain)) return
+                if (englishOnly && hasNonLatinScript(entry.domain)) return
+                if (sportsOnly && !SPORTS_KEYWORDS.any { k -> entry.domain.lowercase().contains(k) || entry.label.lowercase().contains(k) }) return
+                accumulated.add(entry)
+                onEvent(ScrapeEvent.Result(accumulated.toList()))
+            }
+        }
+
+        // Phase 1: Fast cache hit — check cached portals for channel matches
+        if (termLower.isNotEmpty()) {
+            onEvent(ScrapeEvent.Progress("Checking cached portals for \"$termLower\"..."))
+            val cached = portalCache.snapshot()
+                .filter { domainKey(it.url) !in excludedDomains }
+                .shuffled()
+                .take(50)
+            var checked = 0
+            for (cp in cached) {
+                if (accumulated.size >= maxResults) break
+                checked++
+                if (checked % 10 == 0) {
+                    onEvent(ScrapeEvent.Progress("Scanning cache... $checked/${cached.size}"))
+                }
+                val matches = searchChannelsForPortal(Portal(cp.url, cp.username, cp.password, "cache"), termLower, maxMatches = 2)
+                if (matches.isNotEmpty()) {
+                    addToAccumulated(cp.toEntry("cache$checked"))
+                }
+            }
+            if (accumulated.isNotEmpty()) {
+                onEvent(ScrapeEvent.Progress("Found ${accumulated.size} matching portals in cache"))
+            }
+        } else {
+            // No search term — just serve top cached portals
+            val cached = portalCache.snapshot()
+                .filter { domainKey(it.url) !in excludedDomains }
+                .sortedByDescending { it.channelCount }
+                .take(maxResults)
+            if (cached.isNotEmpty()) {
+                onEvent(ScrapeEvent.Progress("Serving ${cached.size} cached portals from the stash..."))
+                onEvent(ScrapeEvent.Result(cached.mapIndexed { i, cp -> cp.toEntry("list${i + 1}") }))
+                return
+            }
+        }
+
+        // Phase 2: Fetch fresh candidates from all sources
+        if (accumulated.size < maxResults) {
+            onEvent(ScrapeEvent.Progress("Throwing nutz at portals..."))
+            val fetched = coroutineScope {
+                listOf(
+                    async { fetchGitHubPortals(onEvent) },
+                    async { fetchTelegramPortals(onEvent) },
+                    async { fetchRedditPortals() },
+                    async { fetchAmzPortals(onEvent) },
+                ).awaitAll()
+            }
+            val raw = fetched.flatten()
+            onEvent(ScrapeEvent.Progress("Harvested ${raw.size} candidate portals"))
+
+            val byCreds = mutableMapOf<String, Portal>()
+            for (p in raw) byCreds.putIfAbsent("${p.username}|${p.password}".lowercase(), p)
+            val freshPool = byCreds.values
+                .filter { domainKey(it.url) !in excludedDomains }
+                .toList()
+                .shuffled()
+                .take(CANDIDATE_POOL_SIZE)
+
+            // Phase 3: Verify and search channels in parallel batches
+            var batchStart = 0
+            while (batchStart < freshPool.size && accumulated.size < maxResults) {
+                val batchEnd = minOf(batchStart + SEARCH_BATCH_SIZE, freshPool.size)
+                val batch = freshPool.subList(batchStart, batchEnd)
+                onEvent(ScrapeEvent.Progress("Testing nutz batch ${batchStart / SEARCH_BATCH_SIZE + 1}... ${batchStart}/${freshPool.size}"))
+
+                val verified = mutableListOf<VerifiedPortal>()
+                verifyGoalOriented(batch, maxResults * 2, { tested ->
+                    if (tested % 10 == 0) onEvent(ScrapeEvent.Progress("Testing nutz... $tested/${freshPool.size}"))
+                }) { vp ->
+                    verified.add(vp)
+                }
+
+                if (termLower.isNotEmpty() && verified.isNotEmpty()) {
+                    // Search channels for each verified portal
+                    val workers = min(MAX_PARALLEL_FETCHES, verified.size)
+                    var verifiedIdx = 0
+                    coroutineScope {
+                        val channels = Channel<VerifiedPortal>(Channel.UNLIMITED)
+                        val results = Channel<Pair<VerifiedPortal, List<String>>>(Channel.UNLIMITED)
+                        List(workers) {
+                            launch {
+                                for (vp in channels) {
+                                    val matches = searchChannelsForPortal(vp.portal, termLower, maxMatches = 3)
+                                    if (matches.isNotEmpty()) results.send(vp to matches)
+                                }
+                            }
+                        }
+                        launch {
+                            for (vp in verified) {
+                                channels.send(vp)
+                                verifiedIdx++
+                                if (verifiedIdx % 10 == 0) {
+                                    onEvent(ScrapeEvent.Progress("Searching channels... $verifiedIdx/${verified.size}"))
+                                }
+                            }
+                            channels.close()
+                        }
+                        for ((vp, matches) in results) {
+                            if (accumulated.size >= maxResults) break
+                            val count = getChannelCount(vp.portal)
+                            addToAccumulated(PortalNutzEntry(
+                                label = "list${accumulated.size + 1}",
+                                url = vp.portal.url,
+                                username = vp.portal.username,
+                                password = vp.portal.password,
+                                channelCount = min(count, 500),
+                                domain = vp.domain,
+                                expDate = vp.expDate,
+                                maxConnections = vp.maxConnections,
+                                activeConnections = vp.activeConnections,
+                                status = vp.status,
+                                isTrial = vp.isTrial,
+                            ))
+                        }
+                        results.close()
+                    }
+                } else {
+                    // No search term — just count and add top verified
+                    for (vp in verified) {
+                        if (accumulated.size >= maxResults) break
+                        val count = getChannelCount(vp.portal)
+                        addToAccumulated(PortalNutzEntry(
+                            label = "list${accumulated.size + 1}",
+                            url = vp.portal.url,
+                            username = vp.portal.username,
+                            password = vp.portal.password,
+                            channelCount = min(count, 500),
+                            domain = vp.domain,
+                            expDate = vp.expDate,
+                            maxConnections = vp.maxConnections,
+                            activeConnections = vp.activeConnections,
+                            status = vp.status,
+                            isTrial = vp.isTrial,
+                        ))
+                    }
+                }
+
+                // Cache the verified portals
+                portalCache.putAll(verified.map { vp ->
+                    val count = getChannelCount(vp.portal)
+                    cacheKey(vp) to CachedPortal(
+                        url = vp.portal.url,
+                        username = vp.portal.username,
+                        password = vp.portal.password,
+                        name = vp.name,
+                        domain = vp.domain,
+                        channelCount = min(count, 500),
+                        expDate = vp.expDate,
+                        maxConnections = vp.maxConnections,
+                        activeConnections = vp.activeConnections,
+                        status = vp.status,
+                        isTrial = vp.isTrial,
+                        verifiedAt = TraktPlatformClock.nowEpochMs(),
+                    )
+                })
+
+                batchStart = batchEnd
+            }
+        }
+
+        if (accumulated.isEmpty()) {
+            onEvent(ScrapeEvent.Error("No ripe nutz found — try different filters!"))
+        }
+    }
+
+    fun formatAccountInfoLine(
+        expDate: Long?,
+        maxConnections: Int?,
+        activeConnections: Int?,
+        status: String?,
+        isTrial: Boolean?,
+    ): String? {
+        val parts = mutableListOf<String>()
+        expDate?.let { exp ->
+            val days = ((exp - TraktPlatformClock.nowEpochMs()) / 86_400_000L).toInt()
+            parts += when {
+                days <= 0 -> "Expired"
+                days == 1 -> "Exp 1d"
+                else -> "Exp ${days}d"
+            }
+        }
+        if (activeConnections != null && maxConnections != null) {
+            parts += "$activeConnections/$maxConnections conns"
+        } else if (maxConnections != null) {
+            parts += "max ${maxConnections} conns"
+        }
+        if (isTrial == true) parts += "Trial"
+        val statusClean = status?.trim()?.takeIf { it.isNotBlank() && !it.equals("Active", true) }
+        if (statusClean != null) parts += statusClean
+        return parts.joinToString(" · ").ifBlank { null }
     }
 }

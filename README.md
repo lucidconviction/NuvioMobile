@@ -109,6 +109,10 @@ Browse millions of tracks by genre. Search by song or album. Toggle between Trac
 - **Installs alongside stock Nuvio** — separate package name
 - **Monochrome grayscale design** throughout
 - **Trakt login** for watch progress sync
+- **RdNutz Portal Search** — inline portal discovery from external IPTV lists; search any channel name across 6+ parallel portal scrapes; free users limited to 5 portals, donors unlimited
+- **Portal access gating** — donation-key required for RdNutz portal search; locked state shown for free users with upgrade prompt
+- **Portal dedup by URL** — same portal across multiple sources is shown only once
+- **Channel search in playlists** — search bar in "Your Playlists" filters channels by name/group, not just playlist cards
 
 ## License
 

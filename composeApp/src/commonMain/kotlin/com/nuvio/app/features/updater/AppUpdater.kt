@@ -46,18 +46,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 import kotlinx.coroutines.runBlocking
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 
-private const val gitHubOwner = "lucidconviction"
-private const val gitHubRepo = "NuvioMobile"
-private const val gitHubApiBase = "https://api.github.com"
+private const val appUpdateBaseUrl = "https://apps.rdnutz.us/"
+private val apkFileNamePattern = Regex("Nuvio-Mobile-(\\d{4}-\\d{2}-\\d{2})\\.apk")
 
 data class AppUpdate(
     val tag: String,
@@ -80,32 +75,6 @@ data class AppUpdaterUiState(
     val showUnknownSourcesDialog: Boolean = false,
     val errorMessage: String? = null,
 )
-
-@Serializable
-private data class GitHubReleaseDto(
-    @SerialName("tag_name") val tagName: String? = null,
-    val name: String? = null,
-    val body: String? = null,
-    val draft: Boolean = false,
-    val prerelease: Boolean = false,
-    @SerialName("html_url") val htmlUrl: String? = null,
-    @SerialName("target_commitish") val targetCommitish: String? = null,
-    @SerialName("created_at") val createdAt: String? = null,
-    val assets: List<GitHubAssetDto> = emptyList(),
-)
-
-@Serializable
-private data class GitHubAssetDto(
-    val name: String,
-    @SerialName("browser_download_url") val browserDownloadUrl: String,
-    val size: Long? = null,
-    @SerialName("content_type") val contentType: String? = null,
-)
-
-private val appUpdaterJson = Json {
-    ignoreUnknownKeys = true
-    isLenient = true
-}
 
 private class NoChannelReleaseException : IllegalStateException(
     runBlocking { getString(Res.string.updates_no_channel_release) },
@@ -150,33 +119,33 @@ private object VersionUtils {
 
     private object AppUpdaterRepository {
     suspend fun getLatestChannelUpdate(): Result<AppUpdate> = runCatching {
-        val apiUrl = "$gitHubApiBase/repos/$gitHubOwner/$gitHubRepo/releases/latest"
         val response = httpRequestRaw(
             method = "GET",
-            url = apiUrl,
+            url = appUpdateBaseUrl,
             headers = mapOf(
                 "User-Agent" to "NuvioMobile",
-                "Accept" to "application/vnd.github+json",
             ),
             body = "",
         )
         if (response.status !in 200..299) {
-            error("GitHub API returned ${response.status}")
+            error("Update server returned ${response.status}")
         }
 
-        val release = appUpdaterJson.decodeFromString<GitHubReleaseDto>(response.body)
+        val newestMatch = apkFileNamePattern.findAll(response.body)
+            .map { it.groupValues[1] }
+            .maxByOrNull { it } ?: error("No APK found on update server")
 
-        val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
-            ?: error("No APK asset found in latest release")
+        val filename = "Nuvio-Mobile-$newestMatch.apk"
+        val fullUrl = appUpdateBaseUrl + filename
 
         AppUpdate(
-            tag = release.tagName ?: "latest",
-            title = release.name ?: "Nuvio Mobile Update",
-            notes = release.body ?: "",
-            releaseUrl = release.htmlUrl,
-            assetName = apkAsset.name,
-            assetUrl = apkAsset.browserDownloadUrl,
-            assetSizeBytes = apkAsset.size,
+            tag = newestMatch,
+            title = "Nuvio Mobile Update",
+            notes = "",
+            releaseUrl = fullUrl,
+            assetName = filename,
+            assetUrl = fullUrl,
+            assetSizeBytes = null,
         )
     }
 }
@@ -200,7 +169,10 @@ class AppUpdaterController internal constructor(
                 result.onSuccess { update ->
                     val remoteNewer = VersionUtils.isRemoteNewer(update.tag, AppVersionConfig.VERSION_NAME)
                     val ignoredTag = AppUpdaterPlatform.getIgnoredTag()
-                    if (remoteNewer && ignoredTag != update.tag) {
+                    val lastAlerted = AppUpdaterPlatform.getLastAlertedDate()
+                    val notYetAlerted = lastAlerted == null || update.tag > lastAlerted
+                    if (remoteNewer && ignoredTag != update.tag && notYetAlerted) {
+                        AppUpdaterPlatform.setLastAlertedDate(update.tag)
                         _uiState.update { state ->
                             state.copy(
                                 update = update,
@@ -248,7 +220,13 @@ class AppUpdaterController internal constructor(
             result.onSuccess { update ->
                 val remoteNewer = VersionUtils.isRemoteNewer(update.tag, AppVersionConfig.VERSION_NAME)
                 val ignored = ignoredTag != null && ignoredTag == update.tag
-                val shouldShowDialog = force || (remoteNewer && !ignored)
+                val lastAlerted = AppUpdaterPlatform.getLastAlertedDate()
+                val notYetAlerted = lastAlerted == null || update.tag > lastAlerted
+                val shouldShowDialog = force || (remoteNewer && !ignored && notYetAlerted)
+
+                if (shouldShowDialog) {
+                    AppUpdaterPlatform.setLastAlertedDate(update.tag)
+                }
 
                 _uiState.update { state ->
                     state.copy(

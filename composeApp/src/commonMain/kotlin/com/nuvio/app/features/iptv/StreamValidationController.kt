@@ -36,23 +36,20 @@ object StreamValidationController {
             }
             scans = scans + (sourceId to SourceScanState(active = true, total = total, checked = 0, alive = 0, dead = 0))
             val results = mutableMapOf<String, Boolean>()
+            var checked = 0
+            var aliveCount = 0
+            var deadCount = 0
             StreamValidator.checkBatch(toCheck, onResult = { url, alive ->
                 StreamValidationStore.updateStatus(url, alive)
                 synchronized(results) { results[url] = alive }
-                val prev = scans[sourceId]
-                if (prev != null) {
-                    scans = scans + (sourceId to prev.copy(
-                        checked = prev.checked + 1,
-                        alive = prev.alive + (if (alive) 1 else 0),
-                        dead = prev.dead + (if (alive) 0 else 1),
-                    ))
+                checked++
+                if (alive) aliveCount++ else deadCount++
+                if (checked % 5 == 0 || checked == total) {
+                    scans = scans + (sourceId to SourceScanState(active = true, total = total, checked = checked, alive = aliveCount, dead = deadCount))
                 }
             })
             if (results.isNotEmpty()) StreamValidationStore.remember(results)
-            val final = scans[sourceId]
-            if (final != null) {
-                scans = scans + (sourceId to final.copy(active = false))
-            }
+            scans = scans + (sourceId to SourceScanState(active = false, total = total, checked = checked, alive = aliveCount, dead = deadCount))
         }
     }
 
@@ -72,19 +69,20 @@ object StreamValidationController {
         matches: List<IptvChannel>,
         onUpdate: (Map<String, Boolean>) -> Unit,
     ) {
-        resolveCachedStatuses(matches, onUpdate)
-        val urlsToCheck = matches.map { it.url }
-            .filter { it.isNotBlank() && StreamValidationStore.needsRecheck(it) }
-            .distinct()
-        if (urlsToCheck.isEmpty()) return
+        StreamValidationStore.ensureLoadedSuspend()
+        val allUrls = matches.map { it.url }.filter { it.isNotBlank() }.distinct()
+        val cachedMap = StreamValidationStore.getAliveMap()
+        val urlsToCheck = allUrls.filter { StreamValidationStore.needsRecheck(it) }
+        if (urlsToCheck.isEmpty()) {
+            onUpdate(allUrls.associateWith { cachedMap[it] ?: false })
+            return
+        }
         val results = mutableMapOf<String, Boolean>()
         StreamValidator.checkBatch(urlsToCheck, onResult = { url, alive ->
             StreamValidationStore.updateStatus(url, alive)
             synchronized(results) { results[url] = alive }
         })
-        if (results.isNotEmpty()) {
-            StreamValidationStore.remember(results)
-            onUpdate(StreamValidationStore.getAliveMap())
-        }
+        if (results.isNotEmpty()) StreamValidationStore.remember(results)
+        onUpdate(allUrls.associateWith { cachedMap[it] ?: results[it] ?: false })
     }
 }

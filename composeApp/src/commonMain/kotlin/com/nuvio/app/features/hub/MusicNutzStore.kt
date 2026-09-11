@@ -33,33 +33,6 @@ object MusicNutzPlaylistStore {
     }
 }
 
-object MusicDownloadStore {
-    private var _downloads = listOf<MusicDownload>()
-
-    fun loadDownloads(): List<MusicDownload> = _downloads
-
-    fun saveDownloads(downloads: List<MusicDownload>) {
-        _downloads = downloads
-        persist()
-    }
-
-    private fun persist() {
-        try {
-            val json = musicJson.encodeToString(_downloads)
-            MusicNutzStorageHelper.save("downloads", json)
-        } catch (_: Exception) {}
-    }
-
-    fun loadFromDisk() {
-        try {
-            val json = MusicNutzStorageHelper.load("downloads")
-            if (!json.isNullOrBlank()) {
-                _downloads = musicJson.decodeFromString<List<MusicDownload>>(json)
-            }
-        } catch (_: Exception) {}
-    }
-}
-
 object MusicNutzSavedAlbumsStore {
     private var _savedAlbums = listOf<MusicAlbum>()
 
@@ -85,10 +58,6 @@ object MusicNutzSavedAlbumsStore {
             }
         } catch (_: Exception) {}
     }
-}
-
-object MusicNutzDownloadStorage {
-    var downloadDirPath: String = "."
 }
 
 internal expect object MusicNutzStorageHelper {

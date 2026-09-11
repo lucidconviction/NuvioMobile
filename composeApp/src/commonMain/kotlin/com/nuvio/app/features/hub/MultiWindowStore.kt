@@ -30,6 +30,31 @@ object MultiWindowStore {
     private val resizeModes = mutableStateMapOf<String, Int>()
     private val _currentLayout = mutableStateOf<MultiWindowLayout?>(null)
     private val _layoutLocked = mutableStateOf(false)
+    // Per-slot auto-play queues (e.g. YouTube playlists): next video plays when the current one ends.
+    private val slotPlaylists = mutableMapOf<Int, List<IptvChannel>>()
+    private val slotPlaylistIdx = mutableMapOf<Int, Int>()
+
+    /** Set the playlist to auto-play through for a slot. Empty clears it. */
+    fun setSlotPlaylist(slotIndex: Int, channels: List<IptvChannel>) {
+        slotPlaylists[slotIndex] = channels
+        slotPlaylistIdx[slotIndex] = -1
+    }
+
+    /** Returns the next channel to play in the slot's playlist, or null when done. */
+    fun nextInSlot(slotIndex: Int): IptvChannel? {
+        val list = slotPlaylists[slotIndex] ?: return null
+        val next = slotPlaylistIdx[slotIndex]?.plus(1) ?: 0
+        if (next >= list.size) { slotPlaylists.remove(slotIndex); slotPlaylistIdx.remove(slotIndex); return null }
+        slotPlaylistIdx[slotIndex] = next
+        return list[next]
+    }
+
+    /** Mark the slot's current playlist position as playing this channel. */
+    fun markSlotCurrent(slotIndex: Int, channelId: String) {
+        val list = slotPlaylists[slotIndex] ?: return
+        val idx = list.indexOfFirst { it.id == channelId }
+        if (idx >= 0) slotPlaylistIdx[slotIndex] = idx
+    }
 
     val allStreams: List<WindowStream> get() = streams
 
@@ -89,7 +114,10 @@ object MultiWindowStore {
         }
     }
 
-    fun removeSlot(slotIndex: Int) { streams.removeAll { it.slotIndex == slotIndex } }
+    fun removeSlot(slotIndex: Int) {
+        streams.removeAll { it.slotIndex == slotIndex }
+        slotPlaylists.remove(slotIndex); slotPlaylistIdx.remove(slotIndex)
+    }
 
     fun remove(id: String) {
         streams.removeAll { it.id == id }; volumes.remove(id); paused.remove(id); playerHandleIds.remove(id)
@@ -131,6 +159,7 @@ object MultiWindowStore {
 
     fun clear() {
         streams.clear(); volumes.clear(); paused.clear(); playerHandleIds.clear(); resizeModes.clear()
+        slotPlaylists.clear(); slotPlaylistIdx.clear()
         _audioFocusId = null; _currentLayout.value = null; _layoutLocked.value = false
     }
 }

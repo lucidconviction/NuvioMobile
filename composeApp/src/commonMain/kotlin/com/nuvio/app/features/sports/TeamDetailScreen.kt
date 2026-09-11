@@ -28,7 +28,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -40,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.nuvio.app.features.iptv.EspnProcessedEvent
+import com.nuvio.app.features.hub.VideoSelectionFeedback
 import com.nuvio.app.features.iptv.IptvChannel
 import com.nuvio.app.features.iptv.IptvRepository
 import com.nuvio.app.features.player.PlayerLaunch
@@ -144,6 +148,7 @@ fun TeamDetailScreen(
 
 @Composable
 private fun TeamGameRow(event: EspnProcessedEvent, onPlayChannel: ((PlayerLaunch) -> Unit)?) {
+    val scope = rememberCoroutineScope()
     val isLive = event.isLive
     val homeScore = event.homeScore?.toIntOrNull()
     val awayScore = event.awayScore?.toIntOrNull()
@@ -155,7 +160,7 @@ private fun TeamGameRow(event: EspnProcessedEvent, onPlayChannel: ((PlayerLaunch
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(if (isLive) SurfaceContainer.copy(alpha = 0.85f) else SurfaceContainer)
-            .clickable { playOrShowPicker(event, onPlayChannel) }
+            .clickable { playOrShowPicker(scope, event, onPlayChannel) }
             .padding(12.dp),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
@@ -188,26 +193,39 @@ private fun TeamGameRow(event: EspnProcessedEvent, onPlayChannel: ((PlayerLaunch
     }
 }
 
-private fun playOrShowPicker(event: EspnProcessedEvent, onPlayChannel: ((PlayerLaunch) -> Unit)?) {
+private fun playOrShowPicker(
+    scope: CoroutineScope,
+    event: EspnProcessedEvent,
+    onPlayChannel: ((PlayerLaunch) -> Unit)?,
+) {
     if (onPlayChannel == null) return
     val sportEvents = EspnClient.toSportEvents(listOf(event))
     if (sportEvents.isEmpty()) return
     val se = sportEvents.first()
     val allChannels = IptvRepository.getAllChannels()
-    val matched = EspnClient.findAllMatchingChannels(se, allChannels)
-    if (matched.isEmpty()) return
-    val channel = matched.first()
-    val channelIndex = allChannels.indexOfFirst { it.id == channel.id && it.sourceId == channel.sourceId }
-    val history = IptvRepository.getHistoryChannels()
-    val launch = PlayerLaunch(
-        profileId = 0, title = channel.name, sourceUrl = channel.url, streamTitle = channel.name,
-        providerName = "Sports", parentMetaId = "iptv", parentMetaType = "tv", logo = channel.logo,
-        channelNames = allChannels.map { it.name }, channelUrls = allChannels.map { it.url },
-        channelLogos = allChannels.map { it.logo ?: "" }, channelIds = allChannels.map { it.id },
-        currentChannelIndex = if (channelIndex >= 0) channelIndex else 0,
-        historyChannelNames = history.map { it.name }, historyChannelUrls = history.map { it.url },
-        historyChannelLogos = history.map { it.logo ?: "" }, historyChannelIds = history.map { it.id },
-    )
-    val id = PlayerLaunchStore.put(launch)
-    PlayerLaunchStore.get(id)?.let { onPlayChannel(it) }
+    VideoSelectionFeedback.start(event.title, "Sports")
+    scope.launch {
+        try {
+            val scored = EspnClient.findScoredMatchingChannelsWithLazyEpg(
+                se, allChannels, IptvRepository.buildCurrentEpgTitleLookup()
+            ).filterNot { com.nuvio.app.features.iptv.StreamValidationStore.isKnownDeadSync(it.channel.url) }
+            if (scored.isEmpty()) return@launch
+            val channel = ChannelScorer.autoplayCandidate(scored)?.channel ?: scored.first().channel
+            val channelIndex = allChannels.indexOfFirst { it.id == channel.id && it.sourceId == channel.sourceId }
+            val history = IptvRepository.getHistoryChannels()
+            val launch = PlayerLaunch(
+                profileId = 0, title = channel.name, sourceUrl = channel.url, streamTitle = channel.name,
+                providerName = "Sports", parentMetaId = "iptv", parentMetaType = "tv", logo = channel.logo,
+                channelNames = allChannels.map { it.name }, channelUrls = allChannels.map { it.url },
+                channelLogos = allChannels.map { it.logo ?: "" }, channelIds = allChannels.map { it.id },
+                currentChannelIndex = if (channelIndex >= 0) channelIndex else 0,
+                historyChannelNames = history.map { it.name }, historyChannelUrls = history.map { it.url },
+                historyChannelLogos = history.map { it.logo ?: "" }, historyChannelIds = history.map { it.id },
+            )
+            val id = PlayerLaunchStore.put(launch)
+            PlayerLaunchStore.get(id)?.let { onPlayChannel(it) }
+        } finally {
+            VideoSelectionFeedback.stop()
+        }
+    }
 }

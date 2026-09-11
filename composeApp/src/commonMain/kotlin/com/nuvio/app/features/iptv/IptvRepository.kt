@@ -7,6 +7,7 @@ import com.nuvio.app.features.trakt.TraktPlatformClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +33,14 @@ object IptvRepository {
 
     private var hasLoaded = false
     private var settings = IptvPlaylistSettings()
+    private var cachedAllChannels: List<IptvChannel> = emptyList()
+
+    private fun updateCachedAllChannels() {
+        val m3uChannels = settings.m3uPlaylists.flatMap { it.channels }
+        val xtreamChannels = settings.xtreamAccounts.flatMap { it.channels }
+        val stalkerChannels = settings.stalkerAccounts.flatMap { it.channels }
+        cachedAllChannels = m3uChannels + xtreamChannels + stalkerChannels
+    }
 
     private val IPTV_ORG_URL = "https://iptv-org.github.io/iptv/index.m3u"
     private val IPTV_ORG_NAME = "iptv-org"
@@ -71,6 +80,7 @@ object IptvRepository {
                 IptvStorage.saveSettings(json.encodeToString(StoredIptvSettings.fromSettings(settings)))
             }
         }
+        updateCachedAllChannels()
         refreshUi()
     }
 
@@ -221,7 +231,7 @@ object IptvRepository {
             }
 
             try {
-                val m3uContent = httpGetText(playlist.url)
+                val m3uContent = httpGetTextWithHeaders(playlist.url, mapOf("Accept" to "*/*", "User-Agent" to "Nuvio/1.0"))
                 val channels = M3uParser.parse(m3uContent, id)
                 saveChannelsToCache(m3uCacheKey(playlist), channels)
                 val updated = playlist.copy(channels = channels)
@@ -252,10 +262,76 @@ object IptvRepository {
         }
     }
 
-    fun addXtreamAccount(name: String, server: String, username: String, password: String) {
+    /** Add an M3U source from a URL and wait for it to load. Returns the number of channels parsed. */
+    suspend fun addM3uPlaylistAndLoad(name: String, url: String): Result<Int> {
+        val id = nextId("m3u")
+        val playlist = M3uPlaylist(id = id, name = name.ifBlank { url.take(30) }, url = url)
+        settings = settings.copy(m3uPlaylists = settings.m3uPlaylists + playlist)
+        if (url == IPTV_ORG_URL) maybeAutoAddIptvOrgEpg()
+        saveToStorage()
+        refreshUi()
+        return loadM3uChannelsSuspended(playlist)
+    }
+
+    /** Add an M3U source from pasted file content. Returns the number of channels parsed. */
+    suspend fun addM3uPlaylistFromFile(content: String, name: String): Result<Int> {
+        return try {
+            val id = nextId("m3u_up")
+            val channels = M3uParser.parse(content, id)
+            val playlist = M3uPlaylist(id = id, name = name.ifBlank { "Uploaded Playlist" }, url = "", channels = channels)
+            settings = settings.copy(m3uPlaylists = settings.m3uPlaylists + playlist)
+            saveChannelsToCache(m3uCacheKey(playlist), channels)
+            saveToStorage()
+            refreshUi()
+            Result.success(channels.size)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun loadM3uChannelsSuspended(playlist: M3uPlaylist): Result<Int> {
+        _uiState.value = _uiState.value.copy(
+            isLoading = true,
+            error = null,
+            refreshingSourceIds = _uiState.value.refreshingSourceIds + playlist.id,
+        )
+        val cached = loadChannelsFromCache(m3uCacheKey(playlist))
+        if (cached != null) {
+            val (channels, _) = cached
+            settings = settings.copy(
+                m3uPlaylists = settings.m3uPlaylists.map { if (it.id == playlist.id) it.copy(channels = channels) else it }
+            )
+            saveToStorage()
+            _uiState.value = _uiState.value.copy(refreshingSourceIds = _uiState.value.refreshingSourceIds - playlist.id)
+            refreshUi()
+            return Result.success(channels.size)
+        }
+        return try {
+            val m3uContent = httpGetTextWithHeaders(playlist.url, mapOf("Accept" to "*/*", "User-Agent" to "Nuvio/1.0"))
+            val channels = M3uParser.parse(m3uContent, playlist.id)
+            saveChannelsToCache(m3uCacheKey(playlist), channels)
+            settings = settings.copy(
+                m3uPlaylists = settings.m3uPlaylists.map { if (it.id == playlist.id) it.copy(channels = channels) else it }
+            )
+            saveToStorage()
+            _uiState.value = _uiState.value.copy(refreshingSourceIds = _uiState.value.refreshingSourceIds - playlist.id)
+            refreshUi()
+            if (settings.epgSources.isNotEmpty()) refreshEpg()
+            Result.success(channels.size)
+        } catch (e: Exception) {
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                error = "Failed to load M3U: ${e.message}",
+                refreshingSourceIds = _uiState.value.refreshingSourceIds - playlist.id,
+            )
+            Result.failure(e)
+        }
+    }
+
+    fun addXtreamAccount(name: String, server: String, username: String, password: String, info: PortalAccountInfo? = null) {
         scope.launch {
             val id = nextId("xtream")
-            val account = XtreamAccount(id = id, name = name, server = server, username = username, password = password)
+            val account = XtreamAccount(id = id, name = name, server = server, username = username, password = password, info = info)
             settings = settings.copy(xtreamAccounts = settings.xtreamAccounts + account)
             saveToStorage()
             refreshUi()
@@ -271,6 +347,20 @@ object IptvRepository {
         refreshUi()
     }
 
+    fun portalAccountCount(): Int =
+        settings.xtreamAccounts.count { PortalLicenseManager.isPortalName(it.name) }
+
+    /** Removes all portal-added Xtream accounts. Returns how many were removed. */
+    fun removePortalAccounts(): Int {
+        val portals = settings.xtreamAccounts.filter { PortalLicenseManager.isPortalName(it.name) }
+        if (portals.isEmpty()) return 0
+        settings = settings.copy(xtreamAccounts = settings.xtreamAccounts.filterNot { PortalLicenseManager.isPortalName(it.name) })
+        portals.forEach { IptvStorage.invalidateChannelCache(xtreamCacheKey(it)) }
+        saveToStorage()
+        refreshUi()
+        return portals.size
+    }
+
     fun refreshXtreamChannels(id: String) {
         scope.launch {
             val account = settings.xtreamAccounts.find { it.id == id } ?: return@launch
@@ -279,6 +369,10 @@ object IptvRepository {
                 val baseUrl = account.server.trimEnd('/')
                 val creds = "username=${account.username}&password=${account.password}"
                 val headers = mapOf("User-Agent" to "VLC/3.0.20")
+
+                val info = try {
+                    XtreamClient.parseAccountInfo(httpGetTextWithHeaders("$baseUrl/player_api.php?$creds", headers))
+                } catch (_: Exception) { null }
 
                 var categoriesJson = try {
                     httpGetTextWithHeaders("$baseUrl/player_api.php?$creds&action=get_live_categories", headers)
@@ -294,7 +388,7 @@ object IptvRepository {
                 }
                 val channels = XtreamClient.parseChannels(streamsJson, id, account.server, account.username, account.password)
 
-                val updated = account.copy(categories = categories, channels = channels)
+                val updated = account.copy(categories = categories, channels = channels, info = info ?: account.info)
                 settings = settings.copy(
                     xtreamAccounts = settings.xtreamAccounts.map { if (it.id == id) updated else it }
                 )
@@ -552,11 +646,13 @@ object IptvRepository {
         current.add(0, channelId)
         settings = settings.copy(channelHistory = current.take(15))
         saveToStorage()
+        _uiState.value = _uiState.value.copy(channelHistoryIds = settings.channelHistory)
     }
 
     fun clearHistory() {
         settings = settings.copy(channelHistory = emptyList())
         saveToStorage()
+        _uiState.value = _uiState.value.copy(channelHistoryIds = emptyList())
         refreshUi()
     }
 
@@ -600,20 +696,82 @@ object IptvRepository {
     }
 
     fun getAllChannels(): List<IptvChannel> {
-        val m3uChannels = settings.m3uPlaylists.flatMap { it.channels }
-        val xtreamChannels = settings.xtreamAccounts.flatMap { it.channels }
-        val stalkerChannels = settings.stalkerAccounts.flatMap { it.channels }
-        return m3uChannels + xtreamChannels + stalkerChannels
+        if (!hasLoaded) {
+            ensureLoaded()
+        }
+        return cachedAllChannels
+    }
+
+    /**
+     * Builds the map of normalized channel-name keys to the "current" EPG program title, using
+     * the pre-loaded XMLTV cache. Empty when no EPG is loaded for that channel (M3U/Stalker
+     * fallback), so the scorer can still boost channels whose program contains the teams.
+     */
+    fun buildCurrentEpgTitleMap(): Map<String, String> {
+        val state = _uiState.value
+        val now = TraktPlatformClock.nowEpochMs()
+        val titlesByChannelKey = mutableMapOf<String, String>()
+        for ((nameKey, programs) in state.epgProgramsByName) {
+            val current = programs.firstOrNull { now in it.startTime until it.endTime }?.title
+            if (!current.isNullOrBlank()) {
+                titlesByChannelKey[com.nuvio.app.features.sports.ChannelText.channelNameKey(nameKey)] = current
+            }
+        }
+        return titlesByChannelKey
+    }
+
+    /**
+     * Builds a closure resolving the current EPG program title for a channel name from the
+     * pre-loaded XMLTV cache. Empty string when no EPG is loaded (M3U/Stalker fallback), so the
+     * scorer can boost channels whose "now" program contains both teams.
+     */
+    fun buildCurrentEpgTitleLookup(): (String) -> String =
+        com.nuvio.app.features.sports.ChannelScorer.buildEpgLookup(buildCurrentEpgTitleMap())
+
+    /**
+     * Lazily and concurrently enriches the EPG lookup for the given candidate channels (the ones
+     * that already scored > 0 on name/league/generic). Xtream candidates get their current program
+     * fetched via [ShortEpgCache.getOrLoad]; M3U/Stalker candidates fall back to the XMLTV map.
+     * Capped at [cap] channels so a per-candidate HTTP fan-out never stalls first paint.
+     */
+    suspend fun buildLazyEpgTitleLookup(candidates: List<IptvChannel>, cap: Int = 8): (String) -> String {
+        val merged = buildCurrentEpgTitleMap().toMutableMap()
+        if (candidates.isEmpty()) return com.nuvio.app.features.sports.ChannelScorer.buildEpgLookup(merged)
+
+        val xtreamCandidates = candidates.filter { it.sourceType == SourceType.Xtream }.take(cap)
+        val now = TraktPlatformClock.nowEpochMs()
+
+        val fetched = kotlinx.coroutines.coroutineScope {
+            val results = xtreamCandidates.map { channel ->
+                async(kotlinx.coroutines.Dispatchers.Default) {
+                    val account = settings.xtreamAccounts.find { it.id == channel.sourceId } ?: return@async null
+                    try {
+                        val programs = ShortEpgCache.getOrLoad(account, channel, limit = 2)
+                        val current = programs.firstOrNull { now in it.startTime until it.endTime }?.title
+                        if (current.isNullOrBlank()) null
+                        else com.nuvio.app.features.sports.ChannelText.channelNameKey(channel.name) to current
+                    } catch (_: Throwable) {
+                        null
+                    }
+                }
+            }.mapNotNull { it.await() }
+            results
+        }
+        for ((key, title) in fetched) {
+            if (title.isNotBlank()) merged[key] = title
+        }
+        return com.nuvio.app.features.sports.ChannelScorer.buildEpgLookup(merged)
     }
 
     private fun applyFilters() {
         try {
+            updateCachedAllChannels()
             val state = _uiState.value
             val selectedIds = state.selectedSourceIds
             val query = state.searchQuery.trim().lowercase()
             val category = state.selectedCategory
 
-            var filtered = getAllChannels()
+            var filtered = cachedAllChannels
 
             if (selectedIds.isNotEmpty()) {
                 filtered = filtered.filter { it.sourceId in selectedIds }
@@ -788,11 +946,13 @@ private data class StoredXtreamAccount(
     val password: String,
     val channels: List<StoredIptvChannel> = emptyList(),
     val categories: List<StoredXtreamCategory> = emptyList(),
+    val info: StoredXtreamInfo? = null,
 ) {
     fun toAccount() = XtreamAccount(
         id = id, name = name, server = server, username = username, password = password,
         channels = channels.map { it.toChannel() },
         categories = categories.map { XtreamCategory(it.id, it.name) },
+        info = info?.toInfo(),
     )
 
     companion object {
@@ -800,6 +960,34 @@ private data class StoredXtreamAccount(
             id = a.id, name = a.name, server = a.server, username = a.username, password = a.password,
             channels = a.channels.map { StoredIptvChannel.fromChannel(it) },
             categories = a.categories.map { StoredXtreamCategory(it.id, it.name) },
+            info = a.info?.let { StoredXtreamInfo.fromInfo(it) },
+        )
+    }
+}
+
+@Serializable
+private data class StoredXtreamInfo(
+    val expDate: Long? = null,
+    val maxConnections: Int? = null,
+    val activeConnections: Int? = null,
+    val status: String? = null,
+    val isTrial: Boolean? = null,
+) {
+    fun toInfo() = PortalAccountInfo(
+        expDate = expDate,
+        maxConnections = maxConnections,
+        activeConnections = activeConnections,
+        status = status,
+        isTrial = isTrial,
+    )
+
+    companion object {
+        fun fromInfo(i: PortalAccountInfo) = StoredXtreamInfo(
+            expDate = i.expDate,
+            maxConnections = i.maxConnections,
+            activeConnections = i.activeConnections,
+            status = i.status,
+            isTrial = i.isTrial,
         )
     }
 }

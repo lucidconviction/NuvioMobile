@@ -1,7 +1,40 @@
 package com.nuvio.app.features.iptv
 
+data class QuickCategory(
+    val id: String,
+    val title: String,
+    val description: String,
+    val tags: List<String> = emptyList(),
+)
+
 object QuickChannelList {
     private val pinnedNames = mutableSetOf<String>()
+
+    val categories: List<QuickCategory> = listOf(
+        QuickCategory("all", "All", "All available quick channels"),
+        QuickCategory("us", "US", "Major networks, sports, news & entertainment"),
+        QuickCategory("uk", "UK", "BBC, ITV, Sky Sports, TNT, Channel 4"),
+        QuickCategory("ca", "CA", "CBC, CTV, TSN, Sportsnet, Crave, Global"),
+        QuickCategory("bay-area", "Bay Area", "KTVU, KPIX, KGO, KRON, NBC Bay Area"),
+        QuickCategory("premium", "Premium", "HBO, Cinemax, Showtime, Starz, MGM+"),
+        QuickCategory("sports", "Sports", "ESPN, Fox Sports, CBS Sports, Sky Sports"),
+        QuickCategory("news", "News", "CNN, Fox News, MSNBC, BBC, Sky News"),
+    )
+
+    fun getChannelsForCategory(categoryId: String): List<QuickChannel> {
+        val norm = categoryId.trim().lowercase().replace("_", "-").replace(" ", "-")
+        return when (norm) {
+            "all" -> all
+            "us" -> all.filter { "US" in it.regions }
+            "uk" -> all.filter { "UK" in it.regions }
+            "ca" -> all.filter { "CA" in it.regions }
+            "bay-area" -> all.filter { "bay-area" in it.regions }
+            "premium" -> all.filter { "premium" in it.tags }
+            "sports" -> all.filter { "sports" in it.tags }
+            "news" -> all.filter { "news" in it.tags }
+            else -> all
+        }
+    }
 
     val all: List<QuickChannel> get() = {
         val pinnedQc = pinnedNames.mapNotNull { name -> default.find { it.displayName == name } }
@@ -38,8 +71,31 @@ object QuickChannelList {
                 pattern.containsMatchIn(name) || pattern.containsMatchIn(group)
             }
         }
-        return channel.name.contains(quickChannel.displayName, ignoreCase = true) ||
-            quickChannel.aliases.any { alias -> channel.name.contains(alias, ignoreCase = true) }
+        
+        // Token-based matching: split displayName and aliases into keywords
+        val keywords = buildSet {
+            addAll(quickChannel.displayName.lowercase().split("\\s+").filter { it.isNotBlank() })
+            addAll(quickChannel.aliases.flatMap { alias -> alias.lowercase().split("\\s+").filter { it.isNotBlank() } })
+            // Also add single tokens from multi-word aliases
+            quickChannel.aliases.forEach { alias ->
+                add(alias.lowercase())
+            }
+            // Add the full displayName as a keyword too
+            add(quickChannel.displayName.lowercase())
+        }
+        
+        val nameLower = channel.name.lowercase()
+        val groupLower = (channel.group ?: "").lowercase()
+        
+        // Direct contains match (original behavior)
+        if (keywords.any { nameLower.contains(it) }) return true
+        
+        // Keyword matching: require at least one keyword to match
+        // Use shorter keywords for better matching (>= 3 chars to avoid noise)
+        val significantKeywords = keywords.filter { it.length >= 2 }
+        if (significantKeywords.any { nameLower.contains(it) || groupLower.contains(it) }) return true
+        
+        return false
     }
 
     private val default: List<QuickChannel> = listOf(

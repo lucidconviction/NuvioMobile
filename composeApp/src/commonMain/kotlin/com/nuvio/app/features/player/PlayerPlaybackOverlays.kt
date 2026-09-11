@@ -1,12 +1,15 @@
 package com.nuvio.app.features.player
 
+import com.nuvio.app.features.iptv.ChannelQuickSearchStore
 import com.nuvio.app.features.iptv.EpgProgram
 import com.nuvio.app.features.iptv.EspnClient
 import com.nuvio.app.features.iptv.IptvChannel
 import com.nuvio.app.features.iptv.IptvRepository
 import com.nuvio.app.features.iptv.QuickChannel
 import com.nuvio.app.features.iptv.QuickChannelList
-import com.nuvio.app.features.iptv.SportEvent
+import com.nuvio.app.features.iptv.SourceType
+import com.nuvio.app.features.sports.ChannelScore
+import com.nuvio.app.features.sports.ChannelScorer
 import com.nuvio.app.features.sports.DaddyLiveEvent
 import com.nuvio.app.features.trakt.TraktPlatformClock
 
@@ -34,12 +37,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContent
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -52,7 +57,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.focus.onFocusChanged
@@ -71,6 +78,7 @@ import coil3.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.nuvio.app.features.p2p.P2pLoadingStatus
 import com.nuvio.app.features.player.skip.NextEpisodeCard
@@ -252,7 +260,8 @@ internal fun BoxScope.PlayerPlaybackOverlays(
         val dlEvents = SportsNowStore.daddyLiveEvents.filter { it.isLive }
         val hasAny = espnEvents.isNotEmpty() || dlEvents.isNotEmpty()
 
-        var pickerEvent by remember { mutableStateOf<Pair<String, List<IptvChannel>>?>(null) }
+        var pickerEvent by remember { mutableStateOf<Pair<String, List<ChannelScore>>?>(null) }
+        val overlayScope = rememberCoroutineScope()
 
         val listState = rememberLazyListState()
         var lastScrollTime by remember { mutableStateOf(0L) }
@@ -291,7 +300,8 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                     }
                     Spacer(Modifier.height(12.dp))
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(360.dp).fillMaxWidth()) {
-                        itemsIndexed(channels) { _, ch ->
+                        itemsIndexed(channels) { _, score ->
+                            val ch = score.channel
                             Row(
                                 modifier = Modifier.fillMaxWidth().background(Color(0xFF111111), RoundedCornerShape(8.dp)).clickable {
                                     pickerEvent = null
@@ -301,7 +311,9 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(ch.name, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
-                                    if (!ch.group.isNullOrBlank()) {
+                                    if (score.reasons.isNotEmpty()) {
+                                        Text(score.reasons.joinToString(" • "), color = Color(0xFF888888), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    } else if (!ch.group.isNullOrBlank()) {
                                         Text(ch.group, color = Color(0xFF888888), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
@@ -331,18 +343,21 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                         LazyColumn(state = listState, verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(360.dp)) {
                             itemsIndexed(espnEvents) { _, event ->
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().background(Color(0xFF111111), RoundedCornerShape(8.dp)).clickable {
+                                                                                        modifier = Modifier.fillMaxWidth().background(Color(0xFF111111), RoundedCornerShape(8.dp)).clickable {
                                         val se = EspnClient.toSportEvents(listOf(event))
                                         if (se.isNotEmpty()) {
-                                            val matches = IptvRepository.getAllChannels().let { allCh ->
-                                                EspnClient.findAllMatchingChannels(se.first(), allCh)
-                                            }
-                                            if (matches.isEmpty()) {
-                                                SportsNowStore.onSwitchToEvent?.invoke(event)
-                                            } else if (matches.size == 1) {
-                                                SportsNowStore.onSwitchToEvent?.invoke(event)
-                                            } else {
-                                                pickerEvent = event.title to matches
+                                            overlayScope.launch {
+                                                val scored = IptvRepository.getAllChannels().let { allCh ->
+                                                    EspnClient.findScoredMatchingChannelsWithLazyEpg(
+                                                        se.first(), allCh, IptvRepository.buildCurrentEpgTitleLookup()
+                                                    ).filterNot { com.nuvio.app.features.iptv.StreamValidationStore.isKnownDeadSync(it.channel.url) }
+                                                }
+                                                val autoplay = ChannelScorer.autoplayCandidate(scored)
+                                                if (autoplay != null) {
+                                                    SportsNowStore.onSwitchToEvent?.invoke(event)
+                                                } else if (scored.isNotEmpty()) {
+                                                    pickerEvent = event.title to scored
+                                                }
                                             }
                                         }
                                     }.padding(12.dp),
@@ -411,24 +426,6 @@ internal fun BoxScope.PlayerPlaybackOverlays(
 
         val showingQuick = overlayMode == "quick"
 
-        var allQuickMatches by remember { mutableStateOf<List<QuickChannelRow>>(emptyList()) }
-        LaunchedEffect(channelNames) {
-            val names = channelNames ?: emptyList()
-            if (names.isEmpty()) return@LaunchedEffect
-            val result = withContext(kotlinx.coroutines.Dispatchers.Default) {
-                QuickChannelList.all.mapNotNull { qc ->
-                    val matched = names.mapIndexedNotNull { idx, n -> if (quickChannelNameMatches(qc, n)) idx else null }
-                    if (matched.isEmpty()) null
-                    else QuickChannelRow(qc.displayName, matched.size, matched.first())
-                }
-            }
-            allQuickMatches = result
-        }
-        val quickMatches by remember(allQuickMatches, searchQuery) {
-            val q = searchQuery.trim().lowercase()
-            mutableStateOf(if (q.isEmpty()) allQuickMatches else allQuickMatches.filter { it.name.lowercase().contains(q) })
-        }
-
         LaunchedEffect(channelOverlayTrigger) {
             if (channelOverlayTrigger > 0L) {
                 overlayMode = "list"
@@ -457,9 +454,62 @@ internal fun BoxScope.PlayerPlaybackOverlays(
             val accentPurpleLight = colors.primary.copy(alpha = 0.75f)
             val listState = rememberLazyListState()
             var lastScrollTime by remember(overlayMode) { mutableStateOf(0L) }
+
+            val showingHistory = overlayMode == "history"
+            val showingFavorites = overlayMode == "favorites"
+            val showingSaved = overlayMode == "saved"
+
+            val favoriteIndices = remember(channelNames, channelIds, favoriteIds) {
+                val names = channelNames ?: emptyList()
+                val ids = channelIds ?: emptyList()
+                val favs = favoriteIds ?: emptySet()
+                names.indices.filter { idx ->
+                    ids.getOrNull(idx)?.let { id -> favs.contains(id) } == true
+                }
+            }
+            val entries = when (overlayMode) {
+                "history" -> historyNames ?: emptyList()
+                "favorites" -> favoriteIndices.mapNotNull { channelNames?.getOrNull(it) }
+                else -> channelNames ?: emptyList()
+            }
+            val entryUrls = when (overlayMode) {
+                "history" -> historyUrls ?: emptyList()
+                else -> channelUrls
+            }
+            val entryLogos = when (overlayMode) {
+                "history" -> historyLogos ?: emptyList()
+                else -> channelLogos
+            }
+            val entryIds = when (overlayMode) {
+                "history" -> historyIds ?: emptyList()
+                else -> channelIds
+            }
+
+            val query = searchQuery.trim().lowercase()
+            val filteredHistoryIndices = remember(showingHistory, entries, query) {
+                if (showingHistory) {
+                    entries.indices.filter { idx ->
+                        query.isEmpty() || (entries.getOrNull(idx) ?: "").lowercase().contains(query)
+                    }
+                } else emptyList()
+            }
+            val filteredListIndices = remember(showingHistory, showingQuick, entries, query) {
+                if (!showingHistory && !showingQuick) {
+                    entries.indices.filter { idx ->
+                        query.isEmpty() || (entries.getOrNull(idx) ?: "").lowercase().contains(query)
+                    }
+                } else emptyList()
+            }
+
             LaunchedEffect(overlayMode) {
-                if (currentChannelIndex > 0 && overlayMode == "list") {
-                    listState.animateScrollToItem(currentChannelIndex)
+                if (overlayMode == "list" && currentChannelIndex >= 0) {
+                    try {
+                        val total = filteredListIndices.size
+                        if (total > 0) {
+                            val safeIdx = currentChannelIndex.coerceIn(0, total - 1)
+                            listState.scrollToItem(safeIdx)
+                        }
+                    } catch (_: Throwable) { }
                 }
             }
             LaunchedEffect(overlayMode) {
@@ -480,46 +530,13 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                 while (true) {
                     delay(500)
                     val idleMs = TraktPlatformClock.nowEpochMs() - lastScrollTime
-                    if (idleMs >= 8_000L) {
+                    if (idleMs >= 12_000L) {
                         overlayMode = null
                         searchQuery = ""
                         break
                     }
                 }
             }
-
-            val showingHistory = overlayMode == "history"
-            val showingFavorites = overlayMode == "favorites"
-            val favoriteIndices = remember(channelNames, channelIds, favoriteIds) {
-                channelNames.indices.filter { idx ->
-                    channelIds?.getOrNull(idx)?.let { id -> favoriteIds?.contains(id) } == true
-                }
-            }
-            val entries = when (overlayMode) {
-                "history" -> historyNames ?: emptyList()
-                "favorites" -> favoriteIndices.map { channelNames[it] }
-                else -> channelNames
-            }
-            val entryUrls = when (overlayMode) {
-                "history" -> historyUrls ?: emptyList()
-                else -> channelUrls
-            }
-            val entryLogos = when (overlayMode) {
-                "history" -> historyLogos ?: emptyList()
-                else -> channelLogos
-            }
-            val entryIds = when (overlayMode) {
-                "history" -> historyIds ?: emptyList()
-                else -> channelIds
-            }
-
-            val query = searchQuery.trim().lowercase()
-            val filteredHistoryIndices = if (showingHistory) {
-                entries.indices.filter { query.isEmpty() || entries[it].lowercase().contains(query) }
-            } else emptyList()
-            val filteredListIndices = if (!showingHistory) {
-                entries.indices.filter { query.isEmpty() || entries[it].lowercase().contains(query) }
-            } else emptyList()
 
             AnimatedVisibility(
                 visible = overlayMode != null,
@@ -530,7 +547,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .fillMaxHeight(0.65f)
+                        .fillMaxHeight(0.70f)
                         .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                         .background(sheetBg)
                         .padding(bottom = overlayBottomPadding),
@@ -558,6 +575,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                     "quick" -> "Quick Channels"
                                     "favorites" -> "Favorites"
                                     "history" -> "History"
+                                    "saved" -> "Saved Searches"
                                     else -> "Channels"
                                 },
                                 color = onSurface,
@@ -567,8 +585,9 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     when {
-                                        showingQuick -> "${quickMatches?.size ?: 0}"
+                                        showingQuick -> "Layers"
                                         showingHistory -> "${filteredHistoryIndices.size}"
+                                        showingSaved -> "${ChannelQuickSearchStore.loadTerms().size}"
                                         else -> "${filteredListIndices.size}"
                                     },
                                     color = onSurfaceVariant.copy(alpha = 0.6f),
@@ -588,6 +607,7 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                         val tabs = buildList {
                             add("list" to "Channels")
                             add("quick" to "Quick Channels")
+                            add("saved" to "Saved Searches")
                             if (hasFavorites) add("favorites" to "Favorites")
                             if (hasHistory) add("history" to "History")
                         }
@@ -618,96 +638,120 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                             }
                         }
 
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search channels...", color = onSurfaceVariant.copy(alpha = 0.4f), fontSize = 14.sp) },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            textStyle = androidx.compose.ui.text.TextStyle(color = onSurface, fontSize = 14.sp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = accentPurple,
-                                unfocusedBorderColor = onSurfaceVariant.copy(alpha = 0.2f),
-                                cursorColor = accentPurple,
-                                focusedContainerColor = chipBg,
-                                unfocusedContainerColor = chipBg,
-                            ),
-                        )
+                        if (!showingQuick && !showingSaved) {
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text("Search channels...", color = onSurfaceVariant.copy(alpha = 0.4f), fontSize = 14.sp) },
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                                textStyle = androidx.compose.ui.text.TextStyle(color = onSurface, fontSize = 14.sp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = accentPurple,
+                                    unfocusedBorderColor = onSurfaceVariant.copy(alpha = 0.2f),
+                                    cursorColor = accentPurple,
+                                    focusedContainerColor = chipBg,
+                                    unfocusedContainerColor = chipBg,
+                                ),
+                            )
+                        }
 
                         if (showingHistory) {
                             LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
                                 if (filteredHistoryIndices.isEmpty()) {
                                     item { Text("No history", color = onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(20.dp)) }
                                 }
-                                filteredHistoryIndices.forEach { idx ->
-                                    item(key = "hist_$idx") {
-                                        val histId = historyIds?.getOrNull(idx)
-                                        val isFav = histId?.let { favoriteIds?.contains(it) } == true
-                                        val chName = historyNames?.getOrNull(idx)
-                                        var nowNext by remember(histId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
-                                        LaunchedEffect(histId, chName) {
-                                            nowNext = if (epgLoader != null) epgLoader(histId, chName ?: entries[idx]) else null
+                                items(
+                                    items = filteredHistoryIndices,
+                                    key = { idx -> "hist_${idx}_${historyIds?.getOrNull(idx) ?: idx}" }
+                                ) { idx ->
+                                    val histId = historyIds?.getOrNull(idx)
+                                    val isFav = histId?.let { favoriteIds?.contains(it) } == true
+                                    val chName = historyNames?.getOrNull(idx) ?: entries.getOrNull(idx) ?: ""
+                                    var nowNext by remember(histId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
+                                    LaunchedEffect(histId, chName) {
+                                        try {
+                                            nowNext = if (epgLoader != null) epgLoader(histId, chName) else null
+                                        } catch (_: Throwable) { }
+                                    }
+                                    ChannelListItem(
+                                        index = idx,
+                                        name = chName,
+                                        logo = historyLogos?.getOrNull(idx),
+                                        url = historyUrls?.getOrNull(idx),
+                                        isCurrent = false,
+                                        isFavorite = isFav,
+                                        nowNext = nowNext,
+                                        epgEnabled = epgLoader != null,
+                                        onTap = {
+                                            overlayMode = null
+                                            searchQuery = ""
+                                            onSwitchChannel(findChannelIndex(historyIds, channelIds, histId).coerceAtLeast(0))
+                                        },
+                                        onToggleFav = { histId?.let { onToggleFavorite?.invoke(it) } },
+                                        onAddMultiView = onAddToMultiView,
+                                        accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
+                                        onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
+                                    )
+                                }
+                            }
+                        } else if (showingSaved) {
+                            val savedList = remember { ChannelQuickSearchStore.loadTerms() }
+                            LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
+                                if (savedList.isEmpty()) {
+                                    item { Text("No saved searches yet", color = onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(20.dp)) }
+                                }
+                                items(
+                                    items = savedList,
+                                    key = { term -> "saved_$term" }
+                                ) { term ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+                                            .clip(RoundedCornerShape(10.dp)).background(chipBg)
+                                            .clickable {
+                                                searchQuery = term
+                                                ChannelQuickSearchStore.addTerm(term)
+                                                overlayMode = "list"
+                                            }
+                                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(term, color = accentPurple, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                        Box(
+                                            Modifier.clip(CircleShape).clickable {
+                                                ChannelQuickSearchStore.removeTerm(term)
+                                                searchQuery = ""
+                                            }.padding(6.dp),
+                                        ) {
+                                            Text("✕", color = onSurfaceVariant, fontSize = 12.sp)
                                         }
-                                        ChannelListItem(
-                                            index = idx,
-                                            name = entries[idx],
-                                            logo = historyLogos?.getOrNull(idx),
-                                            url = historyUrls?.getOrNull(idx),
-                                            isCurrent = false,
-                                            isFavorite = isFav,
-                                            nowNext = nowNext,
-                                            epgEnabled = epgLoader != null,
-                                            onTap = { overlayMode = null; onSwitchChannel(findChannelIndex(historyIds, channelIds, histId).coerceAtLeast(0)) },
-                                            onToggleFav = { histId?.let { onToggleFavorite?.invoke(it) } },
-                                            onAddMultiView = onAddToMultiView,
-                                            accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
-                                            onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
-                                        )
                                     }
                                 }
                             }
                         } else if (showingQuick) {
-                            LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
-                                if (quickMatches.isEmpty()) {
-                                    item { Text("No quick channels match \"$searchQuery\"", color = onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(20.dp)) }
-                                }
-                                quickMatches.forEach { m ->
-                                    item(key = "quick_${m.name}") {
-                                        val chId = channelIds?.getOrNull(m.firstIndex)
-                                        val chName = channelNames?.getOrNull(m.firstIndex)
-                                        var nowNext by remember(chId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
-                                        LaunchedEffect(chId, chName) {
-                                            nowNext = if (epgLoader != null) epgLoader(chId, chName ?: m.name) else null
-                                        }
-                                        ChannelListItem(
-                                            index = m.firstIndex,
-                                            name = m.name,
-                                            logo = null,
-                                            url = channelUrls?.getOrNull(m.firstIndex),
-                                            isCurrent = m.firstIndex == currentChannelIndex,
-                                            isFavorite = false,
-                                            nowNext = nowNext,
-                                            epgEnabled = epgLoader != null,
-                                            onTap = { overlayMode = null; onSwitchChannel(m.firstIndex) },
-                                            onToggleFav = null,
-                                            onAddMultiView = onAddToMultiView,
-                                            accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
-                                            onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
-                                        )
-                                    }
-                                    item(key = "quick_count_${m.name}") {
-                                        Text(
-                                            "${m.count} channel${if (m.count == 1) "" else "s"} · tap to zap",
-                                            color = onSurfaceVariant.copy(alpha = 0.6f),
-                                            fontSize = 11.sp,
-                                            modifier = Modifier.padding(start = 68.dp, bottom = 6.dp),
-                                        )
-                                    }
-                                }
-                            }
+                            QuickChannelsLayered(
+                                channelNames = channelNames,
+                                channelIds = channelIds,
+                                channelUrls = channelUrls,
+                                channelLogos = channelLogos,
+                                currentChannelIndex = currentChannelIndex,
+                                onSwitchChannel = { idx ->
+                                    overlayMode = null
+                                    searchQuery = ""
+                                    onSwitchChannel(idx)
+                                },
+                                onAddToMultiView = onAddToMultiView,
+                                accentPurple = accentPurple,
+                                accentPurpleLight = accentPurpleLight,
+                                onSurface = onSurface,
+                                onSurfaceVariant = onSurfaceVariant,
+                                selectedBg = selectedBg,
+                                chipBg = chipBg,
+                                modifier = Modifier.weight(1f),
+                            )
                         } else {
                             val favIndices = if (!showingFavorites) {
                                 filteredListIndices.filter { idx ->
@@ -721,60 +765,72 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                     if (filteredListIndices.isEmpty()) {
                                         item { Text("No favorites yet", color = onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(20.dp)) }
                                     }
-                                    filteredListIndices.forEach { idx ->
-                                        val realIdx = favoriteIndices.getOrNull(idx) ?: return@forEach
-                                        item(key = "fav_$realIdx") {
-                                            val chId = channelIds?.getOrNull(realIdx)
-                                            val chName = channelNames.getOrNull(realIdx)
-                                            var nowNext by remember(chId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
-                                            val entryName = entries.getOrNull(idx) ?: chName ?: ""
-                                            LaunchedEffect(chId, chName) {
-                                                nowNext = if (epgLoader != null) epgLoader(chId, entryName) else null
-                                            }
-                                            ChannelListItem(
-                                                index = realIdx,
-                                                name = entryName,
-                                                logo = channelLogos?.getOrNull(realIdx),
-                                                url = channelUrls?.getOrNull(realIdx),
-                                                isCurrent = realIdx == currentChannelIndex,
-                                                isFavorite = true,
-                                                nowNext = nowNext,
-                                                epgEnabled = epgLoader != null,
-                                                onTap = { overlayMode = null; onSwitchChannel(realIdx) },
-                                                onToggleFav = { chId?.let { onToggleFavorite?.invoke(it) } },
-                                                onAddMultiView = onAddToMultiView,
-                                                accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
-                                                onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
-                                            )
+                                    items(
+                                        items = filteredListIndices,
+                                        key = { idx -> "fav_${idx}_${favoriteIndices.getOrNull(idx) ?: idx}" }
+                                    ) { idx ->
+                                        val realIdx = favoriteIndices.getOrNull(idx) ?: return@items
+                                        val chId = channelIds?.getOrNull(realIdx)
+                                        val chName = channelNames?.getOrNull(realIdx) ?: entries.getOrNull(idx) ?: ""
+                                        var nowNext by remember(chId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
+                                        LaunchedEffect(chId, chName) {
+                                            try {
+                                                nowNext = if (epgLoader != null) epgLoader(chId, chName) else null
+                                            } catch (_: Throwable) { }
                                         }
+                                        ChannelListItem(
+                                            index = realIdx,
+                                            name = chName,
+                                            logo = channelLogos?.getOrNull(realIdx),
+                                            url = channelUrls?.getOrNull(realIdx),
+                                            isCurrent = realIdx == currentChannelIndex,
+                                            isFavorite = true,
+                                            nowNext = nowNext,
+                                            epgEnabled = epgLoader != null,
+                                            onTap = {
+                                                overlayMode = null
+                                                searchQuery = ""
+                                                onSwitchChannel(realIdx)
+                                            },
+                                            onToggleFav = { chId?.let { onToggleFavorite?.invoke(it) } },
+                                            onAddMultiView = onAddToMultiView,
+                                            accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
+                                            onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
+                                        )
                                     }
                                 } else {
                                     if (favIndices.isNotEmpty()) {
                                         item {
                                             Text("★ Favorites", color = accentPurpleLight, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                                         }
-                                        favIndices.forEach { idx ->
-                                            item(key = "fav_$idx") {
-                                                val chId = channelIds?.getOrNull(idx)
-                                                val chName = channelNames.getOrNull(idx)
-                                                var nowNext by remember(chId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
-                                                val entryName = entries.getOrNull(idx) ?: chName ?: ""
-                                                LaunchedEffect(chId, chName) {
-                                                    nowNext = if (epgLoader != null) epgLoader(chId, entryName) else null
-                                                }
-                                                ChannelListItem(
-                                                    index = idx, name = entryName, logo = entryLogos?.getOrNull(idx),
-                                                    url = channelUrls?.getOrNull(idx),
-                                                    isCurrent = idx == currentChannelIndex, isFavorite = true,
-                                                    nowNext = nowNext,
-                                                    epgEnabled = epgLoader != null,
-                                                    onTap = { overlayMode = null; onSwitchChannel(idx) },
-                                                    onToggleFav = { chId?.let { onToggleFavorite?.invoke(it) } },
-                                                    onAddMultiView = onAddToMultiView,
-                                                    accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
-                                                    onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
-                                                )
+                                        items(
+                                            items = favIndices,
+                                            key = { idx -> "fav_in_list_${idx}_${channelIds?.getOrNull(idx) ?: idx}" }
+                                        ) { idx ->
+                                            val chId = channelIds?.getOrNull(idx)
+                                            val chName = channelNames?.getOrNull(idx) ?: entries.getOrNull(idx) ?: ""
+                                            var nowNext by remember(chId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
+                                            LaunchedEffect(chId, chName) {
+                                                try {
+                                                    nowNext = if (epgLoader != null) epgLoader(chId, chName) else null
+                                                } catch (_: Throwable) { }
                                             }
+                                            ChannelListItem(
+                                                index = idx, name = chName, logo = entryLogos?.getOrNull(idx),
+                                                url = channelUrls?.getOrNull(idx),
+                                                isCurrent = idx == currentChannelIndex, isFavorite = true,
+                                                nowNext = nowNext,
+                                                epgEnabled = epgLoader != null,
+                                                onTap = {
+                                                    overlayMode = null
+                                                    searchQuery = ""
+                                                    onSwitchChannel(idx)
+                                                },
+                                                onToggleFav = { chId?.let { onToggleFavorite?.invoke(it) } },
+                                                onAddMultiView = onAddToMultiView,
+                                                accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
+                                                onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
+                                            )
                                         }
                                         if (nonFavIndices.isNotEmpty()) {
                                             item {
@@ -783,29 +839,35 @@ internal fun BoxScope.PlayerPlaybackOverlays(
                                             }
                                         }
                                     }
-                                    nonFavIndices.forEach { idx ->
-                                        item(key = "ch_$idx") {
-                                            val chId = channelIds?.getOrNull(idx)
-                                            val chName = channelNames.getOrNull(idx)
-                                            var nowNext by remember(chId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
-                                            val entryName = entries.getOrNull(idx) ?: chName ?: ""
-                                            LaunchedEffect(chId, chName) {
-                                                nowNext = if (epgLoader != null) epgLoader(chId, entryName) else null
-                                            }
-                                            ChannelListItem(
-                                                index = idx, name = entryName, logo = entryLogos?.getOrNull(idx),
-                                                url = channelUrls?.getOrNull(idx),
-                                                isCurrent = idx == currentChannelIndex,
-                                                isFavorite = chId?.let { favoriteIds?.contains(it) } == true,
-                                                nowNext = nowNext,
-                                                epgEnabled = epgLoader != null,
-                                                onTap = { overlayMode = null; onSwitchChannel(idx) },
-                                                onToggleFav = { chId?.let { onToggleFavorite?.invoke(it) } },
-                                                onAddMultiView = onAddToMultiView,
-                                                accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
-                                                onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
-                                            )
+                                    items(
+                                        items = nonFavIndices,
+                                        key = { idx -> "ch_${idx}_${channelIds?.getOrNull(idx) ?: idx}" }
+                                    ) { idx ->
+                                        val chId = channelIds?.getOrNull(idx)
+                                        val chName = channelNames?.getOrNull(idx) ?: entries.getOrNull(idx) ?: ""
+                                        var nowNext by remember(chId, chName) { mutableStateOf<Pair<EpgProgram?, EpgProgram?>?>(null) }
+                                        LaunchedEffect(chId, chName) {
+                                            try {
+                                                nowNext = if (epgLoader != null) epgLoader(chId, chName) else null
+                                            } catch (_: Throwable) { }
                                         }
+                                        ChannelListItem(
+                                            index = idx, name = chName, logo = entryLogos?.getOrNull(idx),
+                                            url = channelUrls?.getOrNull(idx),
+                                            isCurrent = idx == currentChannelIndex,
+                                            isFavorite = chId?.let { favoriteIds?.contains(it) } == true,
+                                            nowNext = nowNext,
+                                            epgEnabled = epgLoader != null,
+                                            onTap = {
+                                                overlayMode = null
+                                                searchQuery = ""
+                                                onSwitchChannel(idx)
+                                            },
+                                            onToggleFav = { chId?.let { onToggleFavorite?.invoke(it) } },
+                                            onAddMultiView = onAddToMultiView,
+                                            accentPurpleLight = accentPurpleLight, accentPurple = accentPurple,
+                                            onSurface = onSurface, onSurfaceVariant = onSurfaceVariant, selectedBg = selectedBg,
+                                        )
                                     }
                                     if (filteredListIndices.isEmpty()) {
                                         item { Text("No channels match \"$searchQuery\"", color = onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(20.dp)) }
@@ -822,29 +884,8 @@ internal fun BoxScope.PlayerPlaybackOverlays(
 
 private fun findChannelIndex(historyIds: List<String>?, channelIds: List<String>?, targetId: String?): Int {
     if (targetId == null || channelIds == null) return 0
-    return channelIds.indexOf(targetId).coerceAtLeast(0)
-}
-
-private data class QuickChannelRow(val name: String, val count: Int, val firstIndex: Int)
-
-private fun quickChannelNameMatches(qc: QuickChannel, channelName: String): Boolean {
-    if (channelName.contains(qc.displayName, ignoreCase = true)) return true
-    return qc.aliases.any { alias -> channelName.contains(alias, ignoreCase = true) }
-}
-
-@Composable
-private fun PopupOption(text: String, onClick: () -> Unit) {
-    Text(
-        text = text,
-        color = Color(0xFFDAE2FD),
-        fontSize = 14.sp,
-        fontWeight = FontWeight.Medium,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-    )
+    val idx = channelIds.indexOf(targetId)
+    return if (idx >= 0) idx else 0
 }
 
 @Composable
@@ -963,6 +1004,356 @@ private fun ChannelListItem(
         }
     }
     HorizontalDivider(color = onSurfaceVariant.copy(alpha = 0.06f))
+}
+
+@Composable
+private fun QuickChannelsLayered(
+    channelNames: List<String>?,
+    channelIds: List<String>?,
+    channelUrls: List<String>?,
+    channelLogos: List<String>?,
+    currentChannelIndex: Int,
+    onSwitchChannel: (Int) -> Unit,
+    onAddToMultiView: ((name: String, url: String, logo: String?) -> Unit)?,
+    accentPurple: Color,
+    accentPurpleLight: Color,
+    onSurface: Color,
+    onSurfaceVariant: Color,
+    selectedBg: Color,
+    chipBg: Color,
+    modifier: Modifier = Modifier,
+) {
+    var selectedCategoryId by remember { mutableStateOf<String?>(null) }
+    var selectedQc by remember { mutableStateOf<QuickChannel?>(null) }
+    var subChannelSearch by remember { mutableStateOf("") }
+    var playlistSearch by remember { mutableStateOf("") }
+
+    val categories = remember { QuickChannelList.categories }
+
+    // Layer 3: Playlist Streams for selected QuickChannel
+    if (selectedQc != null) {
+        val qc = selectedQc!!
+        val names = channelNames ?: emptyList()
+        val urls = channelUrls ?: emptyList()
+        val logos = channelLogos ?: emptyList()
+        val ids = channelIds ?: emptyList()
+
+        // Matched indices in current playlist calculated off main thread
+        val matchedIndices by produceState(initialValue = emptyList<Int>(), key1 = qc, key2 = names) {
+            value = withContext(Dispatchers.Default) {
+                names.mapIndexedNotNull { idx, n ->
+                    val ch = IptvChannel(
+                        id = ids.getOrNull(idx) ?: "",
+                        name = n,
+                        logo = logos.getOrNull(idx),
+                        group = null,
+                        url = urls.getOrNull(idx) ?: "",
+                        sourceType = SourceType.M3U,
+                        sourceId = "unknown",
+                    )
+                    if (QuickChannelList.matches(qc, ch)) idx else null
+                }
+            }
+        }
+
+        val filteredIndices = remember(matchedIndices, playlistSearch, names) {
+            val q = playlistSearch.trim().lowercase()
+            if (q.isEmpty()) matchedIndices
+            else matchedIndices.filter { idx -> (names.getOrNull(idx) ?: "").lowercase().contains(q) }
+        }
+
+        Column(modifier = modifier.fillMaxWidth()) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(chipBg)
+                        .clickable { selectedQc = null; playlistSearch = "" }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                ) {
+                    Text("← Back", color = onSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(qc.displayName, color = onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${matchedIndices.size} streams in playlist", color = onSurfaceVariant.copy(alpha = 0.7f), fontSize = 11.sp)
+                }
+            }
+
+            // Playlist search
+            OutlinedTextField(
+                value = playlistSearch,
+                onValueChange = { playlistSearch = it },
+                placeholder = { Text("Filter ${qc.displayName} streams...", color = onSurfaceVariant.copy(alpha = 0.4f), fontSize = 13.sp) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(color = onSurface, fontSize = 13.sp),
+                shape = RoundedCornerShape(10.dp),
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = accentPurple,
+                    unfocusedBorderColor = onSurfaceVariant.copy(alpha = 0.2f),
+                    cursorColor = accentPurple,
+                    focusedContainerColor = chipBg,
+                    unfocusedContainerColor = chipBg,
+                ),
+            )
+
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+            ) {
+                if (filteredIndices.isEmpty()) {
+                    item {
+                        Text(
+                            if (matchedIndices.isEmpty()) "No streams found in your playlist matching \"${qc.displayName}\""
+                            else "No streams match \"$playlistSearch\"",
+                            color = onSurfaceVariant, fontSize = 13.sp,
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    }
+                }
+
+                items(
+                    items = filteredIndices,
+                    key = { idx -> "pl_stream_${idx}_${ids.getOrNull(idx) ?: idx}" }
+                ) { idx ->
+                    val streamName = names.getOrNull(idx) ?: qc.displayName
+                    val streamLogo = logos.getOrNull(idx)
+                    val streamUrl = urls.getOrNull(idx)
+                    val isCurrent = idx == currentChannelIndex
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isCurrent) selectedBg else chipBg.copy(alpha = 0.5f))
+                            .clickable { onSwitchChannel(idx) }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (!streamLogo.isNullOrBlank()) {
+                            AsyncImage(
+                                model = streamLogo,
+                                contentDescription = streamName,
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.size(28.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF1A1A1A)),
+                            )
+                            Spacer(Modifier.width(10.dp))
+                        } else {
+                            Box(
+                                modifier = Modifier.size(28.dp).clip(RoundedCornerShape(4.dp)).background(accentPurple.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("${idx + 1}", color = accentPurpleLight, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(Modifier.width(10.dp))
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = streamName,
+                                color = if (isCurrent) accentPurpleLight else onSurface,
+                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+
+                        Spacer(Modifier.width(8.dp))
+
+                        if (onAddToMultiView != null && streamUrl != null) {
+                            Text(
+                                "MW",
+                                color = accentPurpleLight.copy(alpha = 0.7f),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(accentPurple.copy(alpha = 0.12f))
+                                    .clickable { onAddToMultiView(streamName, streamUrl, streamLogo) }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                        }
+
+                        Text(
+                            if (isCurrent) "NOW" else "Zap",
+                            color = if (isCurrent) accentPurpleLight else accentPurple,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+            }
+        }
+    }
+    // Layer 2: Sub-channels list in selected Category
+    else if (selectedCategoryId != null) {
+        val catId = selectedCategoryId!!
+        val catObj = categories.find { it.id == catId }
+        val catTitle = catObj?.title ?: catId
+        val subChannels = remember(catId) { QuickChannelList.getChannelsForCategory(catId) }
+        val filteredSub = remember(subChannels, subChannelSearch) {
+            val q = subChannelSearch.trim().lowercase()
+            if (q.isEmpty()) subChannels
+            else subChannels.filter { qc ->
+                qc.displayName.lowercase().contains(q) || qc.aliases.any { it.lowercase().contains(q) }
+            }
+        }
+
+        Column(modifier = modifier.fillMaxWidth()) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(chipBg)
+                        .clickable { selectedCategoryId = null; subChannelSearch = "" }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                ) {
+                    Text("← Categories", color = onSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(catTitle, color = onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("${subChannels.size} sub-channels", color = onSurfaceVariant.copy(alpha = 0.7f), fontSize = 11.sp)
+                }
+            }
+
+            // Sub-channel search
+            OutlinedTextField(
+                value = subChannelSearch,
+                onValueChange = { subChannelSearch = it },
+                placeholder = { Text("Search in $catTitle...", color = onSurfaceVariant.copy(alpha = 0.4f), fontSize = 13.sp) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(color = onSurface, fontSize = 13.sp),
+                shape = RoundedCornerShape(10.dp),
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = accentPurple,
+                    unfocusedBorderColor = onSurfaceVariant.copy(alpha = 0.2f),
+                    cursorColor = accentPurple,
+                    focusedContainerColor = chipBg,
+                    unfocusedContainerColor = chipBg,
+                ),
+            )
+
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+            ) {
+                if (filteredSub.isEmpty()) {
+                    item {
+                        Text("No sub-channels match \"$subChannelSearch\"", color = onSurfaceVariant, fontSize = 13.sp, modifier = Modifier.padding(16.dp))
+                    }
+                }
+
+                items(
+                    items = filteredSub,
+                    key = { qc -> "sub_${qc.displayName}" }
+                ) { qc ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(chipBg.copy(alpha = 0.6f))
+                            .clickable { selectedQc = qc }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(qc.displayName, color = onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (qc.regions.isNotEmpty()) {
+                                Text(qc.regions.joinToString(", "), color = onSurfaceVariant.copy(alpha = 0.6f), fontSize = 10.sp)
+                            }
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text("▸", color = accentPurple, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+    // Layer 1: Categories (All, US, UK, CA, Bay Area, Premium, Sports, News)
+    else {
+        LazyColumn(
+            modifier = modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            item {
+                Text(
+                    "Quick Channel Categories",
+                    color = onSurfaceVariant.copy(alpha = 0.8f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+            }
+
+            items(
+                items = categories,
+                key = { it.id }
+            ) { cat ->
+                val count = remember(cat.id) { QuickChannelList.getChannelsForCategory(cat.id).size }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(chipBg)
+                        .clickable { selectedCategoryId = cat.id }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(accentPurple.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            cat.title.take(2).uppercase(),
+                            color = accentPurple,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                        )
+                    }
+
+                    Spacer(Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(cat.title, color = onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text(cat.description, color = onSurfaceVariant.copy(alpha = 0.65f), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+
+                    Spacer(Modifier.width(8.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(accentPurple.copy(alpha = 0.1f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                    ) {
+                        Text("$count", color = accentPurpleLight, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(Modifier.width(6.dp))
+                    Text("▸", color = onSurfaceVariant.copy(alpha = 0.5f), fontSize = 16.sp)
+                }
+            }
+        }
+    }
 }
 
 private fun formatEpgTime(epochMs: Long): String {

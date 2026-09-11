@@ -155,6 +155,7 @@ data class WikipediaThumbnail(
     val height: Int? = null,
 )
 
+@Serializable
 data class EspnProcessedEvent(
     val id: String,
     val title: String,

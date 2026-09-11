@@ -3,7 +3,7 @@ package com.nuvio.app.features.iptv
 object M3uParser {
     fun parse(content: String, sourceId: String): List<IptvChannel> {
         val channels = mutableListOf<IptvChannel>()
-        val lines = content.lines()
+        val lines = content.removePrefix("\uFEFF").lines()
         var i = 0
         var channelIdCounter = 0
 
@@ -21,26 +21,31 @@ object M3uParser {
                 val channelName = if (commaIndex >= 0) infoLine.substring(commaIndex + 1).trim() else "Unknown"
 
                 i++
-                while (i < lines.size && lines[i].trim().isEmpty()) i++
-
-                if (i < lines.size) {
-                    val url = lines[i].trim()
-                    if (url.isNotBlank() && !url.startsWith("#")) {
-                        channelIdCounter++
-                        val id = tvgId.ifBlank { url }
-                        channels.add(
-                            IptvChannel(
-                                id = id,
-                                name = tvgName.ifBlank { channelName },
-                                logo = tvgLogo.ifBlank { null },
-                                group = groupTitle.ifBlank { null },
-                                url = url,
-                                epgChannelId = tvgId.ifBlank { null },
-                                sourceType = SourceType.M3U,
-                                sourceId = sourceId,
-                            )
-                        )
+                // Skip blank lines and comment lines (e.g. #EXTVLCOPT:, #EXTGRP:) until the stream URL
+                var url = ""
+                while (i < lines.size) {
+                    val candidate = lines[i].trim()
+                    if (candidate.isNotBlank() && !candidate.startsWith("#")) {
+                        url = candidate
+                        break
                     }
+                    i++
+                }
+                if (url.isNotBlank()) {
+                    channelIdCounter++
+                    val id = tvgId.ifBlank { url }
+                    channels.add(
+                        IptvChannel(
+                            id = id,
+                            name = tvgName.ifBlank { channelName },
+                            logo = tvgLogo.ifBlank { null },
+                            group = groupTitle.ifBlank { null },
+                            url = url,
+                            epgChannelId = tvgId.ifBlank { null },
+                            sourceType = SourceType.M3U,
+                            sourceId = sourceId,
+                        )
+                    )
                 }
             }
             i++

@@ -1,6 +1,11 @@
 package com.nuvio.app.features.iptv
 
+import com.nuvio.app.features.sports.ChannelScore
+import com.nuvio.app.features.sports.ChannelScorer
+import com.nuvio.app.features.sports.MatchTarget
 import com.nuvio.app.features.sports.TeamStanding
+import com.nuvio.app.features.sports.StandingsGroup
+import com.nuvio.app.features.sports.StandingsRow
 import com.nuvio.app.features.trakt.TraktPlatformClock
 import com.nuvio.app.features.addons.httpGetText
 import kotlinx.coroutines.async
@@ -39,6 +44,8 @@ object EspnClient {
         "fighting/boxing",
         "mma/bkfc",
         "fighting/bkfc",
+        "mma/powerslap",
+        "fighting/powerslap",
         "racing/f1",
         "golf/pga",
         "tennis/atp",
@@ -51,10 +58,11 @@ object EspnClient {
         "mma/pfl", "fighting/pfl",
         "mma/boxing", "fighting/boxing",
         "mma/bkfc", "fighting/bkfc",
+        "mma/powerslap", "fighting/powerslap",
         "mma/bellator", "fighting/bellator",
         "football/nfl", "basketball/nba", "baseball/mlb", "hockey/nhl",
         "football/college-football", "basketball/mens-college-basketball",
-        "soccer/eng.1", "soccer/usa.1", "soccer/esp.1", "soccer/ita.1", "soccer/ger.1", "soccer/fra.1",
+        "soccer/usa.1",
         "basketball/wnba",
         "racing/f1", "golf/pga", "tennis/atp", "tennis/wta", "rugby/english-premiership",
     )
@@ -326,6 +334,59 @@ object EspnClient {
         }
     }
 
+    /** Fetch standings preserving group/table structure and full stats per row. */
+    suspend fun fetchStandingsGroups(sport: String, league: String, season: Int? = null): List<StandingsGroup> {
+        if (season != null) {
+            return fetchStandingsGroupsForSeason(sport, league, season)
+        }
+        // Auto: try the current season, then walk back up to 3 years when the
+        // current season has no tables published yet.
+        val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+        for (year in 0..3) {
+            val groups = fetchStandingsGroupsForSeason(sport, league, currentYear - year)
+            if (groups.isNotEmpty()) return groups
+        }
+        return emptyList()
+    }
+
+    private suspend fun fetchStandingsGroupsForSeason(sport: String, league: String, year: Int): List<StandingsGroup> {
+        val urls = listOf(
+            "$BASE/$sport/$league/standings?season=$year",
+            "$BASE/$sport/$league/standings",
+        )
+        for (url in urls) {
+            try {
+                val parsed = json.decodeFromString<EspnStandingsResponse>(httpGetText(url))
+                val groups = parsed.standings.mapNotNull { container ->
+                    val entries = mutableListOf<StandingsRow>()
+                    container.entries.forEachIndexed { i, e ->
+                        val team = e.team ?: return@forEachIndexed
+                        entries.add(StandingsRow(
+                            teamId = team.id, teamName = team.displayName.ifBlank { team.name },
+                            abbreviation = team.abbreviation, logo = team.logo, color = team.color,
+                            rank = i + 1,
+                            stats = e.stats?.associate { it.name to it.displayValue } ?: emptyMap(),
+                        ))
+                    }
+                    container.groups?.forEach { g ->
+                        g.entries.forEachIndexed { i, e ->
+                            val team = e.team ?: return@forEachIndexed
+                            entries.add(StandingsRow(
+                                teamId = team.id, teamName = team.displayName.ifBlank { team.name },
+                                abbreviation = team.abbreviation, logo = team.logo, color = team.color,
+                                rank = i + 1,
+                                stats = e.stats?.associate { it.name to it.displayValue } ?: emptyMap(),
+                            ))
+                        }
+                    }
+                    if (entries.isEmpty()) null else StandingsGroup(name = container.name, rows = entries)
+                }
+                if (groups.isNotEmpty()) return groups
+            } catch (_: Exception) { continue }
+        }
+        return emptyList()
+    }
+
     private fun guessWikipediaPage(title: String): String? {
         if (title.isBlank()) return null
         // Try "UFC 313" pattern first — most reliable
@@ -390,47 +451,78 @@ object EspnClient {
         }
     }
 
-    fun findAllMatchingChannels(event: SportEvent, channels: List<IptvChannel>): List<IptvChannel> {
-        if (event.strChannel.isBlank()) return emptyList()
-        val searchTerms = SportBroadcasterMap.expandSearchTerms(event.strChannel, event.strSport, event.strLeague)
-        val matched = mutableSetOf<IptvChannel>()
-        for (term in searchTerms) {
-            if (term.length < 3) continue
-            val lowerTerm = term.lowercase().trim()
-            for (ch in channels) {
-                val chName = ch.name.lowercase().trim()
-                val catName = (ch.group ?: "").lowercase().trim()
-                if (com.nuvio.app.features.sports.GameToChannelMatcher.isNonSportsChannel(chName, catName)) continue
-                if (chName.contains(lowerTerm) || lowerTerm.contains(chName)) {
-                    matched.add(ch)
-                }
-            }
-        }
-        return matched.toList()
+    fun findAllMatchingChannels(
+        event: SportEvent,
+        channels: List<IptvChannel>,
+        currentEpgTitleFor: (String) -> String = { "" },
+    ): List<IptvChannel> {
+        return findScoredMatchingChannels(event, channels, currentEpgTitleFor).map { it.channel }
+    }
+
+    /**
+     * Scored variant of [findAllMatchingChannels] for the picker UI: every candidate plus its
+     * score and the reasons it matched, sorted descending so the picker can show confidence.
+     */
+    fun findScoredMatchingChannels(
+        event: SportEvent,
+        channels: List<IptvChannel>,
+        currentEpgTitleFor: (String) -> String = { "" },
+    ): List<ChannelScore> {
+        if (event.strHomeTeam.isBlank() && event.strAwayTeam.isBlank()) return emptyList()
+        val target = MatchTarget(
+            homeTeam = event.strHomeTeam,
+            awayTeam = event.strAwayTeam,
+            league = event.strLeague,
+            sport = event.strSport,
+        )
+        return ChannelScorer.scoreChannels(target, channels, currentEpgTitleFor)
+    }
+
+    /**
+     * Two-pass scored variant for the picker/autoplay path: first score on name/league/generic,
+     * then lazily fetch current-program EPG for the top [cap] candidates and re-score, so a channel
+     * whose EPG shows the matchup outranks an unrelated generic sports channel. Never blocks the
+     * main list on EPG for every channel.
+     */
+    suspend fun findScoredMatchingChannelsWithLazyEpg(
+        event: SportEvent,
+        channels: List<IptvChannel>,
+        currentEpgTitleFor: (String) -> String = { "" },
+        cap: Int = 8,
+    ): List<ChannelScore> {
+        if (event.strHomeTeam.isBlank() && event.strAwayTeam.isBlank()) return emptyList()
+        val target = MatchTarget(
+            homeTeam = event.strHomeTeam,
+            awayTeam = event.strAwayTeam,
+            league = event.strLeague,
+            sport = event.strSport,
+        )
+        val fast = ChannelScorer.scoreChannels(target, channels, currentEpgTitleFor)
+        val candidates = fast.filter { it.score > 0 }.map { it.channel }
+        val lazyLookup = IptvRepository.buildLazyEpgTitleLookup(candidates, cap)
+        return ChannelScorer.scoreChannels(target, channels, currentEpgTitleFor = { name ->
+            val lazy = lazyLookup(name)
+            if (lazy.isNotEmpty()) lazy else currentEpgTitleFor(name)
+        })
     }
 
     internal fun matchSportEventsToChannels(
         sportEvents: List<SportEvent>,
         channels: List<IptvChannel>,
+        currentEpgTitleFor: (String) -> String = { "" },
     ): List<MatchedSportEvent> {
         val matched = mutableListOf<MatchedSportEvent>()
         for (event in sportEvents) {
-            if (event.strChannel.isBlank()) continue
-            val searchTerms = SportBroadcasterMap.expandSearchTerms(event.strChannel, event.strSport, event.strLeague)
-            var found: IptvChannel? = null
-            for (term in searchTerms) {
-                if (term.length < 3) continue
-                val lowerTerm = term.lowercase().trim()
-                found = channels.firstOrNull { ch ->
-                    val chName = ch.name.lowercase().trim()
-                    val catName = (ch.group ?: "").lowercase().trim()
-                    if (com.nuvio.app.features.sports.GameToChannelMatcher.isNonSportsChannel(chName, catName)) false
-                    else chName.contains(lowerTerm) || lowerTerm.contains(chName)
-                }
-                if (found != null) break
-            }
-            if (found != null) {
-                matched.add(MatchedSportEvent(event = event, channel = found))
+            if (event.strHomeTeam.isBlank() && event.strAwayTeam.isBlank()) continue
+            val target = MatchTarget(
+                homeTeam = event.strHomeTeam,
+                awayTeam = event.strAwayTeam,
+                league = event.strLeague,
+                sport = event.strSport,
+            )
+            val top = ChannelScorer.scoreChannels(target, channels, currentEpgTitleFor).firstOrNull()
+            if (top != null) {
+                matched.add(MatchedSportEvent(event = event, channel = top.channel))
             }
         }
         return matched
@@ -464,110 +556,6 @@ object EspnClient {
     }
 }
 
-// ── Region-specific broadcaster mapping for channel matching ──────────────
-object SportBroadcasterMap {
-    private val leagueBroadcasters = mapOf(
-        "nfl" to listOf(
-            "ESPN", "ABC", "FOX", "CBS", "NBC", "NFL Network", "NFLN",
-            "Amazon Prime", "Prime Video", "Peacock", "Paramount+",
-            "Sky Sports", "Sky Sports NFL", "BBC", "BBC One", "BBC Two",
-            "ITV", "ITV1", "Channel 4",
-            "TSN", "TSN1", "TSN2", "TSN3", "TSN4", "TSN5", "CTV", "RDS", "DAZN",
-        ),
-        "college-football" to listOf(
-            "ESPN", "ABC", "FOX", "CBS", "NBC", "SEC Network", "ACC Network",
-            "Big Ten Network", "BTN", "ESPN2", "ESPNU",
-            "TSN", "TSN2",
-        ),
-        "nba" to listOf(
-            "ESPN", "ABC", "TNT", "NBA TV", "NBATV",
-            "Sky Sports", "Sky Sports Arena",
-            "TSN", "TSN1", "TSN2", "TSN3", "TSN4", "Sportsnet", "Sportsnet One",
-            "DAZN",
-        ),
-        "mens-college-basketball" to listOf(
-            "ESPN", "ABC", "CBS", "TNT", "TBS", "truTV", "ESPN2", "ESPNU",
-            "SEC Network", "Big Ten Network", "TSN",
-        ),
-        "mlb" to listOf(
-            "ESPN", "ABC", "FOX", "FS1", "TBS", "MLB Network", "MLBN",
-            "Apple TV+", "Peacock",
-            "Sky Sports", "BT Sport", "TNT Sports",
-            "TSN", "Sportsnet", "Sportsnet One", "RDS",
-        ),
-        "nhl" to listOf(
-            "ESPN", "ABC", "TNT", "TBS", "NHL Network",
-            "Sportsnet", "Sportsnet One", "CBC", "TSN", "TSN1", "TSN2",
-            "TSN3", "TSN4", "TSN5", "CTV", "RDS", "TVA Sports",
-            "Sky Sports", "BBC",
-        ),
-        "usa.1" to listOf(
-            "ESPN", "FOX", "FS1", "Apple TV+", "MLS Season Pass",
-            "TSN", "TSN2", "RDS", "Sky Sports",
-        ),
-        "eng.1" to listOf(
-            "Sky Sports", "Sky Sports Premier League", "Sky Sports Main Event",
-            "TNT Sports", "BT Sport", "BBC", "BBC One",
-            "Amazon Prime", "Prime Video",
-            "NBC", "USA Network", "Peacock",
-            "TSN", "TSN2", "RDS", "DAZN",
-        ),
-        "ufc" to listOf(
-            "ESPN", "ESPN+", "ABC",
-            "TNT Sports", "BT Sport", "Sky Sports Arena",
-            "TSN", "RDS", "DAZN",
-        ),
-        "pfl" to listOf("ESPN", "ESPN2", "ESPN+", "DAZN"),
-        "bellator" to listOf("HBO Max", "MAX", "DAZN"),
-        "boxing" to listOf(
-            "ESPN", "ESPN+", "ABC",
-            "Sky Sports", "Sky Sports Box Office", "TNT Sports", "BT Sport",
-            "DAZN", "Showtime", "TSN", "RDS",
-        ),
-    )
-
-    private val sportBroadcasters = mapOf(
-        "Football" to listOf(
-            "ESPN", "ABC", "FOX", "CBS", "NBC", "NFL Network",
-            "Sky Sports", "BBC", "ITV", "TSN", "CTV", "DAZN",
-        ),
-        "Basketball" to listOf(
-            "ESPN", "ABC", "TNT", "NBA TV", "Sky Sports", "TSN", "Sportsnet",
-        ),
-        "Baseball" to listOf(
-            "ESPN", "FOX", "FS1", "TBS", "MLB Network", "TSN", "Sportsnet",
-        ),
-        "Hockey" to listOf(
-            "ESPN", "ABC", "TNT", "Sportsnet", "CBC", "TSN", "CTV", "RDS",
-        ),
-        "Soccer" to listOf(
-            "Sky Sports", "TNT Sports", "BT Sport", "BBC",
-            "ESPN", "FOX", "FS1", "ABC", "NBC", "USA Network", "TSN", "DAZN",
-        ),
-        "Fighting" to listOf(
-            "ESPN", "ESPN+", "ABC", "TNT Sports", "BT Sport",
-            "Sky Sports", "DAZN", "TSN", "RDS",
-        ),
-    )
-
-    fun getBroadcastersForLeague(league: String): List<String> {
-        val key = league.lowercase().replace(" ", "-").replace("_", "-")
-        return leagueBroadcasters[key] ?: emptyList()
-    }
-
-    fun getBroadcastersForSport(sport: String): List<String> {
-        return sportBroadcasters[sport] ?: emptyList()
-    }
-
-    fun expandSearchTerms(eventChannel: String, sport: String, league: String): List<String> {
-        val terms = mutableListOf(eventChannel)
-        if (eventChannel.isNotBlank()) {
-            terms.add(eventChannel.lowercase().trim())
-        }
-        terms.addAll(getBroadcastersForLeague(league))
-        terms.addAll(getBroadcastersForSport(sport))
-        val fragments = terms.flatMap { it.split(" ").filter { w -> w.length > 2 } }
-        terms.addAll(fragments)
-        return terms.distinct()
-    }
-}
+// (SportBroadcasterMap retired: its league/sport broadcaster terms are covered by
+//  GameToChannelMatcher leagueKeywords + ChannelScorer general-sports matching, so keeping
+//  a second term map would reintroduce the dual-implementation drift the scorer removed.)

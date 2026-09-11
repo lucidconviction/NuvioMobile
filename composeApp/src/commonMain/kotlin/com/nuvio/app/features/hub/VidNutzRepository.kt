@@ -4,13 +4,24 @@ import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.sports.YouTubeStreamResolver
 import com.nuvio.app.features.sports.StreamResult
 import com.nuvio.app.features.sports.platformYouTubeSearch
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 
 object VidNutzRepository {
 
     private const val REQUEST_TIMEOUT_MS = 8_000L
+    private const val CACHE_TTL_MS = 30 * 60 * 1000L
+    private const val MAX_SEARCH_CACHE_SIZE = 50
 
     private data class EngineCache(
         val videos: List<VidNutzVideo>,
@@ -24,7 +35,13 @@ object VidNutzRepository {
         }
         val hasMore: Boolean get() = videos.size > 28
     }
-    private var engineCache: Map<VidNutzCategory, EngineCache> = emptyMap()
+    private var engineCache: MutableMap<VidNutzCategory, EngineCache> = mutableMapOf()
+
+    private var categoryCache: MutableMap<VidNutzCategory, CachedCategory> = mutableMapOf()
+    private var searchCache: MutableMap<String, CachedSearch> = mutableMapOf()
+    private var hubCache: MutableMap<String, CachedHub> = mutableMapOf()
+    private var cacheLoaded = false
+    private var cacheSaveJob: Job? = null
 
     private val invidiousInstances = listOf(
         "https://inv.nadeko.net",
@@ -61,6 +78,33 @@ object VidNutzRepository {
             pipedInstances.subList(0, start)
     }
 
+    private fun loadCache() {
+        if (cacheLoaded) return
+        cacheLoaded = true
+        VidNutzCacheStore.load()?.let { cachedJson ->
+            try {
+                val cache = json.decodeFromString<VidNutzCache>(cachedJson)
+                categoryCache = cache.categories.mapKeys { VidNutzCategory.valueOf(it.key) }.toMutableMap()
+                searchCache = cache.searches.toMutableMap()
+                hubCache = cache.hubs.toMutableMap()
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun saveCache() {
+        cacheSaveJob?.cancel()
+        cacheSaveJob = kotlinx.coroutines.GlobalScope.launch {
+            try {
+                val cache = VidNutzCache(
+                    categories = categoryCache.mapKeys { it.key.name },
+                    searches = searchCache,
+                    hubs = hubCache,
+                )
+                VidNutzCacheStore.save(json.encodeToString(cache))
+            } catch (_: Exception) {}
+        }
+    }
+
     suspend fun fetchTrending(page: Int = 1): List<VidNutzVideo> {
         if (page == 1) {
             try {
@@ -72,7 +116,7 @@ object VidNutzRepository {
                     if (results.size >= 28) break
                 }
                 if (results.isNotEmpty()) return results.take(28).toList()
-            } catch (_: Exception) { }
+            } catch (_: Exception) {}
         }
 
         val offset = (page - 1) * 3
@@ -82,9 +126,9 @@ object VidNutzRepository {
                 val response = withTimeout(REQUEST_TIMEOUT_MS) { httpGetText(url) }
                 val parsed = json.decodeFromString<PipedTrendingResponse>(response)
                 if (parsed.items.isNotEmpty()) {
-                    return parsed.items.filter { it.duration in 30..1800 }.take(28).map { it.toVidNutz() }
+                    return parsed.items.filter { it.duration in 30..1800 }.take(28).map { it.toVidNutz() }.sortedByDescending { videoUploadTimestamp(it.uploadDate) }
                 }
-            } catch (_: Exception) { }
+            } catch (_: Exception) {}
         }
 
         for (instance in rotatedInvidious()) {
@@ -93,9 +137,9 @@ object VidNutzRepository {
                 val response = withTimeout(REQUEST_TIMEOUT_MS) { httpGetText(url) }
                 val raw = json.decodeFromString<List<InvidiousVideo>>(response)
                 if (raw.isNotEmpty()) {
-                    return raw.filter { it.lengthSeconds in 30..1800 }.take(28).map { it.toVidNutz() }
+                    return raw.filter { it.lengthSeconds in 30..1800 }.take(28).map { it.toVidNutz() }.sortedByDescending { videoUploadTimestamp(it.uploadDate) }
                 }
-            } catch (_: Exception) { }
+            } catch (_: Exception) {}
         }
 
         return emptyList()
@@ -103,12 +147,23 @@ object VidNutzRepository {
 
     suspend fun search(query: String, page: Int = 1): List<VidNutzVideo> {
         if (query.isBlank()) return emptyList()
+        loadCache()
+
+        val cacheKey = "$query|$page"
+        val cached = searchCache[cacheKey]
+        if (cached != null && !cached.isExpired) {
+            return cached.videos
+        }
 
         if (page == 1) {
             try {
                 val r = platformYouTubeSearch(query)
-                if (r != null) return r.map { fromYouTubeVideo(it) }
-            } catch (_: Exception) { }
+                if (r != null) {
+                    val results = r.map { fromYouTubeVideo(it) }
+                    cacheSearch(cacheKey, results)
+                    return results
+                }
+            } catch (_: Exception) {}
         }
 
         val encodedQuery = encodeUrl(query)
@@ -120,28 +175,69 @@ object VidNutzRepository {
                 val response = withTimeout(REQUEST_TIMEOUT_MS) { httpGetText(url) }
                 val parsed = json.decodeFromString<PipedSearchResponse>(response)
                 if (parsed.items.isNotEmpty()) {
-                    return parsed.items.filter { it.duration in 30..1800 }.take(28).map { it.toVidNutz() }
+                    val results = parsed.items.filter { it.duration in 30..1800 }.take(28).map { it.toVidNutz() }.sortedByDescending { videoUploadTimestamp(it.uploadDate) }
+                    if (results.isNotEmpty()) {
+                        cacheSearch(cacheKey, results)
+                    }
+                    return results
                 }
-            } catch (_: Exception) { }
+            } catch (_: Exception) {}
         }
 
         for (instance in rotatedInvidious()) {
             try {
-                val url = "$instance/api/v1/search?q=${encodedQuery}&type=video&sort=relevance&page=${page + offset}"
+                val url = "$instance/api/v1/search?q=${encodedQuery}&type=video&sort=date&page=${page + offset}"
                 val response = withTimeout(REQUEST_TIMEOUT_MS) { httpGetText(url) }
                 val raw = json.decodeFromString<List<InvidiousVideo>>(response)
                 if (raw.isNotEmpty()) {
-                    return raw.filter { it.lengthSeconds in 30..1800 }.take(28).map { it.toVidNutz() }
+                    val results = raw.filter { it.lengthSeconds in 30..1800 }.take(28).map { it.toVidNutz() }
+                    if (results.isNotEmpty()) {
+                        cacheSearch(cacheKey, results)
+                    }
+                    return results
                 }
-            } catch (_: Exception) { }
+            } catch (_: Exception) {}
         }
 
         return emptyList()
     }
 
+    private fun cacheSearch(key: String, videos: List<VidNutzVideo>) {
+        if (searchCache.size >= MAX_SEARCH_CACHE_SIZE) {
+            val oldestKey = searchCache.minByOrNull { it.value.timestamp }?.key
+            oldestKey?.let { searchCache.remove(it) }
+        }
+        searchCache[key] = CachedSearch(videos = videos, timestamp = System.currentTimeMillis(), page = 1)
+        saveCache()
+    }
+
+    suspend fun getSubVideos(subId: String, queries: List<String>, count: Int = 12): List<VidNutzVideo> {
+        val base = queries.firstOrNull()?.takeIf { it.isNotBlank() } ?: "videos"
+        return search(base, 1).distinctBy { it.videoId }.take(count).sortedByDescending { videoUploadTimestamp(it.uploadDate) }
+    }
+
+    suspend fun forceRefreshSubVideos(subId: String, queries: List<String>, count: Int = 12): List<VidNutzVideo> {
+        loadCache()
+        for (q in queries) {
+            if (q.isNotBlank()) {
+                val prefix = "$q|"
+                searchCache.keys.removeAll { it.startsWith(prefix) }
+            }
+        }
+        saveCache()
+        return getSubVideos(subId, queries, count)
+    }
+
+    suspend fun getMoreSubVideos(subId: String, queries: List<String>, page: Int): List<VidNutzVideo> {
+        val base = queries.firstOrNull()?.takeIf { it.isNotBlank() } ?: "videos"
+        return search(base, page).sortedByDescending { videoUploadTimestamp(it.uploadDate) }
+    }
+
     suspend fun refreshCategory(category: VidNutzCategory) {
         invalidateEngineCache()
+        categoryCache.remove(category)
         VideoSuggestionEngine.resetCategory(categoryToEngineKey[category] ?: "Trending")
+        saveCache()
     }
 
     suspend fun fetchLive(page: Int = 1): List<VidNutzVideo> {
@@ -155,21 +251,20 @@ object VidNutzRepository {
                     val raw = json.decodeFromString<List<InvidiousVideo>>(response)
                     val filtered = raw.filter {
                         it.lengthSeconds in 0..60 || it.publishedText.contains("streaming", ignoreCase = true)
-                    }.take(28).map { it.toVidNutz(isLive = true) }
+                    }.take(28).map { it.toVidNutz(isLive = true) }.sortedByDescending { videoUploadTimestamp(it.uploadDate) }
                     if (filtered.isNotEmpty()) return filtered
                 }
-            } catch (_: Exception) { }
+            } catch (_: Exception) {}
         }
-        // Fallback: search "live" via Piped
         for (instance in rotatedPiped()) {
             try {
                 val url = "$instance/search?q=${encodeUrl("live stream")}&filter=videos&page=1"
                 val response = withTimeout(REQUEST_TIMEOUT_MS) { httpGetText(url) }
                 val parsed = json.decodeFromString<PipedSearchResponse>(response)
                 if (parsed.items.isNotEmpty()) {
-                    return parsed.items.filter { it.duration in 0..300 }.take(28).map { it.toVidNutz(isLive = true) }
+                    return parsed.items.filter { it.duration in 0..300 }.take(28).map { it.toVidNutz(isLive = true) }.sortedByDescending { videoUploadTimestamp(it.uploadDate) }
                 }
-            } catch (_: Exception) { }
+            } catch (_: Exception) {}
         }
         return emptyList()
     }
@@ -191,19 +286,35 @@ object VidNutzRepository {
     )
 
     suspend fun fetchByCategory(category: VidNutzCategory, page: Int = 1): List<VidNutzVideo> {
-        val cache = engineCache[category]
-        if (cache != null) {
-            val cached = cache.getPage(page)
+        loadCache()
+
+        val memCache = engineCache[category]
+        if (memCache != null) {
+            val cached = memCache.getPage(page)
             if (cached.isNotEmpty()) return cached
         }
 
-        if (category != VidNutzCategory.TRENDING && (page == 1 || cache == null)) {
+        val diskCache = categoryCache[category]
+        if (diskCache != null && !diskCache.isExpired && diskCache.page >= page) {
+            val cached = diskCache.videos
+            val paged = cached.chunked(28).getOrElse(page - 1) { emptyList() }
+            if (paged.isNotEmpty()) {
+                if (page == 1) {
+                    engineCache[category] = EngineCache(videos = cached, pageSize = 28)
+                }
+                return paged
+            }
+        }
+
+        if (category != VidNutzCategory.TRENDING && (page == 1 || diskCache == null || diskCache.isExpired)) {
             try {
                 val engineKey = categoryToEngineKey[category] ?: "Trending"
                 val engineResults = VideoSuggestionEngine.suggest("", engineKey, 96)
                 if (engineResults.isNotEmpty()) {
-                    val mapped = engineResults.map { fromYouTubeVideo(it) }.distinctBy { it.videoId }
-                    engineCache = engineCache + (category to EngineCache(videos = mapped, pageSize = 28))
+                    val mapped = engineResults.map { fromYouTubeVideo(it) }.distinctBy { it.videoId }.sortedByDescending { videoUploadTimestamp(it.uploadDate) }
+                    engineCache[category] = EngineCache(videos = mapped, pageSize = 28)
+                    categoryCache[category] = CachedCategory(videos = mapped, timestamp = System.currentTimeMillis(), page = mapped.size / 28 + 1)
+                    saveCache()
                     val paged = mapped.take(28)
                     if (paged.isNotEmpty()) return paged
                 }
@@ -211,7 +322,12 @@ object VidNutzRepository {
         }
 
         if (category == VidNutzCategory.TRENDING) {
-            return fetchTrending(page)
+            val results = fetchTrending(page)
+            if (results.isNotEmpty() && page == 1) {
+                categoryCache[category] = CachedCategory(videos = results, timestamp = System.currentTimeMillis(), page = 1)
+                saveCache()
+            }
+            return results
         }
 
         if (category == VidNutzCategory.LIVE) {
@@ -220,14 +336,20 @@ object VidNutzRepository {
 
         val query = category.displayName
         val results = search(query, page)
+        if (results.isNotEmpty() && page == 1) {
+            categoryCache[category] = CachedCategory(videos = results, timestamp = System.currentTimeMillis(), page = 1)
+            saveCache()
+        }
         if (results.isNotEmpty()) return results
 
-        // Last-ditch: platform search
         if (page == 1) {
             try {
                 val platformResult = platformYouTubeSearch(query)
                 if (platformResult != null) {
-                    return platformResult.map { fromYouTubeVideo(it) }
+                    val mapped = platformResult.map { fromYouTubeVideo(it) }.sortedByDescending { videoUploadTimestamp(it.uploadDate) }
+                    categoryCache[category] = CachedCategory(videos = mapped, timestamp = System.currentTimeMillis(), page = 1)
+                    saveCache()
+                    return mapped
                 }
             } catch (_: Exception) {}
         }
@@ -235,8 +357,62 @@ object VidNutzRepository {
         return emptyList()
     }
 
+    suspend fun prefetchHub(hub: VidNutzHub): Map<String, List<VidNutzVideo>> {
+        loadCache()
+        val cached = hubCache[hub.id]
+        if (cached != null && !cached.isExpired) {
+            return cached.sections
+        }
+        return coroutineScope {
+            val sections = hub.subs.map { sub ->
+                async { sub.id to getSubVideos(sub.id, sub.queries, 12) }
+            }.awaitAll().toMap()
+            if (sections.values.any { it.isNotEmpty() }) {
+                hubCache[hub.id] = CachedHub(sections = sections, timestamp = System.currentTimeMillis())
+                saveCache()
+            }
+            sections
+        }
+    }
+
+    fun getCachedCategory(category: VidNutzCategory): List<VidNutzVideo> {
+        loadCache()
+        val diskCache = categoryCache[category]
+        if (diskCache != null && !diskCache.isExpired) {
+            return diskCache.videos
+        }
+        return emptyList()
+    }
+
+    fun getCachedHub(hub: VidNutzHub): Map<String, List<VidNutzVideo>> {
+        loadCache()
+        val cached = hubCache[hub.id]
+        if (cached != null && !cached.isExpired) {
+            return cached.sections
+        }
+        return emptyMap()
+    }
+
+    suspend fun getHubSections(hub: VidNutzHub): Map<String, List<VidNutzVideo>> {
+        loadCache()
+        val cached = hubCache[hub.id]
+        if (cached != null && !cached.isExpired) {
+            return cached.sections
+        }
+        return coroutineScope {
+            val sections = hub.subs.map { sub ->
+                async { sub.id to getSubVideos(sub.id, sub.queries, 12) }
+            }.awaitAll().toMap()
+            if (sections.values.any { it.isNotEmpty() }) {
+                hubCache[hub.id] = CachedHub(sections = sections, timestamp = System.currentTimeMillis())
+                saveCache()
+            }
+            sections
+        }
+    }
+
     fun invalidateEngineCache() {
-        engineCache = emptyMap()
+        engineCache = mutableMapOf()
     }
 
     suspend fun resolveStream(videoId: String): StreamResult? {
@@ -252,7 +428,32 @@ object VidNutzRepository {
             .replace("#", "%23")
     }
 
-    @Serializable
+    private fun videoUploadTimestamp(uploadDate: String): Long {
+        if (uploadDate.isBlank()) return 0L
+        val now = System.currentTimeMillis()
+        val lower = uploadDate.lowercase()
+        val rel = Regex("""(\d+)\s*(second|minute|hour|day|week|month|year)s?""").find(lower)
+        if (rel != null) {
+            val count = rel.groupValues[1].toLong()
+            val unit = rel.groupValues[2]
+            return when {
+                unit == "second" -> now - count * 1000L
+                unit == "minute" -> now - count * 60_000L
+                unit == "hour" -> now - count * 3_600_000L
+                unit == "day" -> now - count * 86_400_000L
+                unit == "week" -> now - count * 604_800_000L
+                unit == "month" -> now - count * 2_592_000_000L
+                unit == "year" -> now - count * 31_536_000_000L
+                else -> 0L
+            }
+        }
+        return try {
+            java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.US).parse(uploadDate)?.time ?: 0L
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
     data class InvidiousVideo(
         val title: String = "",
         val videoId: String = "",
@@ -273,7 +474,6 @@ object VidNutzRepository {
         isLive = isLive || (lengthSeconds in 0..5) || publishedText.contains("streaming", ignoreCase = true),
     )
 
-    @Serializable
     data class PipedSearchItem(
         val url: String = "",
         val title: String = "",
@@ -283,12 +483,10 @@ object VidNutzRepository {
         val uploadedDate: String = "",
     )
 
-    @Serializable
     data class PipedSearchResponse(
         val items: List<PipedSearchItem> = emptyList(),
     )
 
-    @Serializable
     data class PipedTrendingResponse(
         val items: List<PipedSearchItem> = emptyList(),
     )

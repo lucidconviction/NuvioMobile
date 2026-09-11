@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit
 object AndroidAppUpdaterPlatform {
     private const val preferencesName = "nuvio_updater"
     private const val ignoredTagKey = "ignored_release_tag"
+    private const val lastAlertedDateKey = "last_alerted_date"
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(60, TimeUnit.SECONDS)
@@ -46,6 +47,15 @@ object AndroidAppUpdaterPlatform {
     fun setIgnoredTag(tag: String?) {
         preferences().edit().apply {
             if (tag == null) remove(ignoredTagKey) else putString(ignoredTagKey, tag)
+        }.apply()
+    }
+
+    fun getLastAlertedDate(): String? =
+        preferences().getString(lastAlertedDateKey, null)
+
+    fun setLastAlertedDate(date: String?) {
+        preferences().edit().apply {
+            if (date == null) remove(lastAlertedDateKey) else putString(lastAlertedDateKey, date)
         }.apply()
     }
 

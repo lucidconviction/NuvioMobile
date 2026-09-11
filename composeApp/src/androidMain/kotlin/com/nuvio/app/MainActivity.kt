@@ -3,6 +3,8 @@ package com.nuvio.app
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import android.view.Window
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -63,6 +65,10 @@ import com.nuvio.app.features.watchprogress.ContinueWatchingPreferencesStorage
 import com.nuvio.app.features.watchprogress.ResumePromptStorage
 import com.nuvio.app.features.watchprogress.WatchProgressStorage
 
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -77,6 +83,9 @@ class MainActivity : AppCompatActivity() {
         SentryInitializer.start(application)
         super.onCreate(savedInstanceState)
         window.setBackgroundDrawableResource(R.color.nuvio_background)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        // Core UI storages initialized synchronously before first frame
         SyncClientIdentityStorage.initialize(applicationContext)
         AddonStorage.initialize(applicationContext)
         AuthStorage.initialize(applicationContext)
@@ -85,54 +94,58 @@ class MainActivity : AppCompatActivity() {
         MetaScreenSettingsStorage.initialize(applicationContext)
         HomeCatalogSettingsStorage.initialize(applicationContext)
         PlayerSettingsStorage.initialize(applicationContext)
-        PlayerTrackPreferenceStorage.initialize(applicationContext)
-        P2pSettingsStorage.initialize(applicationContext)
-        P2pStreamingEngine.initialize(applicationContext)
-        ExternalPlayerPlatform.initialize(applicationContext)
-        SubtitleFileCache.initialize(applicationContext)
         ProfileStorage.initialize(applicationContext)
         AvatarStorage.initialize(applicationContext)
         ProfilePinCacheStorage.initialize(applicationContext)
-        SearchHistoryStorage.initialize(applicationContext)
-        SeasonViewModeStorage.initialize(applicationContext)
         PosterCardStyleStorage.initialize(applicationContext)
         CardDepthStyleStorage.initialize(applicationContext)
-        DebridSettingsStorage.initialize(applicationContext)
-        TmdbSettingsStorage.initialize(applicationContext)
-        MdbListSettingsStorage.initialize(applicationContext)
-        TraktAuthStorage.initialize(applicationContext)
-        TraktCommentsStorage.initialize(applicationContext)
-        TraktLibraryStorage.initialize(applicationContext)
-        TraktSettingsStorage.initialize(applicationContext)
-        ContinueWatchingPreferencesStorage.initialize(applicationContext)
-        ResumePromptStorage.initialize(applicationContext)
-        ContinueWatchingEnrichmentStorage.initialize(applicationContext)
-        EpisodeReleaseNotificationsStorage.initialize(applicationContext)
-        WatchProgressStorage.initialize(applicationContext)
-        StreamLinkCacheStorage.initialize(applicationContext)
-        StreamBadgeSettingsStorage.initialize(applicationContext)
-        BingeGroupCacheStorage.initialize(applicationContext)
-        DiscordPromptStorage.initialize(applicationContext)
-        PluginStorage.initialize(applicationContext)
-        CollectionMobileSettingsStorage.initialize(applicationContext)
-        CollectionStorage.initialize(applicationContext)
-        DownloadsStorage.initialize(applicationContext)
-        DownloadsPlatformDownloader.initialize(applicationContext)
-        DownloadsLiveStatusPlatform.initialize(applicationContext)
-        AndroidAppUpdaterPlatform.initialize(applicationContext)
-        MultiWindowPlayerManager.initialize(applicationContext)
-        PlatformLocalAccountDataCleaner.initialize(applicationContext)
+        IptvStorage.initialize(applicationContext)
+        com.nuvio.app.features.iptv.DeviceFingerprint.initialize(applicationContext)
         EpisodeReleaseNotificationPlatform.initialize(applicationContext)
         EpisodeReleaseNotificationPlatform.bindActivity(this)
-        IptvStorage.initialize(applicationContext)
-        MultiWindowStorage.initialize(applicationContext)
-        com.nuvio.app.features.hub.MusicNutzDownloadStorage.downloadDirPath = applicationContext.filesDir.absolutePath
         handleIncomingAppIntent(intent)
 
         setContent {
             androidx.compose.foundation.layout.Box {
                 App()
             }
+        }
+
+        // Secondary background storages initialized asynchronously off the main thread
+        lifecycleScope.launch(Dispatchers.IO) {
+            PlayerTrackPreferenceStorage.initialize(applicationContext)
+            P2pSettingsStorage.initialize(applicationContext)
+            P2pStreamingEngine.initialize(applicationContext)
+            ExternalPlayerPlatform.initialize(applicationContext)
+            SubtitleFileCache.initialize(applicationContext)
+            SearchHistoryStorage.initialize(applicationContext)
+            SeasonViewModeStorage.initialize(applicationContext)
+            DebridSettingsStorage.initialize(applicationContext)
+            TmdbSettingsStorage.initialize(applicationContext)
+            MdbListSettingsStorage.initialize(applicationContext)
+            TraktAuthStorage.initialize(applicationContext)
+            TraktCommentsStorage.initialize(applicationContext)
+            TraktLibraryStorage.initialize(applicationContext)
+            TraktSettingsStorage.initialize(applicationContext)
+            ContinueWatchingPreferencesStorage.initialize(applicationContext)
+            ResumePromptStorage.initialize(applicationContext)
+            ContinueWatchingEnrichmentStorage.initialize(applicationContext)
+            EpisodeReleaseNotificationsStorage.initialize(applicationContext)
+            WatchProgressStorage.initialize(applicationContext)
+            StreamLinkCacheStorage.initialize(applicationContext)
+            StreamBadgeSettingsStorage.initialize(applicationContext)
+            BingeGroupCacheStorage.initialize(applicationContext)
+            DiscordPromptStorage.initialize(applicationContext)
+            PluginStorage.initialize(applicationContext)
+            CollectionMobileSettingsStorage.initialize(applicationContext)
+            CollectionStorage.initialize(applicationContext)
+            DownloadsStorage.initialize(applicationContext)
+            DownloadsPlatformDownloader.initialize(applicationContext)
+            DownloadsLiveStatusPlatform.initialize(applicationContext)
+            AndroidAppUpdaterPlatform.initialize(applicationContext)
+            MultiWindowPlayerManager.initialize(applicationContext)
+            PlatformLocalAccountDataCleaner.initialize(applicationContext)
+            MultiWindowStorage.initialize(applicationContext)
         }
     }
 

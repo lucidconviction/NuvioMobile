@@ -11,6 +11,12 @@ actual object AppUpdaterPlatform {
         AndroidAppUpdaterPlatform.setIgnoredTag(tag)
     }
 
+    actual fun getLastAlertedDate(): String? = AndroidAppUpdaterPlatform.getLastAlertedDate()
+
+    actual fun setLastAlertedDate(date: String?) {
+        AndroidAppUpdaterPlatform.setLastAlertedDate(date)
+    }
+
     actual suspend fun downloadApk(
         assetUrl: String,
         assetName: String,

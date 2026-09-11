@@ -286,24 +286,6 @@ internal fun LazyListScope.settingsRootContent(
                 color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center,
             )
-            Text(
-                text = "@RNutzNuvioChat",
-                modifier = Modifier.fillMaxWidth().clickable {
-                    runCatching { uriHandler.openUri("https://t.me/RNutzNuvioChat") }
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = "@RNutzNuvioBugs",
-                modifier = Modifier.fillMaxWidth().clickable {
-                    runCatching { uriHandler.openUri("https://t.me/RNutzNuvioBugs") }
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center,
-            )
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.nuvio.app.features.sports
 
+import com.nuvio.app.features.trakt.TraktPlatformClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -58,7 +59,7 @@ object Sync2CalRepository {
                 async {
                     val cacheKey = mapping.leagueId
                     val cached = cache[cacheKey]
-                    if (cached != null && System.currentTimeMillis() - cached.timestamp < CACHE_TTL_MS) {
+                    if (cached != null && TraktPlatformClock.nowEpochMs() - cached.timestamp < CACHE_TTL_MS) {
                         return@async Pair(cacheKey, cached)
                     }
                     try {
@@ -71,7 +72,7 @@ object Sync2CalRepository {
                             }
                             val enriched = events.map { it.copy(leagueId = mapping.leagueId, leagueName = Sync2CalMappings.leagueNameFromId(mapping.leagueId)) }
                             val tvChannels = enriched.associate { ev -> ev.id to extractTvChannels(ev) }
-                            Pair(cacheKey, CacheEntry(enriched, tvChannels, System.currentTimeMillis()))
+                            Pair(cacheKey, CacheEntry(enriched, tvChannels, TraktPlatformClock.nowEpochMs()))
                         } else {
                             Pair(cacheKey, null)
                         }
@@ -101,7 +102,7 @@ object Sync2CalRepository {
             val mapping = Sync2CalMappings.leagueMappings.find { it.leagueId == leagueId } ?: return@launch
             val cacheKey = leagueId
             val cached = cache[cacheKey]
-            if (cached != null && System.currentTimeMillis() - cached.timestamp < CACHE_TTL_MS) {
+            if (cached != null && TraktPlatformClock.nowEpochMs() - cached.timestamp < CACHE_TTL_MS) {
                 _eventsByLeague.value = _eventsByLeague.value + (leagueId to cached.events)
                 _tvChannelsByEvent.value = _tvChannelsByEvent.value + cached.tvChannels
                 return@launch
@@ -112,7 +113,7 @@ object Sync2CalRepository {
                     val events = withTimeout(10_000) { Sync2CalClient.getFilteredEvents(category.uuid) }
                     val enriched = events.map { it.copy(leagueId = leagueId, leagueName = Sync2CalMappings.leagueNameFromId(leagueId)) }
                     val tvChannels = enriched.associate { ev -> ev.id to extractTvChannels(ev) }
-                    cache[cacheKey] = CacheEntry(enriched, tvChannels, System.currentTimeMillis())
+                    cache[cacheKey] = CacheEntry(enriched, tvChannels, TraktPlatformClock.nowEpochMs())
                     _eventsByLeague.value = _eventsByLeague.value + (leagueId to enriched)
                     _tvChannelsByEvent.value = _tvChannelsByEvent.value + tvChannels
                 }

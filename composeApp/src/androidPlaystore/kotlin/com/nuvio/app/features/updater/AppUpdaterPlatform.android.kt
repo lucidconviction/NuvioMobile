@@ -14,6 +14,10 @@ actual object AppUpdaterPlatform {
 
     actual fun setIgnoredTag(tag: String?) = Unit
 
+    actual fun getLastAlertedDate(): String? = null
+
+    actual fun setLastAlertedDate(date: String?) = Unit
+
     actual suspend fun downloadApk(
         assetUrl: String,
         assetName: String,

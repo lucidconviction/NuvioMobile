@@ -9,6 +9,10 @@ expect object AppUpdaterPlatform {
 
     fun setIgnoredTag(tag: String?)
 
+    fun getLastAlertedDate(): String?
+
+    fun setLastAlertedDate(date: String?)
+
     suspend fun downloadApk(
         assetUrl: String,
         assetName: String,

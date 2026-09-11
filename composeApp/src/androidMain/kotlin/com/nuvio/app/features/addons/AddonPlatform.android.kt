@@ -85,16 +85,25 @@ private fun parseEnabledStateLine(line: String): Pair<String, Boolean>? {
     return url to enabled
 }
 
-private val addonHttpClient = OkHttpClient.Builder()
-    .dns(IPv4FirstDns())
-    .connectTimeout(60, TimeUnit.SECONDS)
-    .readTimeout(60, TimeUnit.SECONDS)
-    .writeTimeout(60, TimeUnit.SECONDS)
-    .followRedirects(true)
-    .followSslRedirects(true)
-    .addInterceptor(SentryNetworkBreadcrumbInterceptor())
-    .proxy(Proxy.NO_PROXY)
-    .build()
+private val addonHttpClient: OkHttpClient by lazy {
+    val builder = OkHttpClient.Builder()
+        .dns(IPv4FirstDns())
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .addInterceptor(SentryNetworkBreadcrumbInterceptor())
+        .proxy(Proxy.NO_PROXY)
+
+    val cacheDir = com.nuvio.app.appContext?.cacheDir?.resolve("http_cache")
+    if (cacheDir != null) {
+        try {
+            builder.cache(okhttp3.Cache(cacheDir, 50L * 1024 * 1024))
+        } catch (_: Throwable) {}
+    }
+    builder.build()
+}
 
 private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 private const val maxRawResponseBodyBytes = 1024 * 1024

@@ -34,18 +34,6 @@ data class MusicNutzPlaylist(
     val durationSeconds: Int get() = tracks.sumOf { it.durationSeconds }
 }
 
-@Serializable
-data class MusicDownload(
-    val trackId: Long,
-    val title: String,
-    val artistName: String,
-    val albumCover: String = "",
-    val localFilePath: String? = null,
-    val isDownloading: Boolean = false,
-    val progress: Float = 0f,
-    val error: String? = null,
-)
-
 enum class MusicNutzCategory(val displayName: String) {
     TRENDING("Trending"),
     NEW_RELEASES("New Releases"),
@@ -84,7 +72,6 @@ data class MusicNutzUiState(
     val albumTracks: List<MusicTrack> = emptyList(),
     val isLoadingAlbumTracks: Boolean = false,
     val playlists: List<MusicNutzPlaylist> = emptyList(),
-    val downloads: List<MusicDownload> = emptyList(),
     val currentPlaylist: MusicNutzPlaylist? = null,
     val showAddToPlaylist: MusicTrack? = null,
     val newPlaylistName: String = "",

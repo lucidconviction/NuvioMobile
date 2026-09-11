@@ -17,11 +17,6 @@ object Sync2CalMappings {
         Sync2CalLeague("pfl", "sports/fighting/pfl"),
         Sync2CalLeague("bkfc", "sports/fighting/bkfc"),
         Sync2CalLeague("mls", "sports/soccer/usa/mls", "sports/soccer/usa/mls/"),
-        Sync2CalLeague("epl", "sports/soccer/england/premier-league", "sports/soccer/england/premier-league/"),
-        Sync2CalLeague("laliga", "sports/soccer/spain/la-liga", "sports/soccer/spain/la-liga/"),
-        Sync2CalLeague("seriea", "sports/soccer/italy/serie-a", "sports/soccer/italy/serie-a/"),
-        Sync2CalLeague("bundes", "sports/soccer/germany/bundesliga", "sports/soccer/germany/bundesliga/"),
-        Sync2CalLeague("ligue1", "sports/soccer/france/ligue-1", "sports/soccer/france/ligue-1/"),
         Sync2CalLeague("ucl", "sports/soccer/europe/champions-league"),
         Sync2CalLeague("f1", "sports/racing/f1"),
         Sync2CalLeague("tennis", "sports/tennis/atp"),
@@ -41,8 +36,7 @@ object Sync2CalMappings {
         return when (leagueId) {
             "nfl" -> "NFL"; "nba" -> "NBA"; "mlb" -> "MLB"; "nhl" -> "NHL"
             "ufc" -> "UFC"; "boxing" -> "Boxing"; "pfl" -> "PFL"
-            "mls" -> "MLS"; "epl" -> "Premier League"; "laliga" -> "La Liga"
-            "seriea" -> "Serie A"; "bundes" -> "Bundesliga"; "ligue1" -> "Ligue 1"
+            "mls" -> "MLS"
             "ucl" -> "Champions League"; "f1" -> "Formula 1"
             "tennis" -> "Tennis"; "golf" -> "Golf"
             "cfb" -> "College Football"; "cbb" -> "College Basketball"

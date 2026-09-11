@@ -45,7 +45,16 @@ object MetaDetailsRepository {
     private val _uiState = MutableStateFlow(MetaDetailsUiState())
     val uiState: StateFlow<MetaDetailsUiState> = _uiState.asStateFlow()
     private var activeRequestKey: String? = null
-    private val cachedMetaByRequestKey = mutableMapOf<String, CachedMetaEntry>()
+    private const val MAX_CACHED_META_ENTRIES = 100
+    private val cachedMetaByRequestKey = linkedMapOf<String, CachedMetaEntry>()
+
+    private fun putCachedMeta(key: String, entry: CachedMetaEntry) {
+        cachedMetaByRequestKey[key] = entry
+        while (cachedMetaByRequestKey.size > MAX_CACHED_META_ENTRIES) {
+            val oldest = cachedMetaByRequestKey.keys.firstOrNull() ?: break
+            cachedMetaByRequestKey.remove(oldest)
+        }
+    }
 
     fun load(type: String, id: String) {
         log.d { "load() called — type=$type id=$id" }
@@ -205,13 +214,13 @@ object MetaDetailsRepository {
                 tryFetchMeta(manifest, type, metaLookupId, includeMdbList = false)
             }
             if (result != null) {
-                cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = result)
+                putCachedMeta(requestKey, CachedMetaEntry(baseMeta = result))
                 return result
             }
         }
 
         return tryFetchTmdbFallbackMeta(type = type, id = id)?.also { result ->
-            cachedMetaByRequestKey[requestKey] = CachedMetaEntry(baseMeta = result)
+            putCachedMeta(requestKey, CachedMetaEntry(baseMeta = result))
         }
     }
 
@@ -338,7 +347,7 @@ object MetaDetailsRepository {
         metaScreenSettingsFingerprint: String,
     ) {
         val cachedEntry = CachedMetaEntry(baseMeta = meta)
-        cachedMetaByRequestKey[requestKey] = cachedEntry
+        putCachedMeta(requestKey, cachedEntry)
 
         if (!shouldEnrichForMetaScreen(meta, fallbackItemId, mdbListSettings)) {
             _uiState.value = MetaDetailsUiState(meta = meta.withUnreleasedFilter())
@@ -360,9 +369,12 @@ object MetaDetailsRepository {
                 settingsFingerprint = metaScreenSettingsFingerprint,
             )
         }
-        cachedMetaByRequestKey[requestKey] = cachedEntry.copy(
-            metaScreenMeta = enrichedMeta,
-            metaScreenSettingsFingerprint = metaScreenSettingsFingerprint,
+        putCachedMeta(
+            requestKey,
+            cachedEntry.copy(
+                metaScreenMeta = enrichedMeta,
+                metaScreenSettingsFingerprint = metaScreenSettingsFingerprint,
+            )
         )
         _uiState.value = MetaDetailsUiState(meta = enrichedMeta.withUnreleasedFilter())
         activeRequestKey = requestKey
@@ -389,7 +401,7 @@ object MetaDetailsRepository {
             fallbackItemType = fallbackItemType,
         )
 
-        cachedMetaByRequestKey[requestKey] = cachedMetaByRequestKey[requestKey]
+        val newEntry = cachedMetaByRequestKey[requestKey]
             ?.copy(
                 metaScreenMeta = enrichedMeta,
                 metaScreenSettingsFingerprint = settingsFingerprint,
@@ -399,6 +411,7 @@ object MetaDetailsRepository {
                 metaScreenMeta = enrichedMeta,
                 metaScreenSettingsFingerprint = settingsFingerprint,
             )
+        putCachedMeta(requestKey, newEntry)
 
         return enrichedMeta
     }

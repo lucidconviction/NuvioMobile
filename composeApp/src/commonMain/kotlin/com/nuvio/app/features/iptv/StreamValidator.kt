@@ -16,7 +16,7 @@ object StreamValidator {
 
     const val TTL_MS = 30 * 60 * 1000L
 
-    private const val TIMEOUT_MS = 3_000L
+    private const val TIMEOUT_MS = 6_000L
     private const val MAX_CONCURRENCY = 24
     private const val SAMPLE_SIZE = 1024
     private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36"
@@ -98,7 +98,8 @@ object StreamValidator {
         if (trimmed.isEmpty()) return false
         val lower = trimmed.lowercase()
         if (htmlPagePrefixes.any { lower.startsWith(it) }) return false
-        if (lower.length < 256 && deadPageTokens.any { trimmed.contains(it, ignoreCase = true) }) return false
+        val check = trimmed.take(256)
+        if (deadPageTokens.any { check.contains(it, ignoreCase = true) }) return false
         return true
     }
 }

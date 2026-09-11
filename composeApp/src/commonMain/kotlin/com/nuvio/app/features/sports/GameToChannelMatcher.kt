@@ -2,10 +2,11 @@ package com.nuvio.app.features.sports
 
 import com.nuvio.app.features.iptv.EspnProcessedEvent
 import com.nuvio.app.features.iptv.IptvChannel
+import com.nuvio.app.features.iptv.IptvRepository
 
 object GameToChannelMatcher {
 
-    private val leagueKeywords = mapOf(
+    internal val leagueKeywords = mapOf(
         "NFL" to listOf("nfl", "football", "nfl network", "nfl redzone", "sunday night football", "monday night football", "thursday night football", "fox", "cbs", "nbc", "espn", "sky sports nfl", "nfl sunday", "gridiron", "espn2", "espnews", "nfln", "nfl network", "paramount", "peacock", "prime video", "amazon"),
         "NBA" to listOf("nba", "basketball", "nba tv", "tnt", "espn", "abc", "nba league pass", "sky sports nba", "bt sport nba", "tyson", "nba finals", "nbatv", "espn2", "nba tv", "sportsnet", "tsn"),
         "MLB" to listOf("mlb", "baseball", "mlb network", "espn", "fox", "fs1", "fs2", "tbs", "mlb.tv", "world series", "mlbn", "sportsnet", "tsn", "mlb network"),
@@ -54,11 +55,11 @@ object GameToChannelMatcher {
         "qvc", "hsn", "cbs drama", "cbs reality", "cbs justice", "paramount network",
     )
 
-    private val generalSportsKeywords = listOf("sports", "espn", "espn2", "espn3", "espnu", "espnews", "fox sports", "fs1", "fs2", "cbs sports", "cbsn", "nbc sports", "tnt", "tbs", "tru tv", "dazn", "bein", "bein sport", "sky sports", "sky sport", "bt sport", "eurosport", "eurosport 1", "eurosport 2", "sport tv", "premium sport", "sport 1", "sport 2", "sport 3", "sport 4", "sport 5", "tnt sport", "tnt sports", "paramount", "peacock", "abc", "cbs", "nbc", "fox", "usa network", "golf channel", "nfl network", "nba tv", "mlb network", "nhl network", "tennis channel", "olympic", "sportsnet", "tsn", "rds", "cbc", "ctv", "kayo", "fox footy", "fox league", "seven", "nine", "willow", "sky racing")
+    internal val generalSportsKeywords = listOf("sports", "espn", "espn2", "espn3", "espnu", "espnews", "fox sports", "fs1", "fs2", "cbs sports", "cbsn", "nbc sports", "tnt", "tbs", "tru tv", "dazn", "bein", "bein sport", "sky sports", "sky sport", "bt sport", "eurosport", "eurosport 1", "eurosport 2", "sport tv", "premium sport", "sport 1", "sport 2", "sport 3", "sport 4", "sport 5", "tnt sport", "tnt sports", "paramount", "peacock", "abc", "cbs", "nbc", "fox", "usa network", "golf channel", "nfl network", "nba tv", "mlb network", "nhl network", "tennis channel", "olympic", "sportsnet", "tsn", "rds", "cbc", "ctv", "kayo", "fox footy", "fox league", "seven", "nine", "willow", "sky racing")
 
-    private val genericNetworks = setOf("fox", "abc", "cbs", "nbc", "cbc", "ctv", "seven", "nine", "paramount", "peacock")
+    internal val genericNetworks = setOf("fox", "abc", "cbs", "nbc", "cbc", "ctv", "seven", "nine", "paramount", "peacock")
 
-    private val sportsIndicators = listOf("sport", "sports", "fs1", "fs2", "espn", "nfl", "nba", "mlb", "nhl", "ufc", "fight", "game", "league", "pass", "network", "tv", "stream", "live")
+    internal val sportsIndicators = listOf("sport", "sports", "fs1", "fs2", "espn", "nfl", "nba", "mlb", "nhl", "ufc", "fight", "game", "league", "pass", "network", "tv", "stream", "live")
 
     fun isNonSportsChannel(channelName: String, categoryName: String): Boolean {
         if (nonSportsChannelKeywords.any { channelName.contains(it) }) return true
@@ -68,35 +69,60 @@ object GameToChannelMatcher {
         return false
     }
 
-    fun matchChannels(event: EspnProcessedEvent, channels: List<IptvChannel>, sourceName: String = ""): List<MatchedChannel> {
-        val matches = mutableListOf<MatchedChannel>()
-
-        for (channel in channels) {
-            val channelName = channel.name.lowercase().trim()
-            val categoryName = (channel.group ?: "").lowercase().trim()
-
-            if (isNonSportsChannel(channelName, categoryName)) continue
-
-            val match = when {
-                matchesByLeagueAbbreviation(event.league, channelName, categoryName) ->
-                    MatchedChannel(channel, MatchType.LEAGUE, sourceName)
-                matchesByTeamName(event.awayTeam, event.homeTeam, channelName, categoryName) ->
-                    MatchedChannel(channel, MatchType.TEAM, sourceName)
-                matchesGeneralSports(channelName, categoryName) ->
-                    MatchedChannel(channel, MatchType.GENERAL_SPORTS, sourceName)
-                else -> null
+    fun matchChannels(
+        event: EspnProcessedEvent,
+        channels: List<IptvChannel>,
+        sourceName: String = "",
+        currentEpgTitleFor: (String) -> String = { "" },
+    ): List<MatchedChannel> {
+        return ChannelScorer.scoreChannels(event, channels, currentEpgTitleFor)
+            .map {
+                MatchedChannel(
+                    channel = it.channel,
+                    matchType = it.matchType,
+                    sourceName = sourceName,
+                    providerGroup = it.channel.sourceType,
+                    score = it.score,
+                    reasons = it.reasons,
+                )
             }
-            if (match != null) {
-                matches.add(match)
-            }
-        }
-
-        return matches.sortedBy { it.matchType.ordinal }
     }
 
-    private fun matchesByLeagueAbbreviation(league: String, channelName: String, category: String): Boolean {
+    /**
+     * Two-pass variant for the detail-panel list: fast name/league/generic score first, then lazily
+     * fetch current-program EPG for the top [cap] candidates and re-score so a live program's
+     * matchup outranks an unrelated generic sports channel — without blocking on EPG for every channel.
+     */
+    suspend fun matchChannelsWithLazyEpg(
+        event: EspnProcessedEvent,
+        channels: List<IptvChannel>,
+        sourceName: String = "",
+        currentEpgTitleFor: (String) -> String = { "" },
+        cap: Int = 8,
+    ): List<MatchedChannel> {
+        val fast = ChannelScorer.scoreChannels(event, channels, currentEpgTitleFor)
+        val candidates = fast.filter { it.score > 0 }.map { it.channel }
+        val lazyLookup = IptvRepository.buildLazyEpgTitleLookup(candidates, cap)
+        val combined: (String) -> String = { name ->
+            val lazy = lazyLookup(name)
+            if (lazy.isNotEmpty()) lazy else currentEpgTitleFor(name)
+        }
+        return ChannelScorer.scoreChannels(event, channels, combined)
+            .map {
+                MatchedChannel(
+                    channel = it.channel,
+                    matchType = it.matchType,
+                    sourceName = sourceName,
+                    providerGroup = it.channel.sourceType,
+                    score = it.score,
+                    reasons = it.reasons,
+                )
+            }
+    }
+
+    fun matchesByLeagueKeywords(league: String, channelName: String, category: String): Boolean {
         if (league.isBlank()) return false
-        val key = league.uppercase()
+        val key = leagueKey(league)
         val keywords = leagueKeywords[key] ?: listOf(league.lowercase())
         return keywords.any { kw ->
             val kwLower = kw.lowercase()
@@ -109,17 +135,30 @@ object GameToChannelMatcher {
         }
     }
 
-    private fun matchesByTeamName(homeTeam: String, awayTeam: String, channelName: String, category: String): Boolean {
-        val teamTokens = (homeTeam.split(" ") + awayTeam.split(" "))
-            .map { it.lowercase().trim() }
-            .filter { it.length >= 4 && it !in commonSkipWords }
-        if (teamTokens.isEmpty()) return false
-        return teamTokens.any { token ->
-            channelName.contains(token) || category.contains(token)
+    /**
+     * Maps the league value carried on an event to the keyword-table key. Events arrive with ESPN
+     * path IDs like "Eng.1" (Premier League), so alias them onto the readable table keys.
+     */
+    internal fun leagueKey(league: String): String {
+        val upper = league.trim().uppercase()
+        return when (upper) {
+            "ENG.1", "PREMIER LEAGUE", "EPL" -> "EPL"
+            "ESP.1", "LALIGA" -> "LALIGA"
+            "ITA.1", "SERIE A" -> "SERIEA"
+            "GER.1", "BUNDESLIGA" -> "BUNDES"
+            "FRA.1", "LIGUE 1" -> "LIGUE1"
+            "USA.1", "MLS" -> "MLS"
+            "ENGLISH-PREMIERSHIP", "ENGLISH PREMIERSHIP" -> "RUGBY"
+            "COLLEGE-FOOTBALL", "COLLEGE FOOTBALL" -> "CFB"
+            "MENS-COLLEGE-BASKETBALL", "NCAA BASKETBALL" -> "CBB"
+            "ATP", "WTA" -> "TEN"
+            "PGA", "PGATOUR" -> "GOLF"
+            "F1", "FORMULA 1" -> "F1"
+            else -> upper.ifBlank { "" }
         }
     }
 
-    private fun matchesGeneralSports(channelName: String, category: String): Boolean {
+    fun matchesGeneralSportsKeywords(channelName: String, category: String): Boolean {
         return generalSportsKeywords.any { kw ->
             if (kw in genericNetworks) {
                 (channelName.contains(kw) || category.contains(kw)) &&
@@ -149,11 +188,5 @@ object GameToChannelMatcher {
         }
     }
 
-    private val commonSkipWords = setOf(
-        "the", "and", "for", "fc", "utd", "vs", "at", "de", "los", "las", "san", "real", "city",
-        "united", "team", "club", "fc", "cf", "ac", "ssc", "sc", "sv", "bv", "vfl", "tsv", "1.", "2.", "3.",
-        "red", "blue", "white", "black", "gold", "golden", "bay", "st", "new", "york", "angels",
-        "north", "south", "east", "west", "central", "state", "port", "green", "grand", "la", "el", "al"
-    )
-}
+    }
 
