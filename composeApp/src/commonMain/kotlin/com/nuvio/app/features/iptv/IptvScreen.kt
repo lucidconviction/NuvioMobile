@@ -35,10 +35,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -57,6 +60,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -90,6 +94,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -110,7 +115,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
+import coil3.compose.LocalPlatformContext
 import com.nuvio.app.features.hub.MultiWindowStore
+import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.features.player.PlayerLaunchStore
 import com.nuvio.app.features.trakt.TraktPlatformClock
@@ -118,7 +127,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.nuvio.app.navigation.PageStateStore
+import com.nuvio.app.navigation.PageState
 
 // ─── Obsidian Media Hub Design Tokens ────────────────────────────────────
 private val ObsidianBg = Color(0xFF131313)
@@ -151,10 +163,52 @@ fun IptvScreen(
     onMultiWindowAdded: (() -> Unit)? = null,
     isTabletLayout: Boolean = false,
 ) {
+    // Restore IptvScreen state when navigating back to this screen
+    val restoredState = remember { PageStateStore.restore("IptvScreen") }
+    
+    // Hoist state up so we can save/restore scroll position and UI state
+    val listState = rememberLazyListState()
+    val scrollState = rememberScrollState()
     val uiState by IptvRepository.uiState.collectAsStateWithLifecycle()
-    var showAddSourceSheet by remember { mutableStateOf(false) }
+    var showAddSourceSheet by remember { 
+        mutableStateOf(
+            restoredState?.extra?.get("showAddSourceSheet") as? Boolean 
+                ?: false
+        ) 
+    }
     var loadError by remember { mutableStateOf<String?>(null) }
     var pickerChannel by remember { mutableStateOf<IptvChannel?>(null) }
+    
+    // Save IptvScreen state when navigating away from this screen
+    DisposableEffect(Unit) {
+        onDispose {
+            // Save current state before leaving
+            val stateToSave = PageState(
+                searchQuery = uiState.searchQuery,
+                selectedPage = "IptvScreen", // Using this field to identify the screen type
+                scrollIndex = listState.firstVisibleItemIndex,
+                scrollOffset = listState.firstVisibleItemScrollOffset,
+                extra = mutableMapOf<String, Any>().apply {
+                    put("showAddSourceSheet", showAddSourceSheet)
+                    uiState.selectedCategory?.let { put("selectedCategory", it) }
+                    put("selectedSourceIds", uiState.selectedSourceIds)
+                    put("playlistsExpanded", uiState.playlistsExpanded)
+                    put("channelsExpanded", uiState.channelsExpanded)
+                    put("favoritesExpanded", uiState.favoritesExpanded)
+                }
+            )
+            PageStateStore.save("IptvScreen", stateToSave)
+        }
+    }
+
+    // Restore scroll position after layout if we have a saved state
+    LaunchedEffect(restoredState, listState, scrollState) {
+        if (restoredState != null && restoredState.scrollIndex >= 0) {
+            runCatching {
+                listState.scrollToItem(restoredState.scrollIndex, restoredState.scrollOffset)
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         try {
@@ -206,6 +260,8 @@ fun IptvScreen(
                 scrollToTopRequests = scrollToTopRequests,
                 onAddSource = { showAddSourceSheet = true },
                 onPickerChannel = { pickerChannel = it },
+                scrollState = scrollState,
+                restoredState = restoredState
             )
         } else {
             IptvMobileMode(
@@ -214,14 +270,21 @@ fun IptvScreen(
                 scrollToTopRequests = scrollToTopRequests,
                 onAddSource = { showAddSourceSheet = true },
                 onPickerChannel = { pickerChannel = it },
+                listState = listState,
+                restoredState = restoredState
             )
         }
     }
 
     if (showAddSourceSheet) {
+        val license = PortalLicenseManager.getSavedLicense()
+        val portalCount = IptvRepository.portalAccountCount()
+        val canAdd = PortalLicenseManager.canAddPortal(license, portalCount)
         AddSourceBottomSheet(
             onDismiss = { showAddSourceSheet = false },
-            onSuccess = { showAddSourceSheet = false }
+            onSuccess = { showAddSourceSheet = false },
+            canAddPortal = canAdd,
+            licenseStatus = PortalLicenseManager.checkStatus(license),
         )
     }
 }
@@ -235,35 +298,25 @@ private fun IptvTvMode(
     scrollToTopRequests: Flow<Unit>,
     onAddSource: () -> Unit,
     onPickerChannel: (IptvChannel) -> Unit,
+    scrollState: ScrollState,
+    restoredState: PageState?,
 ) {
     val now = TraktPlatformClock.nowEpochMs()
-    val scrollState = rememberScrollState()
-    val allChannels = uiState.m3uPlaylists.flatMap { it.channels } +
-            uiState.xtreamAccounts.flatMap { it.channels } +
-            uiState.stalkerAccounts.flatMap { it.channels }
-    val favorites = IptvRepository.getFavoriteChannels()
-    val history = IptvRepository.getHistoryChannels()
-    val playlists = uiState.m3uPlaylists + uiState.xtreamAccounts.map { acc ->
-        M3uPlaylist(id = acc.id, name = acc.name, url = acc.server, channels = acc.channels)
-    } + uiState.stalkerAccounts.map { acc ->
-        M3uPlaylist(id = acc.id, name = acc.name, url = acc.server, channels = acc.channels)
+    var showSearch by remember {
+        mutableStateOf(
+            restoredState?.extra?.get("showSearch") as? Boolean
+                ?: false
+        )
     }
-
-    var showSearch by remember { mutableStateOf(false) }
     var epgSheetChannel: IptvChannel? by remember { mutableStateOf(null) }
     val xtreamAccountById = remember(uiState.xtreamAccounts) { uiState.xtreamAccounts.associateBy { it.id } }
-
-    var lastRefreshing by remember { mutableStateOf(uiState.refreshingSourceIds) }
-    LaunchedEffect(uiState.refreshingSourceIds) {
-        val finished = lastRefreshing - uiState.refreshingSourceIds
-        lastRefreshing = uiState.refreshingSourceIds
-        if (finished.isNotEmpty()) {
-            finished.forEach { id ->
-                val channels = allChannels.filter { it.sourceId == id }
-                if (channels.isNotEmpty()) StreamValidationController.scanSource(id, channels)
-            }
-        }
+    val allChannels = remember(uiState.m3uPlaylists, uiState.xtreamAccounts, uiState.stalkerAccounts) {
+        uiState.m3uPlaylists.flatMap { it.channels } +
+            uiState.xtreamAccounts.flatMap { it.channels } +
+            uiState.stalkerAccounts.flatMap { it.channels }
     }
+    val favorites = remember(uiState.favoriteChannelIds, allChannels) { IptvRepository.getFavoriteChannels() }
+    val history = remember(uiState.channelHistoryIds, allChannels) { IptvRepository.getHistoryChannels() }
 
     Column(modifier = Modifier.fillMaxSize().background(ObsidianBg)) {
         // ── Fixed Top Bar (persistent search bar) ──
@@ -354,11 +407,13 @@ private fun IptvTvMode(
             Spacer(Modifier.height(32.dp))
 
             // Recommended Channels Grid
-            val displayChannels = if (uiState.searchQuery.isNotBlank()) {
-                allChannels.filter { (it.name.contains(uiState.searchQuery, ignoreCase = true) ||
-                        (it.group?.contains(uiState.searchQuery, ignoreCase = true) == true)) &&
-                        !StreamValidationStore.isKnownDeadSync(it.url) }
-            } else allChannels.filter { !StreamValidationStore.isKnownDeadSync(it.url) }
+            val displayChannels = remember(allChannels, uiState.searchQuery) {
+                if (uiState.searchQuery.isNotBlank()) {
+                    allChannels.filter { (it.name.contains(uiState.searchQuery, ignoreCase = true) ||
+                            (it.group?.contains(uiState.searchQuery, ignoreCase = true) == true)) &&
+                            !StreamValidationStore.isKnownDeadSync(it.url) }
+                } else allChannels.filter { !StreamValidationStore.isKnownDeadSync(it.url) }
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -379,7 +434,7 @@ private fun IptvTvMode(
                 contentPadding = PaddingValues(bottom = 8.dp),
                 userScrollEnabled = false,
             ) {
-                items(displayChannels.take(10), key = { "${it.id}_${it.sourceId}" }) { channel ->
+                itemsIndexed(displayChannels.take(10), key = { index, channel -> "rec_${index}_${channel.id}_${channel.sourceId}" }) { _, channel ->
                     TvChannelCard(
                         channel = channel,
                         isFavorite = channel.id in uiState.favoriteChannelIds,
@@ -413,18 +468,11 @@ private fun IptvTvMode(
                 onDeleteXtream = { IptvRepository.removeXtreamAccount(it) },
                 onRefreshStalker = { IptvRepository.refreshStalkerChannels(it) },
                 onDeleteStalker = { IptvRepository.removeStalkerAccount(it) },
-                onValidateSource = { id, channels -> StreamValidationController.scanSource(id, channels, force = true) },
-                onValidateAll = {
-                    StreamValidationController.scanAll(
-                        uiState.m3uPlaylists.map { it.id to it.channels } +
-                            uiState.xtreamAccounts.map { it.id to it.channels } +
-                            uiState.stalkerAccounts.map { it.id to it.channels },
-                        force = true,
-                    )
-                },
             )
 
             Spacer(Modifier.height(32.dp))
+
+            VodSeriesSection(uiState = uiState, onPlayChannel = onPlayChannel)
 
             // Recently Watched (History)
             if (history.isNotEmpty()) {
@@ -837,7 +885,7 @@ private fun EpgProgramSheet(
                     Text("No EPG available for this channel", color = onsurfaceContainerHigh, fontSize = 13.sp)
                 }
                 else -> LazyColumn(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-                    items(programs ?: emptyList(), key = { "${it.startTime}_${it.title}" }) { program ->
+                    itemsIndexed(programs ?: emptyList(), key = { index, program -> "${index}_${program.startTime}_${program.title}" }) { _, program ->
                         val isNow = now in program.startTime until program.endTime
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
@@ -1003,8 +1051,6 @@ private fun PlaylistsTvSection(
     onDeleteXtream: (String) -> Unit,
     onRefreshStalker: (String) -> Unit,
     onDeleteStalker: (String) -> Unit,
-    onValidateSource: (String, List<IptvChannel>) -> Unit,
-    onValidateAll: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1012,17 +1058,6 @@ private fun PlaylistsTvSection(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text("Your Playlists", color = primary, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
-        val hasPlaylists = m3uPlaylists.isNotEmpty() || xtreamAccounts.isNotEmpty() || stalkerAccounts.isNotEmpty() || epgSources.isNotEmpty()
-        if (hasPlaylists) {
-            Box(Modifier.clip(RoundedCornerShape(8.dp)).background(surfaceContainerHigh).clickable(onClick = onValidateAll)
-                .padding(horizontal = 14.dp, vertical = 8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Filled.CheckCircle, null, tint = primary, modifier = Modifier.size(16.dp))
-                    Text("VALIDATE ALL", color = primary, fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-        }
         Box(Modifier.clip(RoundedCornerShape(8.dp)).background(primary).clickable(onClick = onAddClick)
             .padding(horizontal = 14.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1051,11 +1086,10 @@ private fun PlaylistsTvSection(
                 isRefreshing = pl.id in refreshingIds,
                 onClick = { if (idx >= 0) IptvRepository.selectSource(idx) },
                 onRefresh = { onRefreshM3u(pl.id) },
-                onValidate = { onValidateSource(pl.id, pl.channels) },
                 onDelete = { onDeleteM3u(pl.id) },
             )
         }
-        xtreamAccounts.forEach { acc ->
+        xtreamAccounts.filter { it.channels.isNotEmpty() }.forEach { acc ->
             val idx = allIds.indexOf(acc.id)
             TvPlaylistCard(
                 iconLabel = "XT",
@@ -1067,7 +1101,6 @@ private fun PlaylistsTvSection(
                 isRefreshing = acc.id in refreshingIds,
                 onClick = { if (idx >= 0) IptvRepository.selectSource(idx) },
                 onRefresh = { onRefreshXtream(acc.id) },
-                onValidate = { onValidateSource(acc.id, acc.channels) },
                 onDelete = { onDeleteXtream(acc.id) },
             )
         }
@@ -1083,7 +1116,6 @@ private fun PlaylistsTvSection(
                 isRefreshing = acc.id in refreshingIds,
                 onClick = { if (idx >= 0) IptvRepository.selectSource(idx) },
                 onRefresh = { onRefreshStalker(acc.id) },
-                onValidate = { onValidateSource(acc.id, acc.channels) },
                 onDelete = { onDeleteStalker(acc.id) },
             )
         }
@@ -1101,7 +1133,6 @@ private fun PlaylistsTvSection(
                 statusColor = if (epgLoading || epgMatchCount > 0) Color(0xFF4CAF50) else outlineVariant,
                 isRefreshing = epgLoading,
                 onRefresh = { IptvRepository.refreshEpg() },
-                onValidate = { IptvRepository.refreshEpg() },
                 onDelete = { IptvRepository.removeEpgSource(source.id) },
             )
         }
@@ -1119,7 +1150,6 @@ private fun TvPlaylistCard(
     isRefreshing: Boolean,
     onClick: () -> Unit = {},
     onRefresh: () -> Unit,
-    onValidate: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val scanSubtitle = when {
@@ -1161,14 +1191,7 @@ private fun TvPlaylistCard(
                     Icon(Icons.Filled.Refresh, "Refresh", tint = onsurfaceContainerHigh, modifier = Modifier.size(20.dp))
                 }
             }
-            IconButton(onClick = onValidate, modifier = Modifier.size(36.dp)) {
-                if (scanState?.active == true) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = primary, strokeWidth = 2.dp)
-                } else {
-                    Icon(Icons.Filled.CheckCircle, "Validate", tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
-                }
-            }
-            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                 Icon(Icons.Filled.Delete, "Delete", tint = errorColor.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
             }
             Icon(Icons.Filled.CheckCircle, null, tint = statusColor, modifier = Modifier.size(20.dp))
@@ -1186,30 +1209,28 @@ private fun IptvMobileMode(
     scrollToTopRequests: Flow<Unit>,
     onAddSource: () -> Unit,
     onPickerChannel: (IptvChannel) -> Unit,
+    listState: LazyListState,
+    restoredState: PageState?,
 ) {
-    val listState = rememberLazyListState()
-    var expandedGroups by remember { mutableStateOf(setOf<String>()) }
+    var expandedGroups by remember { 
+        mutableStateOf(
+            restoredState?.extra?.get("expandedGroups") as? Set<String> 
+                ?: setOf()
+        ) 
+    }
     var epgSheetChannel: IptvChannel? by remember { mutableStateOf(null) }
     val xtreamAccountById = remember(uiState.xtreamAccounts) { uiState.xtreamAccounts.associateBy { it.id } }
     LaunchedEffect(scrollToTopRequests) {
         scrollToTopRequests.collect { listState.animateScrollToItem(0) }
     }
 
-    val allChannels = uiState.m3uPlaylists.flatMap { it.channels } +
-        uiState.xtreamAccounts.flatMap { it.channels } +
-        uiState.stalkerAccounts.flatMap { it.channels }
-    var lastRefreshing by remember { mutableStateOf(uiState.refreshingSourceIds) }
-    LaunchedEffect(uiState.refreshingSourceIds) {
-        val finished = lastRefreshing - uiState.refreshingSourceIds
-        lastRefreshing = uiState.refreshingSourceIds
-        if (finished.isNotEmpty()) {
-            finished.forEach { id ->
-                val channels = allChannels.filter { it.sourceId == id }
-                if (channels.isNotEmpty()) StreamValidationController.scanSource(id, channels)
-            }
-        }
+    val allChannels = remember(uiState.m3uPlaylists, uiState.xtreamAccounts, uiState.stalkerAccounts) {
+        uiState.m3uPlaylists.flatMap { it.channels } +
+            uiState.xtreamAccounts.flatMap { it.channels } +
+            uiState.stalkerAccounts.flatMap { it.channels }
     }
-
+    val allFavorites = remember(uiState.favoriteChannelIds, allChannels) { IptvRepository.getFavoriteChannels() }
+    
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
@@ -1248,7 +1269,7 @@ private fun IptvMobileMode(
                 }
             }
 
-            item { SearchSection(searchQuery = uiState.searchQuery, onSearchQueryChange = { IptvRepository.setSearchQuery(it) }, onQuickSearchSave = { ChannelQuickSearchStore.addTerm(it) }) }
+            item { SearchSection(searchQuery = uiState.searchQuery, onSearchQueryChange = { IptvRepository.setSearchQuery(it) }) }
 
             item { QuickAccessSection(
                 uiState = uiState,
@@ -1263,23 +1284,12 @@ private fun IptvMobileMode(
             ) }
 
             item {
-                val allCh = uiState.m3uPlaylists.flatMap { it.channels } +
-                    uiState.xtreamAccounts.flatMap { it.channels } +
-                    uiState.stalkerAccounts.flatMap { it.channels }
-                QuickChannelsSection(allChannels = allCh, onPlayChannel = onPlayChannel)
+                QuickChannelsSection(allChannels = allChannels, onPlayChannel = onPlayChannel)
             }
 
-            item { PlaylistsSection(uiState = uiState, onAddClick = onAddSource,
-                onValidateSource = { id, channels -> StreamValidationController.scanSource(id, channels, force = true) },
-                onValidateAll = {
-                    StreamValidationController.scanAll(
-                        uiState.m3uPlaylists.map { it.id to it.channels } +
-                            uiState.xtreamAccounts.map { it.id to it.channels } +
-                            uiState.stalkerAccounts.map { it.id to it.channels },
-                        force = true,
-                    )
-                },
-                onValidateChannel = { ch -> StreamValidationController.scanSource(ch.sourceId, listOf(ch), force = true) }) }
+            item { PlaylistsSection(uiState = uiState, onAddClick = onAddSource) }
+
+            item { VodSeriesSection(uiState = uiState, onPlayChannel = onPlayChannel) }
 
             item { SourceChipsSection(uiState = uiState) }
 
@@ -1318,9 +1328,9 @@ private fun IptvMobileMode(
                     val grouped = channels.groupBy { it.group ?: "Other" }
                         .toList()
                         .sortedBy { it.first }
-                    grouped.forEach { (group, chs) ->
+                    grouped.forEachIndexed { groupIndex, (group, chs) ->
                         val isExpanded = group in expandedGroups
-                        item(key = "grp_$group") {
+                        item(key = "grp_${groupIndex}_$group") {
                             Row(
                                 modifier = Modifier.fillMaxWidth()
                                     .clickable {
@@ -1348,7 +1358,7 @@ private fun IptvMobileMode(
                         }
                         if (isExpanded) {
                             val chunked = chs.chunked(2)
-                            itemsIndexed(chunked, key = { index, row -> "${group}_${index}_" + row.joinToString("-") { "${it.id}_${it.sourceId}" } }) { index, rowChannels ->
+                            itemsIndexed(chunked, key = { index, _ -> "grp_${groupIndex}_row_$index" }) { index, rowChannels ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1378,7 +1388,6 @@ private fun IptvMobileMode(
                     }
                 }
 
-                val allFavorites = IptvRepository.getFavoriteChannels()
                 if (allFavorites.isNotEmpty()) {
                     item {
                         Row(
@@ -1397,7 +1406,7 @@ private fun IptvMobileMode(
                     if (uiState.favoritesExpanded) {
                         val nowFav = TraktPlatformClock.nowEpochMs()
                         val favChunked = allFavorites.chunked(2)
-                        itemsIndexed(favChunked, key = { index, row -> "allfav_${index}_" + row.joinToString("-") { "${it.id}_${it.sourceId}" } }) { index, rowChannels ->
+                        itemsIndexed(favChunked, key = { index, _ -> "allfav_row_$index" }) { index, rowChannels ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1448,8 +1457,7 @@ private fun IptvMobileMode(
 // ── Shared Mobile Components (unchanged from original) ─────────────────────
 
 @Composable
-private fun SearchSection(searchQuery: String, onSearchQueryChange: (String) -> Unit, onQuickSearchSave: (String) -> Unit = {}) {
-    val isSaved = searchQuery.isNotEmpty() && ChannelQuickSearchStore.loadTerms().contains(searchQuery)
+private fun SearchSection(searchQuery: String, onSearchQueryChange: (String) -> Unit) {
     OutlinedTextField(
         value = searchQuery,
         onValueChange = onSearchQueryChange,
@@ -1457,18 +1465,9 @@ private fun SearchSection(searchQuery: String, onSearchQueryChange: (String) -> 
         singleLine = true,
         leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = onsurfaceContainerHigh) },
         trailingIcon = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { onSearchQueryChange("") }) {
-                        Icon(Icons.Filled.Clear, contentDescription = "Clear", tint = onsurfaceContainerHigh)
-                    }
-                    IconButton(onClick = { onQuickSearchSave(searchQuery) }) {
-                        if (isSaved) {
-                            Icon(Icons.Filled.Bookmark, contentDescription = "Unsave search", tint = primary)
-                        } else {
-                            Icon(Icons.Filled.BookmarkBorder, contentDescription = "Save search", tint = onsurfaceContainerHigh)
-                        }
-                    }
+            if (searchQuery.isNotEmpty()) {
+                IconButton(onClick = { onSearchQueryChange("") }) {
+                    Icon(Icons.Filled.Clear, contentDescription = "Clear", tint = onsurfaceContainerHigh)
                 }
             }
         },
@@ -1907,10 +1906,7 @@ private fun ChannelCard(
 private fun PlaylistsSection(
     uiState: IptvUiState,
     onAddClick: () -> Unit,
-    onValidateSource: (String, List<IptvChannel>) -> Unit,
-    onValidateAll: () -> Unit,
     onPickerChannel: (IptvChannel) -> Unit = {},
-    onValidateChannel: ((IptvChannel) -> Unit)? = null,
 ) {
     val hasPlaylists = uiState.m3uPlaylists.isNotEmpty() || uiState.xtreamAccounts.isNotEmpty() || uiState.stalkerAccounts.isNotEmpty() || uiState.epgSources.isNotEmpty()
     Column {
@@ -1921,26 +1917,24 @@ private fun PlaylistsSection(
         ) {
             Text("Your Playlists", color = onSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (hasPlaylists) {
-                    Surface(
-                        onClick = onValidateAll,
-                        shape = RoundedCornerShape(12.dp),
-                        color = surfaceContainerHigh,
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = primary, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("VALIDATE ALL", color = primary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        }
-                    }
-                    Spacer(Modifier.width(6.dp))
-                }
                 if (!IptvRepository.hasPredefinedPlaylist()) {
                     TextButton(onClick = { IptvRepository.addPredefinedPlaylist() }) {
                         Text("+ iptv-org", color = onsurfaceContainerHigh, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+                }
+                if (!IptvRepository.hasNetSmuttPlaylist()) {
+                    TextButton(onClick = { IptvRepository.addNetSmuttPlaylist() }) {
+                        Text("+ Nett Smutt", color = onsurfaceContainerHigh, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+                }
+                if (!IptvRepository.hasNettSmutt3Playlist()) {
+                    TextButton(onClick = { IptvRepository.addNettSmutt3Playlist() }) {
+                        Text("+ Nett Smutt 3.0", color = onsurfaceContainerHigh, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    }
+                }
+                if (!IptvRepository.hasXXX2Playlist()) {
+                    TextButton(onClick = { IptvRepository.addXXX2Playlist() }) {
+                        Text("+ XXX_2", color = onsurfaceContainerHigh, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
                 Surface(
@@ -1969,186 +1963,339 @@ private fun PlaylistsSection(
 
         AnimatedVisibility(visible = uiState.playlistsExpanded) {
             Column {
-                var playlistSearch by remember { mutableStateOf("") }
-                val query = playlistSearch.trim().lowercase()
-
-                OutlinedTextField(
-                    value = playlistSearch,
-                    onValueChange = { playlistSearch = it },
-                    placeholder = { Text("Search channels in playlists...", color = onsurfaceContainerHigh.copy(alpha = 0.5f), fontSize = 13.sp) },
-                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = onsurfaceContainerHigh, modifier = Modifier.size(18.dp)) },
-                    trailingIcon = {
-                        if (playlistSearch.isNotEmpty()) {
-                            IconButton(onClick = { playlistSearch = "" }) {
-                                Icon(Icons.Filled.Clear, "Clear", tint = onsurfaceContainerHigh)
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(50),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = onSurface, unfocusedTextColor = onSurface,
-                        focusedBorderColor = primary, unfocusedBorderColor = outlineVariant.copy(alpha = 0.5f),
-                        cursorColor = primary,
-                        focusedContainerColor = surfaceContainerLow,
-                        unfocusedContainerColor = surfaceContainerLow,
-                    ),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).height(44.dp),
-                )
-
-                if (query.isNotBlank()) {
-                    val allChannels = uiState.m3uPlaylists.flatMap { it.channels } +
-                        uiState.xtreamAccounts.flatMap { it.channels } +
-                        uiState.stalkerAccounts.flatMap { it.channels }
-                    val results = allChannels.filter {
-                        it.name.contains(query, ignoreCase = true) ||
-                            (it.group?.contains(query, ignoreCase = true) == true)
-                    }.distinctBy { "${it.id}_${it.sourceId}" }
-
-                    Column {
-                        Text(
-                            "Results in playlists (${results.size})",
-                            color = onsurfaceContainerHigh, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(vertical = 4.dp),
-                        )
-                        if (results.isEmpty()) {
-                            Text(
-                                "No channels match \"$playlistSearch\"",
-                                color = onsurfaceContainerHigh, fontSize = 13.sp,
-                                modifier = Modifier.padding(vertical = 6.dp),
-                            )
-                        } else {
-                            LazyColumn {
-                                items(results) { ch ->
-                                    Box {
-                                        PlaylistChannelRow(channel = ch, onClick = {})
-                                        var ddOpen by remember { mutableStateOf(false) }
-                                        Box(
-                                            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            IconButton(onClick = { ddOpen = true }, modifier = Modifier.size(28.dp)) {
-                                                Icon(Icons.Filled.MoreVert, "More", tint = onsurfaceContainerHigh.copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
-                                            }
-                                        }
-                                        DropdownMenu(expanded = ddOpen, onDismissRequest = { ddOpen = false }) {
-                                            DropdownMenuItem(
-                                                text = { Text("Validate", fontSize = 14.sp) },
-                                                onClick = { ddOpen = false; onValidateSource(ch.sourceId, listOf(ch)) },
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Multi-window", fontSize = 14.sp) },
-                                                onClick = { ddOpen = false; onPickerChannel(ch) },
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                if (uiState.m3uPlaylists.isEmpty() && uiState.xtreamAccounts.isEmpty() && uiState.stalkerAccounts.isEmpty() && uiState.epgSources.isEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = surfaceContainer),
+                    ) {
+                        Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                            Text("No playlists added yet", color = onsurfaceContainerHigh)
                         }
                     }
                 } else {
-                    if (uiState.m3uPlaylists.isEmpty() && uiState.xtreamAccounts.isEmpty() && uiState.stalkerAccounts.isEmpty() && uiState.epgSources.isEmpty()) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = surfaceContainer),
-                        ) {
-                            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                                Text("No playlists added yet", color = onsurfaceContainerHigh)
-                            }
-                        }
-                    } else {
-                        val m3uIds = uiState.m3uPlaylists.map { it.id }
-                        val xtreamIds = uiState.xtreamAccounts.map { it.id }
-                        val stalkerIds = uiState.stalkerAccounts.map { it.id }
-                        val allIds = m3uIds + xtreamIds + stalkerIds
+                    val m3uIds = uiState.m3uPlaylists.map { it.id }
+                    val xtreamIds = uiState.xtreamAccounts.map { it.id }
+                    val stalkerIds = uiState.stalkerAccounts.map { it.id }
+                    val allIds = m3uIds + xtreamIds + stalkerIds
 
+                    Spacer(Modifier.height(8.dp))
+                    uiState.m3uPlaylists.forEach { playlist ->
+                        val idx = allIds.indexOf(playlist.id)
+                        PlaylistCard(
+                            name = playlist.name,
+                            channelCount = playlist.channels.size,
+                            scanState = StreamValidationController.scans[playlist.id],
+                            status = if (playlist.channels.isNotEmpty()) "Connected" else "Pending",
+                            statusColor = if (playlist.channels.isNotEmpty()) onSurface else outlineVariant,
+                            iconLabel = "M3U",
+                            isRefreshing = playlist.id in uiState.refreshingSourceIds,
+                            onClick = { if (idx >= 0) IptvRepository.selectSource(idx) },
+                            onRefresh = { IptvRepository.refreshM3uChannels(playlist.id) },
+                            onDelete = { IptvRepository.removeM3uPlaylist(playlist.id) },
+                            channels = playlist.channels,
+                        )
                         Spacer(Modifier.height(8.dp))
-                        uiState.m3uPlaylists.forEach { playlist ->
-                            val idx = allIds.indexOf(playlist.id)
-                            PlaylistCard(
-                                name = playlist.name,
-                                channelCount = playlist.channels.size,
-                                scanState = StreamValidationController.scans[playlist.id],
-                                status = if (playlist.channels.isNotEmpty()) "Connected" else "Pending",
-                                statusColor = if (playlist.channels.isNotEmpty()) onSurface else outlineVariant,
-                                iconLabel = "M3U",
-                                isRefreshing = playlist.id in uiState.refreshingSourceIds,
-                                onClick = { if (idx >= 0) IptvRepository.selectSource(idx) },
-                                onRefresh = { IptvRepository.refreshM3uChannels(playlist.id) },
-                                onValidate = { onValidateSource(playlist.id, playlist.channels) },
-                                onDelete = { IptvRepository.removeM3uPlaylist(playlist.id) },
-                                channels = playlist.channels,
-                                onValidateChannel = { ch -> onValidateSource(ch.sourceId, listOf(ch)) },
-                            )
-                            Spacer(Modifier.height(8.dp))
-                        }
+                    }
 
-                        uiState.xtreamAccounts.forEach { account ->
-                            val idx = allIds.indexOf(account.id)
-                            PlaylistCard(
-                                name = account.name,
-                                channelCount = account.channels.size,
-                                scanState = StreamValidationController.scans[account.id],
-                                status = if (account.channels.isNotEmpty()) "Connected" else "Pending",
-                                statusColor = if (account.channels.isNotEmpty()) onSurface else outlineVariant,
-                                iconLabel = "XT",
-                                isRefreshing = account.id in uiState.refreshingSourceIds,
-                                onClick = { if (idx >= 0) IptvRepository.selectSource(idx) },
-                                onRefresh = { IptvRepository.refreshXtreamChannels(account.id) },
-                                onValidate = { onValidateSource(account.id, account.channels) },
-                                onDelete = { IptvRepository.removeXtreamAccount(account.id) },
-                                channels = account.channels,
-                                onValidateChannel = { ch -> onValidateSource(ch.sourceId, listOf(ch)) },
-                            )
-                            Spacer(Modifier.height(8.dp))
-                        }
+                    uiState.xtreamAccounts.forEach { account ->
+                        val idx = allIds.indexOf(account.id)
+                        PlaylistCard(
+                            name = account.name,
+                            channelCount = account.channels.size,
+                            scanState = StreamValidationController.scans[account.id],
+                            status = if (account.channels.isNotEmpty()) "Connected" else "Pending",
+                            statusColor = if (account.channels.isNotEmpty()) onSurface else outlineVariant,
+                            iconLabel = "XT",
+                            isRefreshing = account.id in uiState.refreshingSourceIds,
+                            onClick = { if (idx >= 0) IptvRepository.selectSource(idx) },
+                            onRefresh = { IptvRepository.refreshXtreamChannels(account.id) },
+                            onDelete = { IptvRepository.removeXtreamAccount(account.id) },
+                            channels = account.channels,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
 
-                        uiState.stalkerAccounts.forEach { account ->
-                            val idx = allIds.indexOf(account.id)
-                            PlaylistCard(
-                                name = account.name,
-                                channelCount = account.channels.size,
-                                scanState = StreamValidationController.scans[account.id],
-                                status = if (account.channels.isNotEmpty()) "Connected" else "Pending",
-                                statusColor = if (account.channels.isNotEmpty()) onSurface else outlineVariant,
-                                iconLabel = "SK",
-                                isRefreshing = account.id in uiState.refreshingSourceIds,
-                                onClick = { if (idx >= 0) IptvRepository.selectSource(idx) },
-                                onRefresh = { IptvRepository.refreshStalkerChannels(account.id) },
-                                onValidate = { onValidateSource(account.id, account.channels) },
-                                onDelete = { IptvRepository.removeStalkerAccount(account.id) },
-                                channels = account.channels,
-                                onValidateChannel = { ch -> onValidateSource(ch.sourceId, listOf(ch)) },
-                            )
-                            Spacer(Modifier.height(8.dp))
-                        }
+                    uiState.stalkerAccounts.forEach { account ->
+                        val idx = allIds.indexOf(account.id)
+                        PlaylistCard(
+                            name = account.name,
+                            channelCount = account.channels.size,
+                            scanState = StreamValidationController.scans[account.id],
+                            status = if (account.channels.isNotEmpty()) "Connected" else "Pending",
+                            statusColor = if (account.channels.isNotEmpty()) onSurface else outlineVariant,
+                            iconLabel = "SK",
+                            isRefreshing = account.id in uiState.refreshingSourceIds,
+                            onClick = { if (idx >= 0) IptvRepository.selectSource(idx) },
+                            onRefresh = { IptvRepository.refreshStalkerChannels(account.id) },
+                            onDelete = { IptvRepository.removeStalkerAccount(account.id) },
+                            channels = account.channels,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
 
-                        uiState.epgSources.forEach { source ->
-                            PlaylistCard(
-                                name = source.name,
-                                channelCount = uiState.epgMatchCount,
-                                scanState = null,
-                                status = when {
-                                    uiState.epgLoading -> "Loading"
-                                    uiState.epgMatchCount > 0 -> "Loaded"
-                                    else -> "Pending"
-                                },
-                                statusColor = if (uiState.epgLoading || uiState.epgMatchCount > 0) onSurface else outlineVariant,
-                                iconLabel = "EPG",
-                                isRefreshing = uiState.epgLoading,
-                                onClick = {},
-                                onRefresh = { IptvRepository.refreshEpg() },
-                                onValidate = { IptvRepository.refreshEpg() },
-                                onDelete = { IptvRepository.removeEpgSource(source.id) },
-                                channels = emptyList(),
-                                onValidateChannel = null,
+                    uiState.epgSources.forEach { source ->
+                        PlaylistCard(
+                            name = source.name,
+                            channelCount = uiState.epgMatchCount,
+                            scanState = null,
+                            status = when {
+                                uiState.epgLoading -> "Loading"
+                                uiState.epgMatchCount > 0 -> "Loaded"
+                                else -> "Pending"
+                            },
+                            statusColor = if (uiState.epgLoading || uiState.epgMatchCount > 0) onSurface else outlineVariant,
+                            iconLabel = "EPG",
+                            isRefreshing = uiState.epgLoading,
+                            onClick = {},
+                            onRefresh = { IptvRepository.refreshEpg() },
+                            onDelete = { IptvRepository.removeEpgSource(source.id) },
+                            channels = emptyList(),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VodSeriesSection(
+    uiState: IptvUiState,
+    onPlayChannel: ((PlayerLaunch) -> Unit)?,
+) {
+    val xtreamAccounts = uiState.xtreamAccounts
+    val allMovies = xtreamAccounts.flatMap { it.movies }
+    val allSeries = xtreamAccounts.flatMap { it.series }
+    val vodLoading = uiState.vodLoading
+    val vodError = uiState.vodError
+    val vodLoadedIds = uiState.vodLoadedAccountIds
+    val hasAnyXtream = xtreamAccounts.isNotEmpty()
+
+    LaunchedEffect(Unit) {
+        if (hasAnyXtream && vodLoadedIds.isEmpty() && !vodLoading) {
+            for (acc in xtreamAccounts) {
+                IptvRepository.refreshXtreamVod(acc.id)
+            }
+        }
+    }
+
+    if (!hasAnyXtream) return
+
+    var tab by remember { mutableStateOf("movies") }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
+
+    val movies = if (selectedCategory != null) allMovies.filter { it.categoryName == selectedCategory } else allMovies
+    val series = if (selectedCategory != null) allSeries.filter { it.categoryName == selectedCategory } else allSeries
+
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("RdNutz Movies & Series", color = onSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+            if (vodError != null) {
+                TextButton(onClick = {
+                    for (acc in xtreamAccounts) IptvRepository.refreshXtreamVod(acc.id)
+                }) {
+                    Text("Retry", color = primary, fontSize = 12.sp)
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        if (allMovies.isEmpty() && allSeries.isEmpty()) {
+            if (vodLoading) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = primary, strokeWidth = 2.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Text("Loading Movies & Series...", color = onsurfaceContainerHigh, fontSize = 13.sp)
+                }
+            } else {
+                Button(
+                    onClick = { for (acc in xtreamAccounts) IptvRepository.refreshXtreamVod(acc.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = surfaceContainer),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Text("Load Movies & Series", color = onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                }
+                if (vodError != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(vodError, color = errorColor, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                }
+            }
+            return
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (tab == "movies") primary else surfaceContainer)
+                    .clickable { tab = "movies"; selectedCategory = null }
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Text("Movies${if (allMovies.isNotEmpty()) " (${allMovies.size})" else ""}", color = if (tab == "movies") onPrimary else onSurface, fontSize = 13.sp, fontWeight = if (tab == "movies") FontWeight.Bold else FontWeight.Normal)
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (tab == "series") primary else surfaceContainer)
+                    .clickable { tab = "series"; selectedCategory = null }
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Text("Series${if (allSeries.isNotEmpty()) " (${allSeries.size})" else ""}", color = if (tab == "series") onPrimary else onSurface, fontSize = 13.sp, fontWeight = if (tab == "series") FontWeight.Bold else FontWeight.Normal)
+            }
+        }
+
+        val cats = if (tab == "movies") allMovies.map { it.categoryName }.filter { it.isNotBlank() }.distinct() else allSeries.map { it.categoryName }.filter { it.isNotBlank() }.distinct()
+        if (cats.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(if (selectedCategory == null) primary.copy(alpha = 0.3f) else surfaceContainerLow)
+                        .clickable { selectedCategory = null }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                    Text("All", color = if (selectedCategory == null) primary else onsurfaceContainerHigh, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                }
+                cats.forEach { cat ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(if (selectedCategory == cat) primary else surfaceContainerLow)
+                            .clickable { selectedCategory = if (selectedCategory == cat) null else cat }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text(cat, color = if (selectedCategory == cat) onPrimary else onsurfaceContainerHigh, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        if (tab == "movies") {
+            val filtered = if (selectedCategory != null) movies else allMovies
+            if (filtered.isEmpty()) {
+                Text("No movies available", color = onsurfaceContainerHigh, fontSize = 13.sp, modifier = Modifier.padding(vertical = 16.dp))
+            } else {
+                LazyColumn(
+                    modifier = Modifier.height(300.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(filtered.take(50)) { movie ->
+                        val sub = listOf(movie.year, movie.genre).filter { it.isNotBlank() }.joinToString(" · ")
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(surfaceContainer)
+                                .clickable {
+                                    if (movie.streamUrl.isNotBlank()) {
+                                        val ch = IptvChannel(
+                                            id = movie.id,
+                                            name = movie.title,
+                                            logo = movie.poster.ifBlank { null },
+                                            url = movie.streamUrl,
+                                            sourceType = SourceType.Xtream,
+                                            sourceId = movie.id,
+                                        )
+                                        playChannel(ch, onPlayChannel)
+                                    }
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            AsyncImage(
+                                model = movie.poster,
+                                contentDescription = movie.title,
+                                modifier = Modifier.size(40.dp, 60.dp).clip(RoundedCornerShape(6.dp)),
+                                contentScale = ContentScale.Crop,
                             )
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(movie.title, color = onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (sub.isNotBlank()) {
+                                    Text(sub, color = onsurfaceContainerHigh, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
             }
+        } else {
+            val filtered = if (selectedCategory != null) series else allSeries
+            if (filtered.isEmpty()) {
+                Text("No series available", color = onsurfaceContainerHigh, fontSize = 13.sp, modifier = Modifier.padding(vertical = 16.dp))
+            } else {
+                LazyColumn(
+                    modifier = Modifier.height(300.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(filtered.take(50)) { show ->
+                        val totalEp = show.seasons.sumOf { it.episodes.size }
+                        val sub = if (totalEp > 0) "$totalEp episodes" else ""
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(surfaceContainer)
+                                .clickable {
+                                    if (show.streamUrl.isNotBlank()) {
+                                        val ch = IptvChannel(
+                                            id = show.id,
+                                            name = show.name,
+                                            logo = show.poster.ifBlank { null },
+                                            url = show.streamUrl,
+                                            sourceType = SourceType.Xtream,
+                                            sourceId = show.id,
+                                        )
+                                        playChannel(ch, onPlayChannel)
+                                    }
+                                }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            AsyncImage(
+                                model = show.poster,
+                                contentDescription = show.name,
+                                modifier = Modifier.size(40.dp, 60.dp).clip(RoundedCornerShape(6.dp)),
+                                contentScale = ContentScale.Crop,
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(show.name, color = onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (sub.isNotBlank()) {
+                                    Text(sub, color = onsurfaceContainerHigh, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                            Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(vodError) {
+        if (vodError != null) {
+            NuvioToastController.show(vodError)
         }
     }
 }
@@ -2189,10 +2336,8 @@ private fun PlaylistCard(
     isRefreshing: Boolean = false,
     onClick: () -> Unit = {},
     onRefresh: () -> Unit,
-    onValidate: () -> Unit,
     onDelete: () -> Unit,
     channels: List<IptvChannel> = emptyList(),
-    onValidateChannel: ((IptvChannel) -> Unit)? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val scanSubtitle = when {
@@ -2238,13 +2383,6 @@ private fun PlaylistCard(
                         Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = onsurfaceContainerHigh)
                     }
                 }
-                IconButton(onClick = onValidate) {
-                    if (scanState?.active == true) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = primary, strokeWidth = 2.dp)
-                    } else {
-                        Icon(Icons.Filled.CheckCircle, contentDescription = "Validate", tint = Color(0xFF4CAF50))
-                    }
-                }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = Color.Red.copy(alpha = 0.7f))
                 }
@@ -2259,67 +2397,48 @@ private fun PlaylistCard(
             }
 
             AnimatedVisibility(visible = expanded) {
-                Column {
-                    if (channels.isEmpty()) {
-                        Text(
-                            "No channels in this playlist",
-                            color = onsurfaceContainerHigh,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        )
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.height(300.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            items(channels) { ch ->
-                                val isDead = StreamValidationStore.isKnownDeadSync(ch.url)
-                                val isValidating = StreamValidationController.scans[ch.sourceId]?.active == true
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(surfaceContainerLow)
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    if (!ch.logo.isNullOrBlank()) {
-                                        AsyncImage(
-                                            model = ch.logo,
-                                            contentDescription = ch.name,
-                                            modifier = Modifier.size(24.dp).clip(RoundedCornerShape(4.dp)),
-                                            contentScale = ContentScale.Crop,
-                                        )
-                                        Spacer(Modifier.width(10.dp))
+                if (channels.isEmpty()) {
+                    Text(
+                        "No channels in this playlist",
+                        color = onsurfaceContainerHigh,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.height(300.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        items(channels) { ch ->
+                            val isDead = StreamValidationStore.isKnownDeadSync(ch.url)
+                            val isValidating = StreamValidationController.scans[ch.sourceId]?.active == true
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(surfaceContainerLow)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                if (!ch.logo.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = ch.logo,
+                                        contentDescription = ch.name,
+                                        modifier = Modifier.size(24.dp).clip(RoundedCornerShape(4.dp)),
+                                        contentScale = ContentScale.Crop,
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(ch.name, color = onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    if (!ch.group.isNullOrBlank()) {
+                                        Text(ch.group!!, color = onsurfaceContainerHigh, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(ch.name, color = onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        if (!ch.group.isNullOrBlank()) {
-                                            Text(ch.group!!, color = onsurfaceContainerHigh, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        }
-                                    }
-                                    if (isDead) {
-                                        Text("DEAD", color = Color.Red.copy(alpha = 0.7f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                        Spacer(Modifier.width(4.dp))
-                                    }
-                                    if (onValidateChannel != null) {
-                                        IconButton(
-                                            onClick = { onValidateChannel(ch) },
-                                            modifier = Modifier.size(28.dp),
-                                        ) {
-                                            if (isValidating) {
-                                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = primary, strokeWidth = 2.dp)
-                                            } else {
-                                                Icon(
-                                                    if (isDead) Icons.Filled.Warning else Icons.Filled.CheckCircle,
-                                                    contentDescription = "Validate channel",
-                                                    tint = if (isDead) Color.Red.copy(alpha = 0.7f) else Color(0xFF4CAF50),
-                                                    modifier = Modifier.size(18.dp),
-                                                )
-                                            }
-                                        }
-                                    }
+                                }
+                                if (isDead) {
+                                    Text("DEAD", color = Color.Red.copy(alpha = 0.7f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Spacer(Modifier.width(4.dp))
                                 }
                             }
                         }
@@ -2340,10 +2459,17 @@ private fun playChannel(channel: IptvChannel, onPlayChannel: ((PlayerLaunch) -> 
     val channelUrls = liveChannels.map { it.url }
     val channelNames = liveChannels.map { it.name }
     val startIdx = if (liveIndex >= 0) liveIndex else 0
+    // Resolve VOD stream URLs (pipe-separated .ts|.m3u8) to a single usable URL
+    val resolvedUrl = if (channel.url.contains('|')) {
+        val parts = channel.url.split('|')
+        parts.firstOrNull { it.isNotBlank() } ?: channel.url
+    } else {
+        channel.url
+    }
     val launch = PlayerLaunch(
         profileId = 0,
         title = channel.name,
-        sourceUrl = channel.url,
+        sourceUrl = resolvedUrl,
         streamTitle = channel.name,
         providerName = "IPTV",
         parentMetaId = "iptv",
@@ -2370,6 +2496,8 @@ private fun playChannel(channel: IptvChannel, onPlayChannel: ((PlayerLaunch) -> 
 private fun AddSourceBottomSheet(
     onDismiss: () -> Unit,
     onSuccess: () -> Unit,
+    canAddPortal: Boolean,
+    licenseStatus: LicenseStatus,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var mode by remember { mutableStateOf("xtreme") }
@@ -2394,11 +2522,40 @@ private fun AddSourceBottomSheet(
             }
             Spacer(Modifier.height(24.dp))
 
-Row(
+            if (!canAddPortal) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = surfaceContainerLow),
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Filled.Lock, "Locked", tint = errorColor, modifier = Modifier.size(20.dp))
+                            Text("PORTAL LIMIT REACHED", color = errorColor, fontWeight = FontWeight.Bold, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            when (licenseStatus) {
+                                LicenseStatus.NOT_ACTIVATED -> "Add up to ${PortalLicenseManager.MAX_PORTALS} IPTV sources for free. Activate an RdNutz key for unlimited portals."
+                                LicenseStatus.EXPIRED -> "Your RdNutz key has expired. Renew to add more portals."
+                                LicenseStatus.GRACE -> "Your RdNutz key is expiring soon. Renew for unlimited portals."
+                                LicenseStatus.WRONG_DEVICE -> "This key is registered to another device."
+                                LicenseStatus.INVALID -> "Invalid key format."
+                                else -> "Portal limit reached (${PortalLicenseManager.MAX_PORTALS} max for free users)."
+                            },
+                            color = onsurfaceContainerHigh,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
+            Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(surfaceContainerLow).padding(4.dp)
                     .horizontalScroll(rememberScrollState()),
             ) {
-                listOf("xtreme" to "XTREME", "m3u" to "M3U URL", "m3ufile" to "M3U FILE", "stalker" to "STALKER", "portal" to "RD NUTZ LIST", "epg" to "EPG").forEach { (id, label) ->
+                listOf("xtreme" to "XTREME", "m3u" to "M3U URL", "m3ufile" to "M3U FILE", "stalker" to "STALKER", "epg" to "EPG", "portal" to "PORTAL").forEach { (id, label) ->
                     Surface(
                         onClick = { mode = id },
                         shape = RoundedCornerShape(12.dp),
@@ -2415,12 +2572,12 @@ Row(
             Spacer(Modifier.height(24.dp))
 
             when (mode) {
-                "xtreme" -> XtreamForm(onSuccess = onSuccess)
-                "m3u" -> M3uForm(onSuccess = onSuccess)
-                "m3ufile" -> M3uFileForm(onSuccess = onSuccess)
-                "stalker" -> StalkerForm(onSuccess = onSuccess)
+                "xtreme" -> XtreamForm(onSuccess = onSuccess, canAddPortal = canAddPortal)
+                "m3u" -> M3uForm(onSuccess = onSuccess, canAddPortal = canAddPortal)
+                "m3ufile" -> M3uFileForm(onSuccess = onSuccess, canAddPortal = canAddPortal)
+                "stalker" -> StalkerForm(onSuccess = onSuccess, canAddPortal = canAddPortal)
+                "epg" -> EpgForm(onSuccess = onSuccess, canAddPortal = canAddPortal)
                 "portal" -> PortalForm(onSuccess = onSuccess)
-                "epg" -> EpgForm(onSuccess = onSuccess)
             }
 
             Spacer(Modifier.height(16.dp))
@@ -2429,7 +2586,7 @@ Row(
 }
 
 @Composable
-private fun XtreamForm(onSuccess: () -> Unit) {
+private fun XtreamForm(onSuccess: () -> Unit, canAddPortal: Boolean) {
     var name by remember { mutableStateOf("") }
     var server by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
@@ -2455,7 +2612,7 @@ private fun XtreamForm(onSuccess: () -> Unit) {
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = primary),
-            enabled = name.isNotBlank() && server.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
+            enabled = name.isNotBlank() && server.isNotBlank() && username.isNotBlank() && password.isNotBlank() && canAddPortal,
         ) {
             Text("CONNECT SOURCE", color = onPrimary, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
         }
@@ -2463,7 +2620,7 @@ private fun XtreamForm(onSuccess: () -> Unit) {
 }
 
 @Composable
-private fun M3uForm(onSuccess: () -> Unit) {
+private fun M3uForm(onSuccess: () -> Unit, canAddPortal: Boolean) {
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
 
@@ -2482,7 +2639,7 @@ private fun M3uForm(onSuccess: () -> Unit) {
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = primary),
-            enabled = url.isNotBlank(),
+            enabled = url.isNotBlank() && canAddPortal,
         ) {
             Text("CONNECT SOURCE", color = onPrimary, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
         }
@@ -2490,12 +2647,13 @@ private fun M3uForm(onSuccess: () -> Unit) {
 }
 
 @Composable
-private fun M3uFileForm(onSuccess: () -> Unit) {
+private fun M3uFileForm(onSuccess: () -> Unit, canAddPortal: Boolean) {
     var selectedFileName by remember { mutableStateOf<String?>(null) }
     var parseError by remember { mutableStateOf<String?>(null) }
     var isParsing by remember { mutableStateOf(false) }
 
     val pickFile = rememberFilePickerLauncher { name, content ->
+        if (!canAddPortal) return@rememberFilePickerLauncher
         selectedFileName = name
         parseError = null
         isParsing = true
@@ -2517,7 +2675,7 @@ private fun M3uFileForm(onSuccess: () -> Unit) {
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = primary),
-            enabled = !isParsing,
+            enabled = !isParsing && canAddPortal,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Filled.Add, null, tint = onPrimary, modifier = Modifier.size(20.dp))
@@ -2549,7 +2707,7 @@ private fun M3uFileForm(onSuccess: () -> Unit) {
 }
 
 @Composable
-private fun EpgForm(onSuccess: () -> Unit) {
+private fun EpgForm(onSuccess: () -> Unit, canAddPortal: Boolean) {
     var subMode by remember { mutableStateOf("url") }
 
     Column {
@@ -2572,14 +2730,14 @@ private fun EpgForm(onSuccess: () -> Unit) {
         }
         Spacer(Modifier.height(12.dp))
         when (subMode) {
-            "url" -> EpgUrlForm(onSuccess = onSuccess)
-            "file" -> EpgFileForm(onSuccess = onSuccess)
+            "url" -> EpgUrlForm(onSuccess = onSuccess, canAddPortal = canAddPortal)
+            "file" -> EpgFileForm(onSuccess = onSuccess, canAddPortal = canAddPortal)
         }
     }
 }
 
 @Composable
-private fun EpgUrlForm(onSuccess: () -> Unit) {
+private fun EpgUrlForm(onSuccess: () -> Unit, canAddPortal: Boolean) {
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
 
@@ -2604,7 +2762,7 @@ private fun EpgUrlForm(onSuccess: () -> Unit) {
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = primary),
-            enabled = url.isNotBlank(),
+            enabled = url.isNotBlank() && canAddPortal,
         ) {
             Text("ADD EPG GUIDE", color = onPrimary, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
         }
@@ -2612,12 +2770,13 @@ private fun EpgUrlForm(onSuccess: () -> Unit) {
 }
 
 @Composable
-private fun EpgFileForm(onSuccess: () -> Unit) {
+private fun EpgFileForm(onSuccess: () -> Unit, canAddPortal: Boolean) {
     var selectedFileName by remember { mutableStateOf<String?>(null) }
     var parseError by remember { mutableStateOf<String?>(null) }
     var isUploading by remember { mutableStateOf(false) }
 
     val pickFile = rememberFilePickerLauncher { name, content ->
+        if (!canAddPortal) return@rememberFilePickerLauncher
         selectedFileName = name
         parseError = null
         isUploading = true
@@ -2639,7 +2798,7 @@ private fun EpgFileForm(onSuccess: () -> Unit) {
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = primary),
-            enabled = !isUploading,
+            enabled = !isUploading && canAddPortal,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Filled.Add, null, tint = onPrimary, modifier = Modifier.size(20.dp))
@@ -2671,7 +2830,7 @@ private fun EpgFileForm(onSuccess: () -> Unit) {
 }
 
 @Composable
-private fun StalkerForm(onSuccess: () -> Unit) {
+private fun StalkerForm(onSuccess: () -> Unit, canAddPortal: Boolean) {
     var name by remember { mutableStateOf("") }
     var server by remember { mutableStateOf("") }
     var macAddress by remember { mutableStateOf("") }
@@ -2693,7 +2852,7 @@ private fun StalkerForm(onSuccess: () -> Unit) {
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = primary),
-            enabled = name.isNotBlank() && server.isNotBlank() && macAddress.isNotBlank(),
+            enabled = name.isNotBlank() && server.isNotBlank() && macAddress.isNotBlank() && canAddPortal,
         ) {
             Text("CONNECT SOURCE", color = onPrimary, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
         }
@@ -2702,6 +2861,7 @@ private fun StalkerForm(onSuccess: () -> Unit) {
 
 @Composable
 private fun PortalForm(onSuccess: () -> Unit) {
+    val scope = rememberCoroutineScope()
     var englishOnly by remember { mutableStateOf(true) }
     var noAdult by remember { mutableStateOf(true) }
     var sportsOnly by remember { mutableStateOf(false) }
@@ -2710,7 +2870,9 @@ private fun PortalForm(onSuccess: () -> Unit) {
     var searchError by remember { mutableStateOf<String?>(null) }
     var results by remember { mutableStateOf<List<PortalNutzEntry>?>(null) }
     var progressMsg by remember { mutableStateOf("") }
-    val repoUiState by IptvRepository.uiState.collectAsState()
+    var autoLoaded by remember { mutableStateOf(false) }
+    val repoUiState by IptvRepository.uiState.collectAsStateWithLifecycle()
+    val installedKeys by PortalInstallStore.installed.collectAsStateWithLifecycle()
 
     val license = PortalLicenseManager.getSavedLicense()
     val licenseStatus = PortalLicenseManager.checkStatus(license)
@@ -2870,6 +3032,57 @@ private fun PortalForm(onSuccess: () -> Unit) {
 
             Spacer(Modifier.height(16.dp))
 
+// Auto-load results on first access
+    LaunchedEffect(hasAccess) {
+        if (hasAccess && !autoLoaded && results == null && !searching) {
+            autoLoaded = true
+            searching = true
+                    searchError = null
+                    results = null
+                    progressMsg = ""
+                    autoLoaded = true
+                    PortalNutzScraper.scrape(
+                        englishOnly = englishOnly,
+                        noAdult = noAdult,
+                        sportsOnly = sportsOnly,
+                        adultOnly = adultOnly,
+                        excludeServers = repoUiState.xtreamAccounts.map { it.server }.toSet(),
+                        onEvent = { event ->
+                            when (event) {
+                                is PortalNutzScraper.ScrapeEvent.Progress -> progressMsg = event.message
+                                is PortalNutzScraper.ScrapeEvent.Result -> {
+                                    results = event.portals
+                                    searching = false
+                                    progressMsg = ""
+                                }
+                                is PortalNutzScraper.ScrapeEvent.Error -> {
+                                    searchError = event.message
+                                    searching = false
+                                    progressMsg = ""
+                                }
+                            }
+                        },
+                    )
+                }
+            }
+
+            if (searching) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = primary, strokeWidth = 2.dp)
+                    Text(progressMsg, color = onsurfaceContainerHigh, fontSize = 13.sp)
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            searchError?.let { err ->
+                Text(err, color = errorColor, fontSize = 13.sp, modifier = Modifier.padding(vertical = 4.dp))
+            }
+
+            // Refresh button
             Button(
                 onClick = {
                     searching = true
@@ -2904,32 +3117,23 @@ private fun PortalForm(onSuccess: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = primary),
                 enabled = !searching,
             ) {
-                Text("RD NUTZ LISTS", color = onPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Text("REFRESH NUTZ", color = onPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             }
 
             Spacer(Modifier.height(12.dp))
 
-            if (searching) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = primary, strokeWidth = 2.dp)
-                    Text(progressMsg, color = onsurfaceContainerHigh, fontSize = 13.sp)
+results?.let { raw ->
+                val filtered = raw
+                    .sortedByDescending { portalHealthScore(it) }
+                    .filter { it.channelCount > 0 }
+                if (filtered.isEmpty() && results!!.isNotEmpty()) {
+                    Text("No working portals found. Try adjusting filters.", color = onsurfaceContainerHigh, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
                 }
-                Spacer(Modifier.height(8.dp))
-            }
-
-            searchError?.let { err ->
-                Text(err, color = errorColor, fontSize = 13.sp, modifier = Modifier.padding(vertical = 4.dp))
-            }
-
-            results?.let { portals ->
                 Spacer(Modifier.height(4.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    portals.forEach { entry ->
-                        val isAdded = repoUiState.xtreamAccounts.any { it.name == entry.label || it.name.lowercase().startsWith("portal${entry.label.filter { it.isDigit() }}") }
+                    filtered.forEach { entry ->
+                        val isAdded = installedKeys.contains("${entry.url}|${entry.username}")
+                        val isExpiringSoon = entry.expDate != null && entry.expDate - TraktPlatformClock.nowEpochMs() < 7L * 24 * 60 * 60 * 1000L
                         Row(
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                                 .background(surfaceContainer)
@@ -2944,7 +3148,21 @@ private fun PortalForm(onSuccess: () -> Unit) {
                             Column(Modifier.weight(1f)) {
                                 Text(entry.domain, color = primary, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Spacer(Modifier.height(2.dp))
-                                Text("${entry.channelCount} channels", color = onsurfaceContainerHigh, fontSize = 12.sp)
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("${entry.channelCount} channels", color = onsurfaceContainerHigh, fontSize = 12.sp)
+                                    entry.activeConnections?.let { ac ->
+                                        Text("•", color = onsurfaceContainerHigh.copy(alpha = 0.4f), fontSize = 12.sp)
+                                        Text("$ac active", color = onsurfaceContainerHigh.copy(alpha = 0.7f), fontSize = 11.sp)
+                                    }
+                                    if (isExpiringSoon) {
+                                        Text("•", color = onsurfaceContainerHigh.copy(alpha = 0.4f), fontSize = 12.sp)
+                                        Text("Expiring", color = Color(0xFFFFA000), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        entry.expDate?.let { exp ->
+                                            Text("•", color = onsurfaceContainerHigh.copy(alpha = 0.4f), fontSize = 12.sp)
+                                            Text(formatExpDate(exp), color = Color(0xFFFFA000), fontSize = 11.sp)
+                                        }
+                                    }
+                                }
                             }
                             if (isAdded) {
                                 Text("ADDED", color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
@@ -2952,6 +3170,7 @@ private fun PortalForm(onSuccess: () -> Unit) {
                                 Button(
                                     onClick = {
                                         IptvRepository.addXtreamAccount(entry.label, entry.url, entry.username, entry.password)
+                                        PortalInstallStore.markInstalled(entry.url, entry.username)
                                     },
                                     shape = RoundedCornerShape(8.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = primary),
@@ -3008,135 +3227,39 @@ private fun formatTime(epochMs: Long): String {
     return "${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}"
 }
 
-@Composable
-private fun QuickChannelsSection(
-    allChannels: List<IptvChannel>,
-    onPlayChannel: ((PlayerLaunch) -> Unit)?,
-) {
-    var qcRegion by remember { mutableStateOf("All") }
-    var selectedQc by remember { mutableStateOf<QuickChannel?>(null) }
-    val qcTabs = listOf("All", "US", "UK", "CA", "Bay Area", "Premium", "Sports", "News")
+private fun formatExpDate(epochMs: Long): String {
+    if (epochMs <= 0L) return "Never"
+    val daysRemaining = (epochMs - com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs()) / 86400000L
+    return when {
+        daysRemaining < 0 -> "Expired"
+        daysRemaining == 0L -> "Today"
+        daysRemaining == 1L -> "1 day left"
+        daysRemaining < 365 -> "$daysRemaining days left"
+        else -> "${daysRemaining / 365} yr left"
+    }
+}
 
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Quick Channels", color = onSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
-        }
-        Spacer(Modifier.height(8.dp))
-
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(qcTabs) { tab ->
-                val isActive = qcRegion == tab
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(if (isActive) primary else surfaceContainer)
-                        .clickable { qcRegion = tab }
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        tab,
-                        color = if (isActive) onPrimary else onSurface,
-                        fontSize = 13.sp,
-                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-
-        val filtered = QuickChannelList.all.filter { qc ->
-            when (qcRegion) {
-                "All" -> true; "US" -> "US" in qc.regions; "UK" -> "UK" in qc.regions
-                "CA" -> "CA" in qc.regions; "Bay Area" -> "bay-area" in qc.regions
-                "Premium" -> "premium" in qc.tags
-                "Sports" -> "sports" in qc.tags; "News" -> "news" in qc.tags
-                else -> true
-            }
-        }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(filtered, key = { it.displayName }) { qc ->
-                Card(
-                    onClick = { selectedQc = qc },
-                    modifier = Modifier.width(140.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = surfaceContainerLow),
-                ) {
-                    Box(modifier = Modifier.fillMaxWidth().height(64.dp), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                qc.displayName,
-                                color = onSurface,
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(horizontal = 8.dp),
-                            )
-                            Text("▸ select", color = primary.copy(alpha = 0.7f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
-
-        // Quick Search Terms
-        var savedTerms by remember { mutableStateOf(ChannelQuickSearchStore.loadTerms()) }
-        if (savedTerms.isNotEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Quick Searches", color = onSurface, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            }
-            Spacer(Modifier.height(6.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(savedTerms) { term ->
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(surfaceContainer)
-                            .clickable {
-                                IptvRepository.setSearchQuery(term)
-                                ChannelQuickSearchStore.addTerm(term)
-                                savedTerms = ChannelQuickSearchStore.loadTerms()
-                            }
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(term, color = onSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                            Spacer(Modifier.width(4.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .clickable {
-                                        ChannelQuickSearchStore.removeTerm(term)
-                                        savedTerms = ChannelQuickSearchStore.loadTerms()
-                                    }
-                                    .padding(2.dp),
-                            ) {
-                                Text("✕", color = onsurfaceContainerHigh.copy(alpha = 0.5f), fontSize = 9.sp)
-                            }
-                        }
-                    }
-                }
-            }
+/**
+ * Health score for a portalnutz result. Higher = more usable. Sorts results by it.
+ * - channelCount dominates (more channels = better catalog).
+ * - activeConnections ratio penalizes overloaded portals.
+ * - expDate proximity rewards portals with longer remaining life.
+ */
+private fun portalHealthScore(e: PortalNutzEntry): Double {
+    val now = TraktPlatformClock.nowEpochMs()
+    val channels = e.channelCount.coerceAtLeast(0).toDouble()
+    val active = (e.activeConnections ?: 0).toDouble()
+    val max = (e.maxConnections ?: 0).toDouble()
+    val loadPenalty = if (max > 0 && active > max) active / max else 0.0
+    val expBonus = when {
+        e.expDate == null -> 0.0
+        e.expDate <= now -> -100.0
+        else -> {
+            val daysLeft = (e.expDate - now) / (24 * 60 * 60 * 1000.0)
+            if (daysLeft > 365) 100.0 else daysLeft / 3.65
         }
     }
-
-    selectedQc?.let { qc ->
-        QuickChannelSourcesSheet(
-            quickChannel = qc,
-            allChannels = allChannels,
-            onPlayChannel = onPlayChannel,
-            onDismiss = { selectedQc = null },
-        )
-    }
+    return channels * 10.0 - loadPenalty * 5.0 + expBonus
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -3237,8 +3360,11 @@ private fun QuickChannelSourcesSheet(
                             )
                         }
                     } else {
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(visible) { ch ->
+                LazyColumn(
+                    modifier = Modifier.height(300.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                            itemsIndexed(visible, key = { index, ch -> "src_${index}_${ch.id}_${ch.sourceId}" }) { _, ch ->
                                 val alive = aliveByUrl[ch.url]
                                 val provider = sourceNameForId[ch.sourceId] ?: "Unknown"
                                 Row(
@@ -3280,3 +3406,268 @@ private fun QuickChannelSourcesSheet(
         }
     }
 }
+@Composable
+fun QuickChannelsSection(
+    allChannels: List<IptvChannel>,
+    onPlayChannel: ((PlayerLaunch) -> Unit)?,
+    showLogos: Boolean = false,
+) {
+    var qcRegion by remember { mutableStateOf("All") }
+    var selectedQc by remember { mutableStateOf<QuickChannel?>(null) }
+    val qcTabs = listOf("All", "US", "UK", "CA", "Bay Area", "Premium", "Sports", "News", "Custom")
+    var showAddDialog by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
+    var newAliases by remember { mutableStateOf("") }
+    var newRegions by remember { mutableStateOf("") }
+    var newTags by remember { mutableStateOf("") }
+
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Quick Channels", color = onSurface, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+        }
+        Spacer(Modifier.height(8.dp))
+
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(qcTabs) { tab ->
+                val isActive = qcRegion == tab
+                Card(
+                    onClick = { qcRegion = tab },
+                    modifier = Modifier.width(140.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isActive) primary else surfaceContainer,
+                    ),
+                ) {
+                    Box(
+                        modifier = Modifier.height(80.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Text(
+                                tab,
+                                color = if (isActive) onPrimary else onSurface,
+                                fontSize = 13.sp,
+                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 8.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        val filtered = remember(qcRegion) {
+            when (qcRegion) {
+                "All" -> QuickChannelList.all
+                "US" -> QuickChannelList.getChannelsForCategory("us")
+                "UK" -> QuickChannelList.getChannelsForCategory("uk")
+                "CA" -> QuickChannelList.getChannelsForCategory("ca")
+                "Bay Area" -> QuickChannelList.getChannelsForCategory("bay-area")
+                "Premium" -> QuickChannelList.getChannelsForCategory("premium")
+                "Sports" -> QuickChannelList.getChannelsForCategory("sports")
+                "News" -> QuickChannelList.getChannelsForCategory("news")
+                "Custom" -> QuickChannelList.getCustomChannels()
+                else -> QuickChannelList.all
+            }
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            itemsIndexed(filtered, key = { index, qc -> "qc_${index}_${qc.displayName}" }) { _, qc ->
+                val matchedChannel = if (showLogos) {
+                    remember(qc, allChannels) {
+                        allChannels.find { QuickChannelList.matches(qc, it) }
+                    }
+                } else null
+                Card(
+                    onClick = { selectedQc = qc },
+                    modifier = Modifier.width(140.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = surfaceContainerLow),
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            if (showLogos && matchedChannel?.logo?.isNotBlank() == true) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalPlatformContext.current)
+                                        .data(matchedChannel.logo)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = qc.displayName,
+                                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)),
+                                    contentScale = ContentScale.Crop,
+                                )
+                                Spacer(Modifier.height(4.dp))
+                            }
+                            Text(
+                                qc.displayName,
+                                color = onSurface,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 8.dp),
+                            )
+                            if (!showLogos) {
+                                Text("▸ select", color = primary.copy(alpha = 0.7f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (qcRegion == "Custom") {
+            Spacer(Modifier.height(8.dp))
+            val customChannels = QuickChannelList.getCustomChannels()
+            if (customChannels.isNotEmpty()) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    itemsIndexed(customChannels, key = { index, qc -> "cust_qc_${index}_${qc.displayName}" }) { _, qc ->
+                        Card(
+                            modifier = Modifier.width(140.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = surfaceContainerLow),
+                        ) {
+                            Box(modifier = Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    if (showLogos && qc.displayName.isNotBlank()) {
+                                        AsyncImage(
+                                            model = ImageRequest.Builder(LocalPlatformContext.current)
+                                                .data("") // no logo for custom, could add later
+                                                .crossfade(true)
+                                                .build(),
+                                            contentDescription = qc.displayName,
+                                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)),
+                                            contentScale = ContentScale.Crop,
+                                        )
+                                        Spacer(Modifier.height(4.dp))
+                                    }
+                                    Text(
+                                        qc.displayName,
+                                        color = onSurface,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(horizontal = 8.dp),
+                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center, modifier = Modifier.padding(top = 4.dp)) {
+                                        IconButton(onClick = { QuickChannelList.removeCustomChannel(qc.displayName) }) {
+                                            Icon(Icons.Filled.Delete, contentDescription = "Remove", tint = errorColor.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Button(
+                onClick = {
+                    newName = ""
+                    newAliases = ""
+                    newRegions = ""
+                    newTags = ""
+                    showAddDialog = true
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = primary.copy(alpha = 0.15f), contentColor = primary),
+                shape = RoundedCornerShape(8.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Icon(Icons.Filled.Add, contentDescription = null, tint = primary, modifier = Modifier.size(18.dp))
+                    Text("Add Custom Channel", color = primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+
+        if (showAddDialog) {
+            AlertDialog(
+                onDismissRequest = { showAddDialog = false },
+                title = { Text("Add Custom Quick Channel", color = onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(
+                            value = newName,
+                            onValueChange = { newName = it },
+                            placeholder = { Text("Display Name", color = onsurfaceContainerHigh.copy(alpha = 0.5f)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = newAliases,
+                            onValueChange = { newAliases = it },
+                            placeholder = { Text("Aliases (comma separated)", color = onsurfaceContainerHigh.copy(alpha = 0.5f)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = newRegions,
+                            onValueChange = { newRegions = it },
+                            placeholder = { Text("Regions (comma separated: US, UK, CA, bay-area)", color = onsurfaceContainerHigh.copy(alpha = 0.5f)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        OutlinedTextField(
+                            value = newTags,
+                            onValueChange = { newTags = it },
+                            placeholder = { Text("Tags (comma separated: news, sports, premium, etc.)", color = onsurfaceContainerHigh.copy(alpha = 0.5f)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val name = newName.trim()
+                        if (name.isNotBlank()) {
+                            val aliases = newAliases.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                            val regions = newRegions.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                            val tags = newTags.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                            val channel = QuickChannel(
+                                displayName = name,
+                                aliases = if (aliases.isEmpty()) listOf(name) else aliases,
+                                regions = if (regions.isEmpty()) listOf("US") else regions,
+                                tags = tags,
+                            )
+                            QuickChannelList.addCustomChannel(channel)
+                            CustomQuickChannelStore.addChannel(channel)
+                        }
+                        showAddDialog = false
+                    }) {
+                        Text("Add", color = primary, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAddDialog = false }) {
+                        Text("Cancel", color = onsurfaceContainerHigh)
+                    }
+                },
+            )
+        }
+
+    selectedQc?.let { qc ->
+        QuickChannelSourcesSheet(
+            quickChannel = qc,
+            allChannels = allChannels,
+            onPlayChannel = onPlayChannel,
+            onDismiss = { selectedQc = null },
+        )
+    }
+}
+}
+

@@ -1,5 +1,6 @@
 package com.nuvio.app.features.iptv
 
+import co.touchlab.kermit.Logger
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.addons.httpGetTextChunked
 import com.nuvio.app.features.addons.httpGetTextWithHeaders
@@ -44,8 +45,21 @@ object IptvRepository {
 
     private val IPTV_ORG_URL = "https://iptv-org.github.io/iptv/index.m3u"
     private val IPTV_ORG_NAME = "iptv-org"
+    private val NETSMUTT_M3U_URL = "https://iptv.rdnutz.us/Nett_Smutt_2.0.m3u"
+    private val NETSMUTT_M3U_NAME = "NetSmutt"
+    private val NETSMUTT_3_M3U_URL = "https://iptv.rdnutz.us/Nett_Smutt_3.0.m3u"
+    private val NETSMUTT_3_M3U_NAME = "Nett_Smutt_3.0"
+    private val XXX_2_M3U_URL = "https://iptv.rdnutz.us/XXX_2.m3u"
+    private val XXX_2_M3U_NAME = "XXX_2"
     private val MJH_EPG_URL = "https://raw.githubusercontent.com/matthuisman/i.mjh.nz/master/all/epg.xml"
     private val MJH_EPG_NAME = "i.mjh.nz EPG"
+
+    val PREDEFINED_M3U_PLAYLISTS = listOf(
+        NETSMUTT_M3U_NAME to NETSMUTT_M3U_URL,
+        NETSMUTT_3_M3U_NAME to NETSMUTT_3_M3U_URL,
+        XXX_2_M3U_NAME to XXX_2_M3U_URL,
+        IPTV_ORG_NAME to IPTV_ORG_URL
+    )
 
     private fun nextId(prefix: String): String {
         return "${prefix}_${++idCounter}_${TraktPlatformClock.nowEpochMs()}"
@@ -56,6 +70,7 @@ object IptvRepository {
         hasLoaded = true
         try {
             loadFromStorage()
+            seedDefaultM3uIfNeeded()
         } catch (e: Exception) {
             e.printStackTrace()
             settings = IptvPlaylistSettings()
@@ -64,12 +79,29 @@ object IptvRepository {
         }
     }
 
+    private fun seedDefaultM3uIfNeeded() {
+        if (IptvStorage.hasSeededDefaultM3u()) return
+        val url = NETSMUTT_M3U_URL
+        val name = NETSMUTT_M3U_NAME
+        val existing = settings.m3uPlaylists.any { it.url == url }
+        if (existing) {
+            IptvStorage.markDefaultM3uSeeded()
+            return
+        }
+        val id = nextId("m3u")
+        val playlist = M3uPlaylist(id = id, name = name, url = url)
+        settings = settings.copy(m3uPlaylists = settings.m3uPlaylists + playlist)
+        saveToStorage()
+        IptvStorage.markDefaultM3uSeeded()
+        refreshUi()
+        scope.launch { refreshM3uChannels(id) }
+    }
+
     private fun loadFromStorage() {
         val payload = try {
             IptvStorage.loadSettings()
         } catch (e: Exception) {
             e.printStackTrace()
-            IptvStorage.saveSettings(json.encodeToString(StoredIptvSettings.fromSettings(IptvPlaylistSettings())))
             null
         }
         if (payload != null) {
@@ -77,24 +109,16 @@ object IptvRepository {
                 settings = hydrateChannels(json.decodeFromString<StoredIptvSettings>(payload).toSettings())
             } catch (_: Exception) {
                 settings = IptvPlaylistSettings()
-                IptvStorage.saveSettings(json.encodeToString(StoredIptvSettings.fromSettings(settings)))
             }
         }
+        saveToStorage()
         updateCachedAllChannels()
         refreshUi()
     }
 
     private fun saveToStorage() {
-        val stripped = IptvPlaylistSettings(
-            m3uPlaylists = settings.m3uPlaylists.map { it.copy(channels = emptyList()) },
-            xtreamAccounts = settings.xtreamAccounts.map { it.copy(channels = emptyList()) },
-            stalkerAccounts = settings.stalkerAccounts.map { it.copy(channels = emptyList()) },
-            epgSources = settings.epgSources,
-            favoriteChannelIds = settings.favoriteChannelIds,
-            channelHistory = settings.channelHistory,
-        )
         try {
-            IptvStorage.saveSettings(json.encodeToString(StoredIptvSettings.fromSettings(stripped)))
+            IptvStorage.saveSettings(json.encodeToString(StoredIptvSettings.fromSettings(settings)))
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -120,40 +144,98 @@ object IptvRepository {
             m3uPlaylists = s.m3uPlaylists.map { p ->
                 val key = m3uCacheKey(p)
                 val cached = loadChannelsFromCacheRaw(key)
-                if (cached != null && cached.isNotEmpty()) {
+                val now = TraktPlatformClock.nowEpochMs()
+                val lastRefresh = IptvStorage.loadLastRefresh(key)
+                val expired = lastRefresh == null || (now - lastRefresh) > CHANNEL_CACHE_TTL_MS
+                if (cached != null && cached.isNotEmpty() && !expired) {
+                    p.copy(channels = cached)
+                } else if (cached != null && cached.isNotEmpty() && expired) {
+                    scheduleRefresh(key, p.url, p.name)
                     p.copy(channels = cached)
                 } else if (p.channels.isNotEmpty()) {
                     saveChannelsToCache(key, p.channels)
+                    IptvStorage.saveLastRefresh(key, now)
                     p
                 } else {
+                    scheduleRefresh(key, p.url, p.name)
                     p
                 }
             },
             xtreamAccounts = s.xtreamAccounts.map { a ->
                 val key = xtreamCacheKey(a)
                 val cached = loadChannelsFromCacheRaw(key)
-                if (cached != null && cached.isNotEmpty()) {
+                val now = TraktPlatformClock.nowEpochMs()
+                val lastRefresh = IptvStorage.loadLastRefresh(key)
+                val expired = lastRefresh == null || (now - lastRefresh) > CHANNEL_CACHE_TTL_MS
+                if (cached != null && cached.isNotEmpty() && !expired) {
+                    a.copy(channels = cached)
+                } else if (cached != null && cached.isNotEmpty() && expired) {
+                    scheduleRefresh(key, a.server, a.name)
                     a.copy(channels = cached)
                 } else if (a.channels.isNotEmpty()) {
                     saveChannelsToCache(key, a.channels)
+                    IptvStorage.saveLastRefresh(key, now)
                     a
                 } else {
+                    scheduleRefresh(key, a.server, a.name)
                     a
                 }
             },
             stalkerAccounts = s.stalkerAccounts.map { a ->
                 val key = stalkerCacheKey(a)
                 val cached = loadChannelsFromCacheRaw(key)
-                if (cached != null && cached.isNotEmpty()) {
+                val now = TraktPlatformClock.nowEpochMs()
+                val lastRefresh = IptvStorage.loadLastRefresh(key)
+                val expired = lastRefresh == null || (now - lastRefresh) > CHANNEL_CACHE_TTL_MS
+                if (cached != null && cached.isNotEmpty() && !expired) {
+                    a.copy(channels = cached)
+                } else if (cached != null && cached.isNotEmpty() && expired) {
+                    scheduleRefresh(key, a.server, a.name)
                     a.copy(channels = cached)
                 } else if (a.channels.isNotEmpty()) {
                     saveChannelsToCache(key, a.channels)
+                    IptvStorage.saveLastRefresh(key, now)
                     a
                 } else {
+                    scheduleRefresh(key, a.server, a.name)
                     a
                 }
             },
         )
+    }
+
+    private fun scheduleRefresh(cacheKey: String, url: String, name: String) {
+        scope.launch {
+            when {
+                cacheKey.startsWith("xtream:") -> {
+                    val acct = settings.xtreamAccounts.find { xtreamCacheKey(it) == cacheKey }
+                    if (acct != null) runCatching { refreshXtreamChannels(acct.id) }
+                }
+                cacheKey.startsWith("stalker:") -> {
+                    val acct = settings.stalkerAccounts.find { stalkerCacheKey(it) == cacheKey }
+                    if (acct != null) runCatching { refreshStalkerChannels(acct.id) }
+                }
+                else -> runCatching { refreshM3uPlaylistInternal(url, name, cacheKey) }
+            }
+        }
+    }
+
+    private suspend fun refreshM3uPlaylistInternal(url: String, name: String, cacheKey: String) {
+        try {
+            val m3uContent = httpGetTextWithHeaders(url, mapOf("Accept" to "*/*", "User-Agent" to "Nuvio/1.0"))
+            val channels = M3uParser.parse(m3uContent, cacheKey)
+            saveChannelsToCache(cacheKey, channels)
+            IptvStorage.saveLastRefresh(cacheKey, TraktPlatformClock.nowEpochMs())
+            val existing = settings.m3uPlaylists.find { m3uCacheKey(it) == cacheKey }
+            if (existing != null) {
+                val updated = existing.copy(channels = channels)
+                settings = settings.copy(
+                    m3uPlaylists = settings.m3uPlaylists.map { if (it.id == existing.id) updated else it }
+                )
+                saveToStorage()
+                refreshUi()
+            }
+        } catch (_: Exception) { }
     }
 
     fun addM3uPlaylist(name: String, url: String) {
@@ -167,6 +249,7 @@ object IptvRepository {
             saveToStorage()
             refreshUi()
             refreshM3uChannels(id)
+            PortalInstallStore.markInstalled(url, "")
         }
     }
 
@@ -193,7 +276,7 @@ object IptvRepository {
         return try {
             val cached = IptvStorage.loadChannelCache(url) ?: return null
             val data = json.decodeFromString<StoredChannelCache>(cached)
-            val age = System.currentTimeMillis() - data.timestamp
+            val age = com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs() - data.timestamp
             if (age in 0..CHANNEL_CACHE_TTL_MS) {
                 data.channels.map { it.toChannel() } to true
             } else {
@@ -206,7 +289,7 @@ object IptvRepository {
         try {
             val data = json.encodeToString(StoredChannelCache(
                 channels = channels.map { StoredIptvChannel.fromChannel(it) },
-                timestamp = System.currentTimeMillis(),
+                timestamp = com.nuvio.app.features.trakt.TraktPlatformClock.nowEpochMs(),
             ))
             IptvStorage.saveChannelCache(url, data)
         } catch (_: Throwable) { }
@@ -234,6 +317,7 @@ object IptvRepository {
                 val m3uContent = httpGetTextWithHeaders(playlist.url, mapOf("Accept" to "*/*", "User-Agent" to "Nuvio/1.0"))
                 val channels = M3uParser.parse(m3uContent, id)
                 saveChannelsToCache(m3uCacheKey(playlist), channels)
+                IptvStorage.saveLastRefresh(m3uCacheKey(playlist), TraktPlatformClock.nowEpochMs())
                 val updated = playlist.copy(channels = channels)
                 settings = settings.copy(
                     m3uPlaylists = settings.m3uPlaylists.map { if (it.id == id) updated else it }
@@ -330,12 +414,18 @@ object IptvRepository {
 
     fun addXtreamAccount(name: String, server: String, username: String, password: String, info: PortalAccountInfo? = null) {
         scope.launch {
-            val id = nextId("xtream")
-            val account = XtreamAccount(id = id, name = name, server = server, username = username, password = password, info = info)
-            settings = settings.copy(xtreamAccounts = settings.xtreamAccounts + account)
-            saveToStorage()
-            refreshUi()
-            refreshXtreamChannels(id)
+            try {
+                val id = nextId("xtream")
+                val account = XtreamAccount(id = id, name = name, server = server, username = username, password = password, info = info)
+                settings = settings.copy(xtreamAccounts = settings.xtreamAccounts + account)
+                saveToStorage()
+                refreshUi()
+                scope.launch { refreshXtreamChannels(id) }
+                scope.launch { refreshXtreamVod(id) }
+                PortalInstallStore.markInstalled(server, username)
+            } catch (e: Exception) {
+                Logger.e { "addXtreamAccount failed: $e" }
+            }
         }
     }
 
@@ -393,6 +483,7 @@ object IptvRepository {
                     xtreamAccounts = settings.xtreamAccounts.map { if (it.id == id) updated else it }
                 )
                 saveChannelsToCache(xtreamCacheKey(account), channels)
+                IptvStorage.saveLastRefresh(xtreamCacheKey(account), TraktPlatformClock.nowEpochMs())
                 saveToStorage()
                 _uiState.value = _uiState.value.copy(refreshingSourceIds = _uiState.value.refreshingSourceIds - id)
                 refreshUi()
@@ -402,14 +493,68 @@ object IptvRepository {
         }
     }
 
+    fun refreshXtreamVod(id: String) {
+        scope.launch {
+            val account = settings.xtreamAccounts.find { it.id == id } ?: return@launch
+            _uiState.value = _uiState.value.copy(vodLoading = true, vodError = null)
+            try {
+                val baseUrl = account.server.trimEnd('/')
+                val creds = "username=${account.username}&password=${account.password}"
+                val headers = mapOf("User-Agent" to "VLC/3.0.20")
+
+                val moviesJson = try {
+                    httpGetTextWithHeaders("$baseUrl/player_api.php?$creds&action=get_vod_streams", headers)
+                } catch (_: Exception) { "" }
+                val movies = XtreamClient.parseVodStreams(moviesJson, account.server, account.username, account.password)
+
+                val seriesJson = try {
+                    httpGetTextWithHeaders("$baseUrl/player_api.php?$creds&action=get_series", headers)
+                } catch (_: Exception) { "" }
+                val series = XtreamClient.parseSeries(seriesJson, account.server, account.username, account.password)
+
+                var vodCategoriesJson = try {
+                    httpGetTextWithHeaders("$baseUrl/player_api.php?$creds&action=get_vod_categories", headers)
+                } catch (_: Exception) { "" }
+                val vodCategories = XtreamClient.parseCategories(vodCategoriesJson)
+
+                var seriesCategoriesJson = try {
+                    httpGetTextWithHeaders("$baseUrl/player_api.php?$creds&action=get_series_categories", headers)
+                } catch (_: Exception) { "" }
+                val seriesCategories = XtreamClient.parseCategories(seriesCategoriesJson)
+
+                val catMap = vodCategories.associateBy { it.id }
+                val finalMovies = movies.map { m -> m.copy(categoryName = catMap[m.categoryId]?.name ?: "") }
+
+                val sCatMap = seriesCategories.associateBy { it.id }
+                val finalSeries = series.map { s -> s.copy(categoryName = sCatMap[s.categoryId]?.name ?: "") }
+
+                val updated = account.copy(movies = finalMovies, series = finalSeries, vodCategories = vodCategories, seriesCategories = seriesCategories)
+                settings = settings.copy(
+                    xtreamAccounts = settings.xtreamAccounts.map { if (it.id == id) updated else it }
+                )
+                saveToStorage()
+                val loadedIds = _uiState.value.vodLoadedAccountIds + id
+                _uiState.value = _uiState.value.copy(vodLoading = false, vodError = null, vodLoadedAccountIds = loadedIds)
+                refreshUi()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(vodLoading = false, vodError = "Failed to load VOD: ${e.message}")
+            }
+        }
+    }
+
     fun addStalkerAccount(name: String, server: String, macAddress: String) {
         scope.launch {
-            val id = nextId("stalker")
-            val account = StalkerAccount(id = id, name = name, server = server, macAddress = macAddress)
-            settings = settings.copy(stalkerAccounts = settings.stalkerAccounts + account)
-            saveToStorage()
-            refreshUi()
-            refreshStalkerChannels(id)
+            try {
+                val id = nextId("stalker")
+                val account = StalkerAccount(id = id, name = name, server = server, macAddress = macAddress)
+                settings = settings.copy(stalkerAccounts = settings.stalkerAccounts + account)
+                saveToStorage()
+                refreshUi()
+                scope.launch { refreshStalkerChannels(id) }
+                PortalInstallStore.markInstalled(server, macAddress)
+            } catch (e: Exception) {
+                Logger.e { "addStalkerAccount failed: $e" }
+            }
         }
     }
 
@@ -432,6 +577,7 @@ object IptvRepository {
                     stalkerAccounts = settings.stalkerAccounts.map { if (it.id == id) updated else it }
                 )
                 saveChannelsToCache(stalkerCacheKey(account), channels)
+                IptvStorage.saveLastRefresh(stalkerCacheKey(account), TraktPlatformClock.nowEpochMs())
                 saveToStorage()
                 _uiState.value = _uiState.value.copy(refreshingSourceIds = _uiState.value.refreshingSourceIds - id)
                 refreshUi()
@@ -513,10 +659,10 @@ object IptvRepository {
                             }
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
-                        } catch (e: OutOfMemoryError) {
-                            lastError = "EPG source \"${source.name}\" is too large"
                         } catch (e: Exception) {
                             lastError = e.message ?: "Unknown EPG error"
+                        } catch (e: Throwable) {
+                            lastError = "EPG source \"${source.name}\" is too large"
                         }
                     }
                     val programsByNormId = buildNormalizedIdIndex(allPrograms)
@@ -541,15 +687,15 @@ object IptvRepository {
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
-            } catch (e: OutOfMemoryError) {
-                _uiState.value = _uiState.value.copy(
-                    epgLoading = false,
-                    epgError = "EPG feed is too large to load",
-                )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     epgLoading = false,
                     epgError = if (e is kotlinx.coroutines.TimeoutCancellationException) "EPG loading timed out" else "EPG error: ${e.message}",
+                )
+            } catch (e: Throwable) {
+                _uiState.value = _uiState.value.copy(
+                    epgLoading = false,
+                    epgError = "EPG feed is too large to load",
                 )
             }
         }
@@ -612,6 +758,7 @@ object IptvRepository {
 
     fun setSearchQuery(query: String) {
         _uiState.value = _uiState.value.copy(searchQuery = query)
+        IptvStorage.saveSearchQuery(query)
         applyFilters()
     }
 
@@ -639,6 +786,36 @@ object IptvRepository {
 
     fun hasPredefinedPlaylist(): Boolean =
         settings.m3uPlaylists.any { it.url == IPTV_ORG_URL }
+
+    fun addNetSmuttPlaylist() {
+        val exists = settings.m3uPlaylists.any { it.url == NETSMUTT_M3U_URL }
+        if (!exists) {
+            addM3uPlaylist(NETSMUTT_M3U_NAME, NETSMUTT_M3U_URL)
+        }
+    }
+
+    fun hasNetSmuttPlaylist(): Boolean =
+        settings.m3uPlaylists.any { it.url == NETSMUTT_M3U_URL }
+
+    fun addNettSmutt3Playlist() {
+        val exists = settings.m3uPlaylists.any { it.url == NETSMUTT_3_M3U_URL }
+        if (!exists) {
+            addM3uPlaylist(NETSMUTT_3_M3U_NAME, NETSMUTT_3_M3U_URL)
+        }
+    }
+
+    fun hasNettSmutt3Playlist(): Boolean =
+        settings.m3uPlaylists.any { it.url == NETSMUTT_3_M3U_URL }
+
+    fun addXXX2Playlist() {
+        val exists = settings.m3uPlaylists.any { it.url == XXX_2_M3U_URL }
+        if (!exists) {
+            addM3uPlaylist(XXX_2_M3U_NAME, XXX_2_M3U_URL)
+        }
+    }
+
+    fun hasXXX2Playlist(): Boolean =
+        settings.m3uPlaylists.any { it.url == XXX_2_M3U_URL }
 
     fun addToHistory(channelId: String) {
         val current = settings.channelHistory.toMutableList()
@@ -707,16 +884,25 @@ object IptvRepository {
      * the pre-loaded XMLTV cache. Empty when no EPG is loaded for that channel (M3U/Stalker
      * fallback), so the scorer can still boost channels whose program contains the teams.
      */
+    private var _epgTitleMapCache: Map<String, String>? = null
+    private var _epgTitleMapCacheTime: Long = 0L
+    private val EPG_MAP_CACHE_TTL_MS = 60_000L
+
     fun buildCurrentEpgTitleMap(): Map<String, String> {
-        val state = _uiState.value
         val now = TraktPlatformClock.nowEpochMs()
+        val cached = _epgTitleMapCache
+        if (cached != null && now - _epgTitleMapCacheTime < EPG_MAP_CACHE_TTL_MS) return cached
+        val state = _uiState.value
         val titlesByChannelKey = mutableMapOf<String, String>()
         for ((nameKey, programs) in state.epgProgramsByName) {
             val current = programs.firstOrNull { now in it.startTime until it.endTime }?.title
             if (!current.isNullOrBlank()) {
-                titlesByChannelKey[com.nuvio.app.features.sports.ChannelText.channelNameKey(nameKey)] = current
+                titlesByChannelKey[com.nuvio.app.features.sports.ChannelText.channelNameKey(nameKey)] =
+                    com.nuvio.app.features.sports.ChannelText.stripQualitySuffix(current).trim()
             }
         }
+        _epgTitleMapCache = titlesByChannelKey
+        _epgTitleMapCacheTime = now
         return titlesByChannelKey
     }
 
@@ -734,11 +920,12 @@ object IptvRepository {
      * fetched via [ShortEpgCache.getOrLoad]; M3U/Stalker candidates fall back to the XMLTV map.
      * Capped at [cap] channels so a per-candidate HTTP fan-out never stalls first paint.
      */
-    suspend fun buildLazyEpgTitleLookup(candidates: List<IptvChannel>, cap: Int = 8): (String) -> String {
+    suspend fun buildLazyEpgTitleLookup(candidates: List<IptvChannel>, cap: Int = 8, extraCandidates: List<IptvChannel> = emptyList()): (String) -> String {
         val merged = buildCurrentEpgTitleMap().toMutableMap()
-        if (candidates.isEmpty()) return com.nuvio.app.features.sports.ChannelScorer.buildEpgLookup(merged)
+        val allCandidates = (candidates + extraCandidates).distinctBy { it.id to it.sourceId }
+        if (allCandidates.isEmpty()) return com.nuvio.app.features.sports.ChannelScorer.buildEpgLookup(merged)
 
-        val xtreamCandidates = candidates.filter { it.sourceType == SourceType.Xtream }.take(cap)
+        val xtreamCandidates = allCandidates.filter { it.sourceType == SourceType.Xtream }.take(cap)
         val now = TraktPlatformClock.nowEpochMs()
 
         val fetched = kotlinx.coroutines.coroutineScope {
@@ -749,7 +936,8 @@ object IptvRepository {
                         val programs = ShortEpgCache.getOrLoad(account, channel, limit = 2)
                         val current = programs.firstOrNull { now in it.startTime until it.endTime }?.title
                         if (current.isNullOrBlank()) null
-                        else com.nuvio.app.features.sports.ChannelText.channelNameKey(channel.name) to current
+                        else com.nuvio.app.features.sports.ChannelText.channelNameKey(channel.name) to
+                            com.nuvio.app.features.sports.ChannelText.stripQualitySuffix(current).trim()
                     } catch (_: Throwable) {
                         null
                     }
@@ -803,6 +991,9 @@ object IptvRepository {
                 epgLoading = _uiState.value.epgLoading,
                 epgMatchCount = _uiState.value.epgMatchCount,
                 debugText = _uiState.value.debugText,
+                vodLoading = _uiState.value.vodLoading,
+                vodError = _uiState.value.vodError,
+                vodLoadedAccountIds = _uiState.value.vodLoadedAccountIds,
             )
         } catch (_: Exception) { }
     }
@@ -932,7 +1123,7 @@ private data class StoredM3uPlaylist(
     companion object {
         fun fromPlaylist(p: M3uPlaylist) = StoredM3uPlaylist(
             id = p.id, name = p.name, url = p.url,
-            channels = p.channels.map { StoredIptvChannel.fromChannel(it) },
+            channels = emptyList(), // Channels are cached separately in channel cache files
         )
     }
 }
@@ -958,7 +1149,7 @@ private data class StoredXtreamAccount(
     companion object {
         fun fromAccount(a: XtreamAccount) = StoredXtreamAccount(
             id = a.id, name = a.name, server = a.server, username = a.username, password = a.password,
-            channels = a.channels.map { StoredIptvChannel.fromChannel(it) },
+            channels = emptyList(),
             categories = a.categories.map { StoredXtreamCategory(it.id, it.name) },
             info = a.info?.let { StoredXtreamInfo.fromInfo(it) },
         )
@@ -1008,7 +1199,7 @@ private data class StoredStalkerAccount(
     companion object {
         fun fromAccount(a: StalkerAccount) = StoredStalkerAccount(
             id = a.id, name = a.name, server = a.server, macAddress = a.macAddress,
-            channels = a.channels.map { StoredIptvChannel.fromChannel(it) },
+            channels = emptyList(),
         )
     }
 }
