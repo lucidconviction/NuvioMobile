@@ -1,0 +1,51 @@
+name: Build Daily M3U Playlists
+
+on:
+  schedule:
+    # Daily at 03:00 UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-m3u:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install requests beautifulsoup4 lxml
+
+      - name: Build Nett_Smutt_3.0.m3u
+        working-directory: New working scrapers
+        run: |
+          python3 build_nett_smutt_3.py > Nett_Smutt_3.0.m3u 2>build_nett_smutt_3.log
+          echo "=== Nett_Smutt_3.0.m3u ==="
+          wc -l Nett_Smutt_3.0.m3u
+          cat build_nett_smutt_3.log
+
+      - name: Build XXX_2.m3u
+        working-directory: New working scrapers
+        run: |
+          python3 build_xxx_2.py > XXX_2.m3u 2>build_xxx_2.log
+          echo "=== XXX_2.m3u ==="
+          wc -l XXX_2.m3u
+          cat build_xxx_2.log
+
+      - name: Commit and push m3u files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "New working scrapers/Nett_Smutt_3.0.m3u" "New working scrapers/XXX_2.m3u"
+          git commit -m "Daily M3U build: Nett_Smutt_3.0 and XXX_2" || echo "No changes to commit"
+          git push
