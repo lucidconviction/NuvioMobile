@@ -2,9 +2,9 @@
 """Build Nett_Smutt3.0.m3u — runs all scrapers in the directory and emits M3U.
 
 Scrapers (in order):
-  crazyshit, usacrime, kaotic, livegore, theync, worldstar, heavy_r, xrares,
+  crazyshit, usacrime, kaotic, livegore, worldstar, xrares,
   sickjunk, sexyandfunny, honeydippedcream, jeffsmodels, plumperd,
-  daftporn, efukt, horriblevideos, nothingtoxic, youporn, zfilmzoriginals
+  daftporn, efukt, horriblevideos, nothingtoxic, zfilmzoriginals
 """
 import os
 import sys
@@ -17,9 +17,7 @@ from crazyshit import scrape_crazyshit
 from usacrime import scrape_usacrime
 from kaotic import scrape_kaotic
 from livegore import scrape_livegore
-from theync import scrape_theync
 from worldstar import scrape_worldstar
-from heavy_r import scrape_heavy_r
 from xrares import scrape_xrares
 from sickjunk import scrape_sickjunk
 from sexyandfunny import scrape_sexyandfunny
@@ -30,7 +28,6 @@ from daftporn import scrape_daftporn
 from efukt import scrape_efukt
 from horriblevideos import scrape_horriblevideos
 from nothingtoxic import scrape_nothingtoxic
-from youporn import scrape_youporn
 from zfilmzoriginals import scrape_zfilmzoriginals
 
 SCRAPERS = [
@@ -38,9 +35,7 @@ SCRAPERS = [
     ("usacrime", scrape_usacrime),
     ("kaotic", scrape_kaotic),
     ("livegore", scrape_livegore),
-    ("theync", scrape_theync),
     ("worldstar", scrape_worldstar),
-    ("heavy_r", scrape_heavy_r),
     ("xrares", scrape_xrares),
     ("sickjunk", scrape_sickjunk),
     ("sexyandfunny", scrape_sexyandfunny),
@@ -51,7 +46,6 @@ SCRAPERS = [
     ("efukt", scrape_efukt),
     ("horriblevideos", scrape_horriblevideos),
     ("nothingtoxic", scrape_nothingtoxic),
-    ("youporn", scrape_youporn),
     ("zfilmzoriginals", scrape_zfilmzoriginals),
 ]
 
