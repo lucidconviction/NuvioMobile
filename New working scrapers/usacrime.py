@@ -54,6 +54,18 @@ def _extract_posts(html):
     return posts
 
 
+def _resolve_mp4(post_url: str) -> str | None:
+    """Fetch the article page and extract the <video src> (hotlink-protected)."""
+    html = fetch_with_timeout(post_url, 15000, {"User-Agent": UA})
+    if not html:
+        return None
+    m = re.search(r'<video[^>]+src="([^"]+)"', html, re.I)
+    if m:
+        return m.group(1)
+    m = re.search(r'<source[^>]+src="([^"]+\.mp4[^"]*)"', html, re.I)
+    return m.group(1) if m else None
+
+
 def scrape_usacrime():
     results = []
     seen = {}
@@ -69,9 +81,22 @@ def scrape_usacrime():
             if p["slug"] not in seen:
                 seen[p["slug"]] = p["title"]
 
+    # Resolve each post to its actual MP4 URL (with Referer auth)
+    resolved = {}
+    batch = 6
+    for i in range(0, len(seen), batch):
+        if len(resolved) >= MAX_VIDEOS:
+            break
+        items = list(seen.items())[i:i + batch]
+        for slug, title in items:
+            post_url = f"https://usacrime.com/{slug}/"
+            mp4 = _resolve_mp4(post_url)
+            if mp4:
+                resolved[slug] = (title, mp4)
+
     streams = []
-    for slug, title in list(seen.items())[:MAX_VIDEOS]:
-        s = create_stream(title, f"https://cdn.usacrime.com/{slug}.mp4", GROUP_TITLE)
+    for slug, (title, mp4) in list(resolved.items())[:MAX_VIDEOS]:
+        s = create_stream(title, mp4, GROUP_TITLE)
         s.referrer = "https://usacrime.com/"
         s.user_agent = UA
         streams.append(s)

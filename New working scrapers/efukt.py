@@ -41,7 +41,8 @@ def scrape_efukt():
                 video_html,
             )
             if sm:
-                mp4_url = sm.group(1).split("?")[0]
+                # Preserve the auth query string — eFukt tokens expire quickly
+                mp4_url = sm.group(1).replace("&amp;", "&")
                 all_videos[video_url] = {"title": title, "mp4": mp4_url}
 
     streams = []
