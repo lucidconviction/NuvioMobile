@@ -78,4 +78,7 @@ def build():
 
 if __name__ == "__main__":
     out = build()
-    sys.stdout.write(out)
+    output_path = os.path.join(SCRIPT_DIR, "Nett_Smutt_3.0.m3u")
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(out)
+    print(f"Wrote {output_path}", file=sys.stderr)
