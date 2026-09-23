@@ -4,8 +4,7 @@
 Scrapers (in order):
   crazyshit, usacrime, kaotic, livegore, theync, worldstar, heavy_r, xrares,
   sickjunk, sexyandfunny, honeydippedcream, jeffsmodels, plumperd,
-  bangbros_bb, teamskeet_thickumz, daftporn, efukt, horriblevideos,
-  inhumanity, nothingtoxic, youporn, zfilmzoriginals
+  daftporn, efukt, horriblevideos, nothingtoxic, youporn, zfilmzoriginals
 """
 import os
 import sys
@@ -27,12 +26,9 @@ from sexyandfunny import scrape_sexyandfunny
 from honeydippedcream import scrape_honeydippedcream
 from jeffsmodels import scrape_jeffsmodels
 from plumperd import scrape_plumperd
-from bangbros_bb import scrape_bangbros_brownbunnies
-from teamskeet_thickumz import scrape_teamskeet_thickumz
 from daftporn import scrape_daftporn
 from efukt import scrape_efukt
 from horriblevideos import scrape_horriblevideos
-from inhumanity import scrape_inhumanity
 from nothingtoxic import scrape_nothingtoxic
 from youporn import scrape_youporn
 from zfilmzoriginals import scrape_zfilmzoriginals
@@ -51,12 +47,9 @@ SCRAPERS = [
     ("honeydippedcream", scrape_honeydippedcream),
     ("jeffsmodels", scrape_jeffsmodels),
     ("plumperd", scrape_plumperd),
-    ("bangbros_bb", scrape_bangbros_brownbunnies),
-    ("teamskeet_thickumz", scrape_teamskeet_thickumz),
     ("daftporn", scrape_daftporn),
     ("efukt", scrape_efukt),
     ("horriblevideos", scrape_horriblevideos),
-    ("inhumanity", scrape_inhumanity),
     ("nothingtoxic", scrape_nothingtoxic),
     ("youporn", scrape_youporn),
     ("zfilmzoriginals", scrape_zfilmzoriginals),
