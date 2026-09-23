@@ -63,8 +63,9 @@ def build():
             for s in group.get("streams", []):
                 title = s.title.replace(",", " ")
                 group_title = s.group_title
+                url = s.url.replace("&amp;", "&") if "?" in s.url else s.url
                 lines.append(f'#EXTINF:-1 group-title="{group_title}",{title}')
-                lines.append(s.url)
+                lines.append(url)
                 total += 1
     print(f"# Total streams: {total}", file=sys.stderr)
     return "\n".join(lines) + "\n"
