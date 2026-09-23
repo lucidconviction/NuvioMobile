@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from core import create_stream, fetch_with_timeout  # noqa: E402
 
 GROUP_TITLE = "YouPorn"
-MAX_VIDEOS = 30
+MAX_VIDEOS = 20
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
 BASE = "https://www.you-porn.com"
 

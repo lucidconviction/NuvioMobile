@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from core import create_stream, fetch_with_timeout  # noqa: E402
 
 GROUP_TITLE = "SickJunk"
-MAX_VIDEOS = 100
+MAX_VIDEOS = 50
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
 
 
@@ -22,7 +22,7 @@ def scrape_sickjunk():
     post_links = []
     seen = set()
 
-    for page in range(1, 6):
+    for page in range(1, 4):
         url = f"https://sickjunk.com/page/{page}/" if page > 1 else "https://sickjunk.com/"
         html = fetch_with_timeout(url, timeout_ms=15000, headers={"User-Agent": UA})
         if not html:

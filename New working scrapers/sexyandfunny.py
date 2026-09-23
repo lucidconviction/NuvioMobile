@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from core import create_stream, fetch_with_timeout  # noqa: E402
 
 GROUP_TITLE = "SexyAndFunny"
-MAX_VIDEOS = 100
+MAX_VIDEOS = 50
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
 
 
@@ -22,7 +22,7 @@ def scrape_sexyandfunny():
     video_links = []
     seen = set()
 
-    for page in range(1, 11):
+    for page in range(1, 6):
         url = f"https://sexyandfunny.com/video/page/{page}/" if page > 1 else "https://sexyandfunny.com/videos/"
         html_content = fetch_with_timeout(url, timeout_ms=15000, headers={"User-Agent": UA})
         if not html_content:
