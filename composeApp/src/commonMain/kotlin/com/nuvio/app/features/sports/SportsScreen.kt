@@ -178,6 +178,9 @@ fun SportsScreen(
                 if (uiState.allLiveEvents.isEmpty()) {
                     SportsRepository.loadAllLiveEvents()
                 }
+                if (uiState.unifiedLiveEvents.isEmpty()) {
+                    SportsRepository.loadUnifiedLiveEvents()
+                }
             }
             else -> {
                 SportsRepository.loadLeagueEvents(league, uiState.selectedDate.ifBlank { null })
@@ -1160,7 +1163,7 @@ private fun Page1Live(
         var selectedArticle by remember { mutableStateOf<EspnNewsArticle?>(null) }
         PullToRefreshBox(
             isRefreshing = uiState.isLoading || uiState.allLiveLoading || uiState.refreshing,
-            onRefresh = { SportsRepository.refresh(); SportsRepository.loadAllLiveEvents() },
+            onRefresh = { SportsRepository.refresh(); SportsRepository.loadAllLiveEvents(); SportsRepository.loadUnifiedLiveEvents() },
             modifier = Modifier.fillMaxSize(),
         ) {
             LazyColumn(
@@ -1179,45 +1182,45 @@ private fun Page1Live(
                     )
                 }
 
-            // ── Live External Streams (only when live events exist) ──
-            val liveExternalStreams = uiState.unifiedLiveEvents.filter { it.isLive && it.streamUrl.isNotBlank() }
-            if (liveExternalStreams.isNotEmpty()) {
-                item {
-                    LiveStreamsSection(
-                        events = liveExternalStreams,
-                        onPlay = { event ->
-                            if (onPlayChannel != null && event.streamUrl.isNotBlank()) {
-                                onPlayChannel(PlayerLaunch(
-                                    profileId = 0, title = event.title, sourceUrl = event.streamUrl,
-                                    streamTitle = event.title, providerName = event.provider,
-                                    parentMetaId = event.id, parentMetaType = "external",
-                                    logo = event.imageUrl, poster = event.imageUrl,
-                                ))
-                            }
-                        },
-                    )
+                // ── Live External Streams (only when live events exist) ──
+                val liveExternalStreams = uiState.unifiedLiveEvents.filter { it.isLive && it.streamUrl.isNotBlank() }
+                if (liveExternalStreams.isNotEmpty()) {
+                    item {
+                        LiveStreamsSection(
+                            events = liveExternalStreams,
+                            onPlay = { event ->
+                                if (onPlayChannel != null && event.streamUrl.isNotBlank()) {
+                                    onPlayChannel(PlayerLaunch(
+                                        profileId = 0, title = event.title, sourceUrl = event.streamUrl,
+                                        streamTitle = event.title, providerName = event.provider,
+                                        parentMetaId = event.id, parentMetaType = "external",
+                                        logo = event.imageUrl, poster = event.imageUrl,
+                                    ))
+                                }
+                            },
+                        )
+                    }
                 }
-            }
 
-            // ── All Live Events or Specific League Content ──
-            if (isAllLiveMode) {
-                if (uiState.allLiveLoading && uiState.allLiveEvents.isEmpty() && liveExternalStreams.isEmpty()) {
-                    item {
-                        Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator(color = Primary)
-                                Spacer(Modifier.height(8.dp))
-                                Text("Scanning all leagues for live events...", color = OnSurfaceVariant, fontSize = 13.sp)
+                // ── All Live Events or Specific League Content ──
+                if (isAllLiveMode) {
+                    if (uiState.allLiveLoading && uiState.allLiveEvents.isEmpty() && liveExternalStreams.isEmpty()) {
+                        item {
+                            Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(color = Primary)
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("Scanning all leagues for live events...", color = OnSurfaceVariant, fontSize = 13.sp)
+                                }
                             }
                         }
-                    }
-                } else if (uiState.allLiveEvents.isEmpty() && liveExternalStreams.isEmpty()) {
-                    item {
-                        Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                            Text("No live events right now", color = OnSurfaceVariant)
+                    } else if (uiState.allLiveEvents.isEmpty() && liveExternalStreams.isEmpty()) {
+                        item {
+                            Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                Text("No live events right now", color = OnSurfaceVariant)
+                            }
                         }
-                    }
-                } else {
+                    } else {
                     if (uiState.allLiveLoading) {
                         item {
                             LinearProgressIndicator(
