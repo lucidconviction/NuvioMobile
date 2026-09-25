@@ -1172,347 +1172,38 @@ private fun Page1Live(
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                val isAllLiveMode = uiState.selectedLeague == null
-
-                // ── Hero Header ──
-                item {
-                    LiveHeroHeader(
-                        liveCount = uiState.unifiedLiveEvents.size + uiState.allLiveEvents.size,
-                        onRefresh = { SportsRepository.refresh() },
-                    )
-                }
-
-                // ── Live External Streams (only when live events exist) ──
-                val liveExternalStreams = uiState.unifiedLiveEvents.filter { it.isLive && it.streamUrl.isNotBlank() }
-                if (liveExternalStreams.isNotEmpty()) {
+                // ── Sports Streams ──
+                val liveStreams = uiState.unifiedLiveEvents.filter { it.streamUrl.isNotBlank() }
+                if (liveStreams.isNotEmpty()) {
                     item {
-                        LiveStreamsSection(
-                            events = liveExternalStreams,
+                        SportsStreamsSection(
+                            events = liveStreams,
                             onPlay = { event ->
-                                if (onPlayChannel != null && event.streamUrl.isNotBlank()) {
-                                    onPlayChannel(PlayerLaunch(
-                                        profileId = 0, title = event.title, sourceUrl = event.streamUrl,
-                                        streamTitle = event.title, providerName = event.provider,
-                                        parentMetaId = event.id, parentMetaType = "external",
-                                        logo = event.imageUrl, poster = event.imageUrl,
-                                    ))
-                                }
+                                onPlayChannel?.invoke(PlayerLaunch(
+                                    profileId = 0, title = event.title, sourceUrl = event.streamUrl,
+                                    streamTitle = event.title, providerName = event.provider,
+                                    parentMetaId = event.id, parentMetaType = "external",
+                                    logo = event.imageUrl, poster = event.imageUrl,
+                                ))
                             },
                         )
                     }
                 }
 
-                // ── All Live Events or Specific League Content ──
-                if (isAllLiveMode) {
-                    if (uiState.allLiveLoading && uiState.allLiveEvents.isEmpty() && liveExternalStreams.isEmpty()) {
-                        item {
-                            Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    CircularProgressIndicator(color = Primary)
-                                    Spacer(Modifier.height(8.dp))
-                                    Text("Scanning all leagues for live events...", color = OnSurfaceVariant, fontSize = 13.sp)
-                                }
-                            }
-                        }
-                    } else if (uiState.allLiveEvents.isEmpty() && liveExternalStreams.isEmpty()) {
-                        item {
-                            Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                                Text("No live events right now", color = OnSurfaceVariant)
-                            }
-                        }
-                    } else {
-                    if (uiState.allLiveLoading) {
-                        item {
-                            LinearProgressIndicator(
-                                modifier = Modifier.fillMaxWidth().height(3.dp),
-                                color = Primary,
-                                trackColor = SurfaceContainerHigh,
-                            )
-                        }
-                    }
-                    val nonFighting = uiState.allLiveEvents.filter { !it.sport.equals("Fighting", ignoreCase = true) }
-                    val grouped = nonFighting.groupBy { leagueLabel(it.league).ifBlank { "Other Sports" } }
-                    val fightingEvents = uiState.allLiveEvents.filter { it.sport.equals("Fighting", ignoreCase = true) }
-                    val bkfcEvents = (fightingEvents.filter { it.league.equals("Bkfc", ignoreCase = true) } +
-                        uiState.bkfcEvents.map { it.toEspnProcessed("BKFC") })
-                        .distinctBy { it.id }
-                        .distinctBy { it.title.trim().lowercase() }
-                    val boxingEvents = (fightingEvents.filter { it.league.equals("Boxing", ignoreCase = true) } +
-                        uiState.boxingEvents.map { it.toEspnProcessed("BOXING") } +
-                        uiState.daddyLiveEvents.filter { it.category.equals("boxing", ignoreCase = true) }.map { it.toEspnProcessed("BOXING") })
-                        .distinctBy { it.id }
-                        .distinctBy { it.title.trim().lowercase() }
-                    val powerSlapEvents = (fightingEvents.filter { it.league.equals("Powerslap", ignoreCase = true) } +
-                        uiState.powerSlapEvents.map { it.toEspnProcessed("SLAP") })
-                        .distinctBy { it.id }
-                        .distinctBy { it.title.trim().lowercase() }
-                    val otherMmaEvents = (fightingEvents.filter { ev ->
-                        !ev.league.equals("Bkfc", ignoreCase = true) &&
-                            !ev.league.equals("Boxing", ignoreCase = true) &&
-                            !ev.league.equals("Powerslap", ignoreCase = true)
-                    } + uiState.pflEvents.map { it.toEspnProcessed("PFL") } +
-                        uiState.daddyLiveEvents.filter { it.category.equals("mma", ignoreCase = true) }.map { it.toEspnProcessed("MMA") })
-                        .distinctBy { it.id }
-                        .distinctBy { it.title.trim().lowercase() }
+                // ── Trending news videos (always visible at bottom) ──
+                if (uiState.trendingNewsVideos.isNotEmpty()) {
                     item {
-                        var expandedLeagues by remember { mutableStateOf(emptySet<String>()) }
-
-                        // If we have live ESPN events, show the section; also show upcoming even if no live
-                        val anyLive = uiState.allLiveEvents.any { it.isLive }
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            // ── LIVE LEAGUES header ──
-                            if (anyLive) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Box(
-                                            modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFEF4444)),
-                                        )
-                                        Text("LIVE NOW", color = Color(0xFFEF4444), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                                    }
-                                    Text("${uiState.allLiveEvents.count { it.isLive }} events", color = OnSurfaceVariant, fontSize = 11.sp)
-                                }
-                            }
-
-                            // ── Grouped leagues (live first, then expandable) ──
-                            val liveGrouped = grouped.filter { (_, evts) -> evts.any { it.isLive } }
-                            val upcomingGrouped = grouped.filter { (_, evts) -> !evts.any { it.isLive } }
-
-                            (liveGrouped + upcomingGrouped).forEach { (leagueName, leagueEvents) ->
-                                val isExpanded = expandedLeagues.contains(leagueName) || liveGrouped.isNotEmpty()
-                                val hasLive = leagueEvents.any { it.isLive }
-
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(SurfaceContainer)
-                                        .border(0.5.dp, if (hasLive) Primary.copy(alpha = 0.3f) else OutlineVariant.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                                        .then(if (isTablet) Modifier.heightIn(max = 280.dp) else Modifier),
-                                ) {
-                                    // League header
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                expandedLeagues = if (isExpanded) expandedLeagues - leagueName else expandedLeagues + leagueName
-                                            }
-                                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            ) {
-                                                if (hasLive) {
-                                                    Box(
-                                                        modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFEF4444)).padding(horizontal = 5.dp, vertical = 2.dp),
-                                                    ) {
-                                                        Text("LIVE", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Black, letterSpacing = 0.5.sp)
-                                                    }
-                                                }
-                                                Text(leagueName.uppercase(), color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.5.sp)
-                                                Box(
-                                                    modifier = Modifier
-                                                        .clip(RoundedCornerShape(12.dp))
-                                                        .background(Primary.copy(alpha = 0.15f))
-                                                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                                                ) {
-                                                    val liveCount = leagueEvents.count { it.isLive }
-                                                    val upcomingCount = leagueEvents.count { !it.isLive }
-                                                    val label = buildString {
-                                                        if (liveCount > 0) append("$liveCount LIVE")
-                                                        if (upcomingCount > 0) {
-                                                            if (this.isNotEmpty()) append(" · ")
-                                                            append("$upcomingCount UPCOMING")
-                                                        }
-                                                    }
-                                                    Text(label, color = Primary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                                }
-                                            }
-                                        }
-                                        Text(if (isExpanded) "▲" else "▼", color = OnSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    }
-
-                                    if (isExpanded) {
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
-                                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                                        ) {
-                                            if (isTablet) {
-                                                leagueEvents.chunked(2).forEach { row ->
-                                                    Row(
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                    ) {
-                                                        row.forEach { event ->
-                                                            MatchCard(
-                                                                modifier = Modifier.weight(1f),
-                                                                event = event,
-                                                                isPhone = false,
-                                                                onClick = { onEventClick(event) },
-                                                                onTeamClick = onTeamClick,
-                                                            )
-                                                        }
-                                                        if (row.size < 2) Spacer(Modifier.weight(1f))
-                                                    }
-                                                }
-                                            } else {
-                                                leagueEvents.forEach { event ->
-                                                    MatchCard(
-                                                        event = event,
-                                                        isPhone = true,
-                                                        onClick = { onEventClick(event) },
-                                                        onTeamClick = onTeamClick,
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Spacer(Modifier.height(6.dp))
-                                    }
-                                }
-                            }
-
-                            // ── Fighting leagues (always shown) ──
-                            val fightingHasAny = bkfcEvents.isNotEmpty() || boxingEvents.isNotEmpty() || otherMmaEvents.isNotEmpty() || powerSlapEvents.isNotEmpty()
-                            if (fightingHasAny) {
-                                FightingLeagueCard(
-                                    title = "BKFC",
-                                    events = bkfcEvents,
-                                    isTablet = isTablet,
-                                    onEventClick = onEventClick,
-                                    onTeamClick = onTeamClick,
-                                )
-                                FightingLeagueCard(
-                                    title = "Boxing",
-                                    events = boxingEvents,
-                                    isTablet = isTablet,
-                                    onEventClick = onEventClick,
-                                    onTeamClick = onTeamClick,
-                                )
-                                FightingLeagueCard(
-                                    title = "UFC/MMA",
-                                    events = otherMmaEvents,
-                                    isTablet = isTablet,
-                                    onEventClick = onEventClick,
-                                    onTeamClick = onTeamClick,
-                                )
-                                FightingLeagueCard(
-                                    title = "Power Slap",
-                                    events = powerSlapEvents,
-                                    isTablet = isTablet,
-                                    onEventClick = onEventClick,
-                                    onTeamClick = onTeamClick,
-                                )
-                            }
-                        }
-                    }
-                }
-            } else {
-                if (uiState.isLoading && uiState.events.isEmpty()) {
-                    item { SportsSkeletonLoader() }
-                } else if (uiState.error != null) {
-                    item {
-                        Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = uiState.error ?: "Unknown error", color = ErrorRed, fontSize = 14.sp)
-                                Spacer(Modifier.height(10.dp))
-                                Text(
-                                    text = "Tap to retry", color = Primary, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { SportsRepository.refresh() }
-                                        .background(SurfaceContainerHigh).padding(horizontal = 24.dp, vertical = 10.dp),
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    if (uiState.refreshing && uiState.events.isNotEmpty()) {
-                        item {
-                            LinearProgressIndicator(
-                                modifier = Modifier.fillMaxWidth().height(3.dp),
-                                color = Primary,
-                                trackColor = SurfaceContainerHigh,
-                            )
-                        }
-                    }
-                    val selectedSport = uiState.selectedLeague?.let { sportForLeague(it.id) }
-
-                    if (uiState.leagueNews.isNotEmpty()) {
-                        item {
-                            NewsTicker(headlines = uiState.leagueNews.map { it.headline })
-                        }
-                    }
-
-                    item {
-                        FinalScoreScroller(events = uiState.events, onScoreClick = { ev ->
-                            HubReturnStore.subScreen = "VidNutz"
-                            VidNutzPendingSearch.query = if (ev.title.isNotBlank()) "${ev.title} highlights"
-                                else "${ev.awayTeam} vs ${ev.homeTeam} highlights"
-                        })
-                    }
-
-                    item {
-                        LiveScoresSection(
-                            events = uiState.events,
-                            selectedSport = selectedSport,
-                            onEventClick = onEventClick,
-                            onTeamClick = onTeamClick,
-                            isTablet = isTablet,
+                        TrendingNewsVideosSection(
+                            videos = uiState.trendingNewsVideos,
+                            onPlayVideo = { v -> scope.playYouTubeVideo(v, onPlayChannel, uiState.trendingNewsVideos) },
                         )
                     }
-
-                    if (uiState.highlightVideos.isNotEmpty()) {
-                        item {
-                            HighlightVideosSection(
-                                videos = uiState.highlightVideos,
-                                events = uiState.events,
-                                selectedSport = null,
-                                onPlayVideo = { v -> scope.playYouTubeVideo(v, onPlayChannel) },
-                                onViewAll = {
-                                    HubReturnStore.subScreen = "VidNutz"
-                                    VidNutzPendingSearch.query = uiState.selectedLeague?.let { "${it.name} highlights" } ?: "sports highlights"
-                                },
-                            )
-                        }
-                    }
-
-                    if (uiState.leagueNews.isNotEmpty()) {
-                        item {
-                            LeagueNewsSection(
-                                articles = uiState.leagueNews,
-                                onArticleClick = { selectedArticle = it },
-                            )
-                        }
-                    }
                 }
-            }
 
-            // ── Trending news videos (always visible at bottom) ──
-            if (uiState.trendingNewsVideos.isNotEmpty()) {
-                item {
-                    TrendingNewsVideosSection(
-                        videos = uiState.trendingNewsVideos,
-                        onPlayVideo = { v -> scope.playYouTubeVideo(v, onPlayChannel, uiState.trendingNewsVideos) },
-                    )
-                }
+                item { Spacer(Modifier.height(8.dp)) }
             }
-
-            item { Spacer(Modifier.height(8.dp)) }
         }
     }
-
-    selectedArticle?.let { article ->
-        NewsArticleDialog(article = article, onDismiss = { selectedArticle = null })
-    }
-}
 }
 
 // ── Page 2: Event Detail (all sports) ─────────────────────────────────────
@@ -2672,6 +2363,40 @@ private fun HighlightVideosSection(
                     }
                     if (row.size < 2) Spacer(Modifier.weight(1f))
                 }
+            }
+        }
+    }
+}
+
+// ── Sports Streams Section ─────────────────────────────────────────────────
+@Composable
+private fun SportsStreamsSection(
+    events: List<UnifiedLiveEvent>,
+    onPlay: (UnifiedLiveEvent) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFEF4444)),
+                )
+                Text("LIVE STREAMS", color = Color(0xFFEF4444), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
+            Text("${events.size} streams", color = OnSurfaceVariant, fontSize = 11.sp)
+        }
+        LazyHorizontalGrid(
+            rows = GridCells.Fixed(1),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = 8.dp),
+        ) {
+            items(events) { event ->
+                LiveHeroCard(event = event, onPlay = onPlay)
             }
         }
     }
