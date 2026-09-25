@@ -1179,11 +1179,12 @@ private fun Page1Live(
                     )
                 }
 
-            if (isAllLiveMode && uiState.unifiedLiveEvents.isNotEmpty()) {
+            // ── Live External Streams (only when live events exist) ──
+            val liveExternalStreams = uiState.unifiedLiveEvents.filter { it.isLive && it.streamUrl.isNotBlank() }
+            if (liveExternalStreams.isNotEmpty()) {
                 item {
-                    LiveHeroSection(
-                        events = uiState.unifiedLiveEvents,
-                        totalEvents = uiState.allLiveEvents.size + uiState.unifiedLiveEvents.size,
+                    LiveStreamsSection(
+                        events = liveExternalStreams,
                         onPlay = { event ->
                             if (onPlayChannel != null && event.streamUrl.isNotBlank()) {
                                 onPlayChannel(PlayerLaunch(
@@ -1198,15 +1199,9 @@ private fun Page1Live(
                 }
             }
 
-            if (isAllLiveMode && uiState.sportCategories.isNotEmpty()) {
-                item {
-                    LiveCategoryChips(categories = uiState.sportCategories)
-                }
-            }
-
             // ── All Live Events or Specific League Content ──
             if (isAllLiveMode) {
-                if (uiState.allLiveLoading && uiState.allLiveEvents.isEmpty()) {
+                if (uiState.allLiveLoading && uiState.allLiveEvents.isEmpty() && liveExternalStreams.isEmpty()) {
                     item {
                         Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1216,7 +1211,7 @@ private fun Page1Live(
                             }
                         }
                     }
-                } else if (uiState.allLiveEvents.isEmpty()) {
+                } else if (uiState.allLiveEvents.isEmpty() && liveExternalStreams.isEmpty()) {
                     item {
                         Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                             Text("No live events right now", color = OnSurfaceVariant)
@@ -1259,23 +1254,47 @@ private fun Page1Live(
                     item {
                         var expandedLeagues by remember { mutableStateOf(emptySet<String>()) }
 
+                        // If we have live ESPN events, show the section; also show upcoming even if no live
+                        val anyLive = uiState.allLiveEvents.any { it.isLive }
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text("LEAGUES", color = OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                            // ── LIVE LEAGUES header ──
+                            if (anyLive) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Box(
+                                            modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFEF4444)),
+                                        )
+                                        Text("LIVE NOW", color = Color(0xFFEF4444), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                    }
+                                    Text("${uiState.allLiveEvents.count { it.isLive }} events", color = OnSurfaceVariant, fontSize = 11.sp)
+                                }
                             }
-                            grouped.forEach { (leagueName, leagueEvents) ->
-                                val isExpanded = expandedLeagues.contains(leagueName)
+
+                            // ── Grouped leagues (live first, then expandable) ──
+                            val liveGrouped = grouped.filter { (_, evts) -> evts.any { it.isLive } }
+                            val upcomingGrouped = grouped.filter { (_, evts) -> !evts.any { it.isLive } }
+
+                            (liveGrouped + upcomingGrouped).forEach { (leagueName, leagueEvents) ->
+                                val isExpanded = expandedLeagues.contains(leagueName) || liveGrouped.isNotEmpty()
+                                val hasLive = leagueEvents.any { it.isLive }
 
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(10.dp))
+                                        .padding(horizontal = 16.dp)
+                                        .clip(RoundedCornerShape(12.dp))
                                         .background(SurfaceContainer)
-                                        .border(0.5.dp, OutlineVariant.copy(alpha = 0.2f), RoundedCornerShape(10.dp)),
+                                        .border(0.5.dp, if (hasLive) Primary.copy(alpha = 0.3f) else OutlineVariant.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                                        .then(if (isTablet) Modifier.heightIn(max = 280.dp) else Modifier),
                                 ) {
+                                    // League header
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -1285,12 +1304,19 @@ private fun Page1Live(
                                             .padding(horizontal = 12.dp, vertical = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                             ) {
-                                                Text(leagueName.uppercase(), color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 13.sp, letterSpacing = 0.5.sp)
+                                                if (hasLive) {
+                                                    Box(
+                                                        modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFEF4444)).padding(horizontal = 5.dp, vertical = 2.dp),
+                                                    ) {
+                                                        Text("LIVE", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Black, letterSpacing = 0.5.sp)
+                                                    }
+                                                }
+                                                Text(leagueName.uppercase(), color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 12.sp, letterSpacing = 0.5.sp)
                                                 Box(
                                                     modifier = Modifier
                                                         .clip(RoundedCornerShape(12.dp))
@@ -1298,7 +1324,15 @@ private fun Page1Live(
                                                         .padding(horizontal = 8.dp, vertical = 2.dp),
                                                 ) {
                                                     val liveCount = leagueEvents.count { it.isLive }
-                            Text("${liveCount} LIVE", color = Primary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                                    val upcomingCount = leagueEvents.count { !it.isLive }
+                                                    val label = buildString {
+                                                        if (liveCount > 0) append("$liveCount LIVE")
+                                                        if (upcomingCount > 0) {
+                                                            if (this.isNotEmpty()) append(" · ")
+                                                            append("$upcomingCount UPCOMING")
+                                                        }
+                                                    }
+                                                    Text(label, color = Primary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                                                 }
                                             }
                                         }
@@ -1344,34 +1378,38 @@ private fun Page1Live(
                                 }
                             }
 
-                            FightingLeagueCard(
-                                title = "BKFC",
-                                events = bkfcEvents,
-                                isTablet = isTablet,
-                                onEventClick = onEventClick,
-                                onTeamClick = onTeamClick,
-                            )
-                            FightingLeagueCard(
-                                title = "Boxing",
-                                events = boxingEvents,
-                                isTablet = isTablet,
-                                onEventClick = onEventClick,
-                                onTeamClick = onTeamClick,
-                            )
-                            FightingLeagueCard(
-                                title = "UFC/MMA",
-                                events = otherMmaEvents,
-                                isTablet = isTablet,
-                                onEventClick = onEventClick,
-                                onTeamClick = onTeamClick,
-                            )
-                            FightingLeagueCard(
-                                title = "Power Slap",
-                                events = powerSlapEvents,
-                                isTablet = isTablet,
-                                onEventClick = onEventClick,
-                                onTeamClick = onTeamClick,
-                            )
+                            // ── Fighting leagues (always shown) ──
+                            val fightingHasAny = bkfcEvents.isNotEmpty() || boxingEvents.isNotEmpty() || otherMmaEvents.isNotEmpty() || powerSlapEvents.isNotEmpty()
+                            if (fightingHasAny) {
+                                FightingLeagueCard(
+                                    title = "BKFC",
+                                    events = bkfcEvents,
+                                    isTablet = isTablet,
+                                    onEventClick = onEventClick,
+                                    onTeamClick = onTeamClick,
+                                )
+                                FightingLeagueCard(
+                                    title = "Boxing",
+                                    events = boxingEvents,
+                                    isTablet = isTablet,
+                                    onEventClick = onEventClick,
+                                    onTeamClick = onTeamClick,
+                                )
+                                FightingLeagueCard(
+                                    title = "UFC/MMA",
+                                    events = otherMmaEvents,
+                                    isTablet = isTablet,
+                                    onEventClick = onEventClick,
+                                    onTeamClick = onTeamClick,
+                                )
+                                FightingLeagueCard(
+                                    title = "Power Slap",
+                                    events = powerSlapEvents,
+                                    isTablet = isTablet,
+                                    onEventClick = onEventClick,
+                                    onTeamClick = onTeamClick,
+                                )
+                            }
                         }
                     }
                 }
@@ -3639,22 +3677,26 @@ private fun LiveHeroHeader(liveCount: Int, onRefresh: () -> Unit) {
 // ── Live Hero Section (External Streams) ────────────────────────────────────
 
 @Composable
-fun LiveHeroSection(
+fun LiveStreamsSection(
     events: List<UnifiedLiveEvent>,
-    totalEvents: Int,
     onPlay: (UnifiedLiveEvent) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("EXTERNAL STREAMS", color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFEF4444)),
+                )
+                Text("LIVE STREAMS", color = Color(0xFFEF4444), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
             Text("${events.size} streams", color = OnSurfaceVariant, fontSize = 11.sp)
         }
         LazyHorizontalGrid(
-            rows = GridCells.Fixed(minOf(2, events.size)),
+            rows = GridCells.Fixed(1),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -3826,58 +3868,6 @@ private fun LiveHeroCard(event: UnifiedLiveEvent, onPlay: (UnifiedLiveEvent) -> 
     }
 }
 
-// ── Live Category Chips ─────────────────────────────────────────────────────
-
-@Composable
-fun LiveCategoryChips(categories: List<SportCategory>) {
-    val sportColors = mapOf(
-        "Football" to Color(0xFF1D3557),
-        "Basketball" to Color(0xFFE63946),
-        "Baseball" to Color(0xFF457B9D),
-        "Hockey" to Color(0xFF2A9D8F),
-        "Soccer" to Color(0xFF606C38),
-        "Tennis" to Color(0xFFDDA15E),
-        "Golf" to Color(0xFF588157),
-        "Fighting" to Color(0xFF9B2335),
-        "MMA" to Color(0xFF9B2335),
-        "Boxing" to Color(0xFF7B2D2D),
-        "UFC" to Color(0xFF9B2335),
-        "F1" to Color(0xFFE10600),
-        "Motorsport" to Color(0xFFE10600),
-        "Cricket" to Color(0xFF264653),
-        "Rugby" to Color(0xFF6B2737),
-        "Snooker" to Color(0xFF386641),
-        "Darts" to Color(0xFFBC4749),
-    )
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-    ) {
-        Text("BROWSE BY SPORT", color = OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp),
-        ) {
-            items(categories) { cat ->
-                val bg = sportColors[cat.sport] ?: Primary.copy(alpha = 0.15f)
-                Box(
-                    modifier = Modifier.clip(RoundedCornerShape(20.dp))
-                        .background(bg)
-                        .clickable {},
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        cat.name,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                    )
-                }
-            }
-        }
-    }
-}
 
 // ── Live Pill ───────────────────────────────────────────────────────────────
 
