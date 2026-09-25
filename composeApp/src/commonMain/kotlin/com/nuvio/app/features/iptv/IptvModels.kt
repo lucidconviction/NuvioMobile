@@ -21,6 +21,10 @@ data class XtreamAccount(
     val channels: List<IptvChannel> = emptyList(),
     val categories: List<XtreamCategory> = emptyList(),
     val info: PortalAccountInfo? = null,
+    val movies: List<XtreamMovie> = emptyList(),
+    val series: List<XtreamSeries> = emptyList(),
+    val vodCategories: List<XtreamCategory> = emptyList(),
+    val seriesCategories: List<XtreamCategory> = emptyList(),
 )
 
 @Serializable
@@ -75,6 +79,63 @@ data class EpgSource(
 )
 
 @Serializable
+data class XtreamMovie(
+    val id: String,
+    val name: String,
+    val streamId: String,
+    val cover: String? = null,
+    val backdrop: String? = null,
+    val plot: String? = null,
+    val releaseDate: String? = null,
+    val cast: String? = null,
+    val director: String? = null,
+    val genre: String? = null,
+    val rating: String? = null,
+    val year: String? = null,
+    val duration: String? = null,
+    val categoryId: String? = null,
+    val categoryName: String? = null,
+    val videoUrl: String? = null,
+)
+
+@Serializable
+data class XtreamSeries(
+    val id: String,
+    val name: String,
+    val cover: String? = null,
+    val backdrop: String? = null,
+    val plot: String? = null,
+    val releaseDate: String? = null,
+    val cast: String? = null,
+    val genre: String? = null,
+    val seasons: List<XtreamSeason> = emptyList(),
+    val lastModified: String? = null,
+    val categoryId: String? = null,
+    val categoryName: String? = null,
+)
+
+@Serializable
+data class XtreamSeason(
+    val id: String,
+    val name: String,
+    val seasonNumber: Int? = null,
+    val cover: String? = null,
+    val episodes: List<XtreamEpisode> = emptyList(),
+)
+
+@Serializable
+data class XtreamEpisode(
+    val id: String,
+    val name: String,
+    val episodeNumber: Int? = null,
+    val seasonNumber: Int? = null,
+    val duration: String? = null,
+    val cover: String? = null,
+    val videoUrl: String? = null,
+    val containerExtension: String? = null,
+)
+
+@Serializable
 data class EpgProgram(
     val channelId: String,
     val title: String,
@@ -108,6 +169,9 @@ data class IptvUiState(
     val channelsExpanded: Boolean = false,
     val favoritesExpanded: Boolean = true,
     val channelHistoryIds: List<String> = emptyList(),
+    val vodLoading: Boolean = false,
+    val vodError: String? = null,
+    val vodLoadedAccountIds: Set<String> = emptySet(),
 )
 
 data class IptvPlaylistSettings(

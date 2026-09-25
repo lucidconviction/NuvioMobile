@@ -6,4 +6,5 @@ import androidx.compose.runtime.setValue
 
 object HubReturnStore {
     var subScreen: String by mutableStateOf("Hub")
+    var xxxScreen: String by mutableStateOf("")
 }

@@ -127,15 +127,10 @@ object DownloadsRepository {
         }
 
         val now = DownloadsClock.nowEpochMs()
-        val logicalKey = buildLogicalKey(
-            parentMetaId = parentMetaId,
-            seasonNumber = seasonNumber,
-            episodeNumber = episodeNumber,
-        )
 
         var replacedExisting = false
         val currentItems = _uiState.value.items.toMutableList()
-        val existing = currentItems.firstOrNull { it.logicalContentKey == logicalKey }
+        val existing = currentItems.firstOrNull { it.sourceUrl == sourceUrl }
         if (existing != null) {
             replacedExisting = true
             activeHandles.remove(existing.id)?.cancel()

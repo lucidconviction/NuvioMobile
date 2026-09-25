@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nuvio.app.core.build.AppVersionConfig
 import com.nuvio.app.features.iptv.IptvScreen
+import com.nuvio.app.features.iptv.XxxScreen
 import com.nuvio.app.features.player.PlayerLaunch
 import com.nuvio.app.core.ui.PlatformBackHandler
 import com.nuvio.app.features.sports.SportsScreen
@@ -227,7 +228,11 @@ fun RobbdeezeNutzHubScreen(
                             }
                         }
                         Box(Modifier.fillMaxSize()) {
-                            IptvScreen(modifier = Modifier.fillMaxSize(), onPlayChannel = onPlayChannelSave, scrollToTopRequests = iptvScrollToTopRequests, onMultiWindowAdded = { pushNav(HubSubScreen.Multi) }, isTabletLayout = isTablet)
+                            if (HubReturnStore.xxxScreen == "Xxx") {
+                                XxxScreen(modifier = Modifier.fillMaxSize())
+                            } else {
+                                IptvScreen(modifier = Modifier.fillMaxSize(), scrollToTopRequests = iptvScrollToTopRequests, onMultiWindowAdded = { pushNav(HubSubScreen.Multi) }, isTabletLayout = isTablet)
+                            }
                         }
                     }
                 }
@@ -239,7 +244,7 @@ fun RobbdeezeNutzHubScreen(
                             }
                         }
                         Box(Modifier.fillMaxSize()) {
-                            SportsScreen(modifier = Modifier.fillMaxSize(), onPlayChannel = onPlayChannelSave, scrollToTopRequests = sportsScrollToTopRequests, onTeamClick = onTeamClick)
+                            SportsScreen(modifier = Modifier.fillMaxSize(), scrollToTopRequests = sportsScrollToTopRequests, onTeamClick = onTeamClick)
                         }
                     }
                 }

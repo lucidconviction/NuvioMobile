@@ -80,9 +80,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.nuvio.app.features.player.PlayerLaunch
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val ObsidianBg = Color(0xFF000000)
 private val SurfaceCard = Color(0xFF1A1A1A)
@@ -110,8 +112,8 @@ fun VidNutzScreen(
     val swipeThresholdPx = with(density) { 80.dp.toPx() }
 
     LaunchedEffect(Unit) {
-        recentSearches = VidNutzRecentSearchesStore.load()
-        savedSearches = VidNutzSavedSearchesStore.load()
+        recentSearches = withContext(Dispatchers.IO) { VidNutzRecentSearchesStore.load() }
+        savedSearches = withContext(Dispatchers.IO) { VidNutzSavedSearchesStore.load() }
         VidNutzPendingSearch.query?.let { q ->
             VidNutzPendingSearch.query = null
             val fromSportNutz = VidNutzPendingSearch.isFromSportNutz
@@ -224,21 +226,22 @@ fun VidNutzScreen(
 
     fun selectHub(hub: VidNutzHub) {
         if (hub.id == uiState.selectedHubId && uiState.hubSections.isNotEmpty()) return
-        val cached = VidNutzRepository.getCachedHub(hub)
         uiState = uiState.copy(
             selectedHubId = hub.id, videos = emptyList(), searchResults = null,
-            searchQuery = "", hubSections = cached, hubLoading = cached.isEmpty(),
+            searchQuery = "", hubSections = emptyMap(), hubLoading = true,
             currentPage = 1, hasMore = true,
             viewingSubId = null, subVideos = emptyList(),
         )
-        if (cached.isEmpty()) {
-            scope.launch {
+        scope.launch {
+            val cached = withContext(Dispatchers.IO) { VidNutzRepository.getCachedHub(hub) }
+            uiState = uiState.copy(hubSections = cached, hubLoading = cached.isEmpty())
+            if (cached.isEmpty()) {
                 val sections = VidNutzRepository.getHubSections(hub)
                 uiState = uiState.copy(hubSections = sections, hubLoading = false)
+            } else {
+                // Content is cached — show immediately, refresh in background silently
+                refreshHubInBackground(hub)
             }
-        } else {
-            // Content is cached — show immediately, refresh in background silently
-            refreshHubInBackground(hub)
         }
         scope.launch {
             val hubs = VidNutzHubManager.menu

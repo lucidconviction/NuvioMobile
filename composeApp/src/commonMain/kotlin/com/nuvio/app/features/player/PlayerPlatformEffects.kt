@@ -29,3 +29,8 @@ expect fun ManagePlayerPictureInPicture(
 
 @Composable
 expect fun rememberPlayerGestureController(): PlayerGestureController?
+
+@Composable
+expect fun openInWebViewPlayer(url: String, title: String)
+
+expect fun openInWebViewPlayerLaunch(url: String, title: String)

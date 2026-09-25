@@ -47,7 +47,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
@@ -61,7 +60,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.Notifications
+
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -118,6 +117,7 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.compose.LocalPlatformContext
+import com.nuvio.app.features.hub.HubReturnStore
 import com.nuvio.app.features.hub.MultiWindowStore
 import com.nuvio.app.core.ui.NuvioToastController
 import com.nuvio.app.features.player.PlayerLaunch
@@ -359,9 +359,13 @@ private fun IptvTvMode(
                 }
             }
             Spacer(Modifier.width(16.dp))
-            Icon(Icons.Filled.Notifications, "Notifications", tint = onSurface, modifier = Modifier.size(26.dp))
+            IconButton(onClick = { HubReturnStore.xxxScreen = "Xxx" }) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Filled.Lock, null, tint = onSurface, modifier = Modifier.size(26.dp))
+                    Text("XXX", color = onSurface, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+            }
             Spacer(Modifier.width(16.dp))
-            Icon(Icons.Filled.AccountCircle, "Account", tint = onSurface, modifier = Modifier.size(28.dp))
         }
 
         // ── Scrollable Content (everything else scrolls) ──
@@ -1236,7 +1240,15 @@ private fun IptvMobileMode(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = {},
+                title = { Text("IPTVNutz Hub", color = primary, fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+                actions = {
+                    IconButton(onClick = { HubReturnStore.xxxScreen = "Xxx" }) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Filled.Lock, null, tint = onSurface, modifier = Modifier.size(26.dp))
+                            Text("XXX", color = onSurface, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = ObsidianBg.copy(alpha = 0.8f),
                 ),
@@ -1927,16 +1939,6 @@ private fun PlaylistsSection(
                         Text("+ Nett Smutt", color = onsurfaceContainerHigh, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
-                if (!IptvRepository.hasNettSmutt3Playlist()) {
-                    TextButton(onClick = { IptvRepository.addNettSmutt3Playlist() }) {
-                        Text("+ Nett Smutt 3.0", color = onsurfaceContainerHigh, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    }
-                }
-                if (!IptvRepository.hasXXX2Playlist()) {
-                    TextButton(onClick = { IptvRepository.addXXX2Playlist() }) {
-                        Text("+ XXX_2", color = onsurfaceContainerHigh, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    }
-                }
                 Surface(
                     onClick = onAddClick,
                     shape = RoundedCornerShape(12.dp),
@@ -2127,7 +2129,7 @@ private fun VodSeriesSection(
                 }
                 if (vodError != null) {
                     Spacer(Modifier.height(8.dp))
-                    Text(vodError, color = errorColor, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                    Text(vodError ?: "", color = errorColor, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
                 }
             }
             return
@@ -2157,7 +2159,7 @@ private fun VodSeriesSection(
             }
         }
 
-        val cats = if (tab == "movies") allMovies.map { it.categoryName }.filter { it.isNotBlank() }.distinct() else allSeries.map { it.categoryName }.filter { it.isNotBlank() }.distinct()
+        val cats = if (tab == "movies") allMovies.mapNotNull { it.categoryName }.filter { it.isNotBlank() }.distinct() else allSeries.mapNotNull { it.categoryName }.filter { it.isNotBlank() }.distinct()
         if (cats.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             Row(
@@ -2199,22 +2201,22 @@ private fun VodSeriesSection(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(filtered.take(50)) { movie ->
-                        val sub = listOf(movie.year, movie.genre).filter { it.isNotBlank() }.joinToString(" · ")
+                        val sub = listOf(movie.year, movie.genre).filterNotNull().filter { it.isNotBlank() }.joinToString(" · ")
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(surfaceContainer)
                                 .clickable {
-                                    if (movie.streamUrl.isNotBlank()) {
-                                        val ch = IptvChannel(
-                                            id = movie.id,
-                                            name = movie.title,
-                                            logo = movie.poster.ifBlank { null },
-                                            url = movie.streamUrl,
-                                            sourceType = SourceType.Xtream,
-                                            sourceId = movie.id,
-                                        )
+if (!movie.videoUrl.isNullOrBlank()) {
+                                         val ch = IptvChannel(
+                                             id = movie.id,
+                                             name = movie.name,
+                                             logo = movie.cover?.ifBlank { null },
+                                             url = movie.videoUrl!!,
+                                             sourceType = SourceType.Xtream,
+                                             sourceId = movie.id,
+                                         )
                                         playChannel(ch, onPlayChannel)
                                     }
                                 }
@@ -2222,14 +2224,14 @@ private fun VodSeriesSection(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             AsyncImage(
-                                model = movie.poster,
-                                contentDescription = movie.title,
+model = movie.cover,
+                                 contentDescription = movie.name,
                                 modifier = Modifier.size(40.dp, 60.dp).clip(RoundedCornerShape(6.dp)),
                                 contentScale = ContentScale.Crop,
                             )
                             Spacer(Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(movie.title, color = onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(movie.name, color = onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 if (sub.isNotBlank()) {
                                     Text(sub, color = onsurfaceContainerHigh, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
@@ -2249,32 +2251,33 @@ private fun VodSeriesSection(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(filtered.take(50)) { show ->
-                        val totalEp = show.seasons.sumOf { it.episodes.size }
-                        val sub = if (totalEp > 0) "$totalEp episodes" else ""
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(surfaceContainer)
-                                .clickable {
-                                    if (show.streamUrl.isNotBlank()) {
-                                        val ch = IptvChannel(
-                                            id = show.id,
-                                            name = show.name,
-                                            logo = show.poster.ifBlank { null },
-                                            url = show.streamUrl,
-                                            sourceType = SourceType.Xtream,
-                                            sourceId = show.id,
-                                        )
-                                        playChannel(ch, onPlayChannel)
-                                    }
-                                }
+val totalEp = show.seasons.sumOf { it.episodes.size }
+                         val sub = if (totalEp > 0) "$totalEp episodes" else ""
+                         val seriesStreamUrl = show.seasons.flatMap { it.episodes }.firstOrNull()?.videoUrl ?: ""
+                         Row(
+                             modifier = Modifier
+                                 .fillMaxWidth()
+                                 .clip(RoundedCornerShape(10.dp))
+                                 .background(surfaceContainer)
+                                 .clickable {
+                                     if (seriesStreamUrl.isNotBlank()) {
+                                         val ch = IptvChannel(
+                                             id = show.id,
+                                             name = show.name,
+                                             logo = show.cover?.ifBlank { null },
+                                             url = seriesStreamUrl,
+                                             sourceType = SourceType.Xtream,
+                                             sourceId = show.id,
+                                         )
+                                         playChannel(ch, onPlayChannel)
+                                     }
+                                 }
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             AsyncImage(
-                                model = show.poster,
-                                contentDescription = show.name,
+model = show.cover,
+                                 contentDescription = show.name,
                                 modifier = Modifier.size(40.dp, 60.dp).clip(RoundedCornerShape(6.dp)),
                                 contentScale = ContentScale.Crop,
                             )

@@ -119,6 +119,7 @@ object SportsRepository {
         // Background refresh without blanking (all existing cache remains visible).
         refresh()
         loadAllLiveEvents()
+        loadUnifiedLiveEvents()
     }
 
     private fun seedMatchedChannelsFromCache(event: EspnProcessedEvent) {
@@ -153,23 +154,30 @@ object SportsRepository {
         loadCache()
         refreshJob?.cancel()
         refreshJob = scope.launch {
+            // In all-live mode (no league selected) the spinner is driven by
+            // allLiveLoading, not isLoading — otherwise refresh() keeps re-arming
+            // isLoading after loadAllLiveEvents() clears it, causing an endless
+            // pull-to-refresh indicator.
+            val allLiveMode = _uiState.value.selectedLeague == null
             val hasContent = _uiState.value.events.isNotEmpty()
+            val loadingFlag = if (allLiveMode) false else !hasContent
+            val refreshingFlag = if (allLiveMode) false else hasContent
             _uiState.value = _uiState.value.copy(
-                isLoading = !hasContent,
-                refreshing = hasContent,
+                isLoading = loadingFlag,
+                refreshing = refreshingFlag,
                 error = null,
             )
             if (_uiState.value.trendingNewsVideos.isEmpty()) {
                 val trendingVideos = fetchTrendingNewsVideos()
                 _uiState.value = _uiState.value.copy(
                     trendingNewsVideos = trendingVideos,
-                    isLoading = _uiState.value.events.isEmpty(),
-                    refreshing = _uiState.value.events.isNotEmpty(),
+                    isLoading = if (allLiveMode) false else _uiState.value.events.isEmpty(),
+                    refreshing = if (allLiveMode) false else _uiState.value.events.isNotEmpty(),
                 )
             } else {
                 _uiState.value = _uiState.value.copy(
-                    isLoading = _uiState.value.events.isEmpty(),
-                    refreshing = _uiState.value.events.isNotEmpty(),
+                    isLoading = if (allLiveMode) false else _uiState.value.events.isEmpty(),
+                    refreshing = if (allLiveMode) false else _uiState.value.events.isNotEmpty(),
                 )
             }
         }
@@ -178,6 +186,8 @@ object SportsRepository {
         loadBoxingEvents()
         loadPflEvents()
         loadPowerSlapEvents()
+        loadUnifiedLiveEvents()
+        loadSportCategories()
     }
 
     private suspend fun <T> retryWithBackoff(
@@ -389,12 +399,14 @@ object SportsRepository {
                 _uiState.value = _uiState.value.copy(
                     allLiveEvents = allEvents,
                     allLiveLoading = false,
+                    isLoading = false,
                     refreshing = _uiState.value.events.isNotEmpty(),
                 )
                 precacheMatchedChannels(allEvents)
             } catch (_: Exception) {
                 _uiState.value = _uiState.value.copy(
                     allLiveLoading = false,
+                    isLoading = false,
                     refreshing = _uiState.value.events.isNotEmpty(),
                 )
             }
@@ -674,6 +686,123 @@ object SportsRepository {
             } catch (_: Exception) {
                 _uiState.value = _uiState.value.copy(powerSlapLoading = false)
             }
+        }
+    }
+
+    fun loadUnifiedLiveEvents() {
+        scope.launch {
+            _uiState.value = _uiState.value.copy(unifiedLiveLoading = true)
+            val results = mutableListOf<UnifiedLiveEvent>()
+
+            // 1. WeStream
+            runCatching {
+                WeStreamClient.fetchLiveMatches().forEach { m ->
+                    results.add(UnifiedLiveEvent(
+                        id = "ws_${m.id}", title = m.title.ifBlank { "${m.homeTeam} vs ${m.awayTeam}" },
+                        subtitle = m.sport, startTime = m.startTime, sport = m.sport, category = m.sport,
+                        streamUrl = m.streamUrl, imageUrl = null, isLive = m.streamUrl.isNotBlank(),
+                        provider = "WeStream",
+                    ))
+                }
+            }
+
+            // 2. EmbedSportex
+            runCatching {
+                EmbedSportexClient.fetchLiveMatches().forEach { m ->
+                    results.add(UnifiedLiveEvent(
+                        id = "esx_${m.id}", title = m.title, subtitle = m.category,
+                        startTime = m.startTime, sport = m.category, category = m.category,
+                        streamUrl = m.embedUrl, imageUrl = null, isLive = m.isLive,
+                        provider = "EmbedSportex",
+                    ))
+                }
+            }
+
+            // 3. SportSRC
+            runCatching {
+                SportSRCClient.fetchMatches("").forEach { m ->
+                    results.add(UnifiedLiveEvent(
+                        id = "src_${m.id}", title = "${m.homeTeam} vs ${m.awayTeam}",
+                        subtitle = m.league, startTime = m.startTime, sport = m.league, category = m.league,
+                        streamUrl = "", imageUrl = null, isLive = false,
+                        score = m.score, provider = "SportSRC",
+                    ))
+                }
+            }
+
+            // 4. OpenLigaDB
+            runCatching {
+                OpenLigaDBClient.fetchLiveMatches().forEach { m ->
+                    results.add(UnifiedLiveEvent(
+                        id = "oldb_${m.id}", title = "${m.homeTeam} vs ${m.awayTeam}",
+                        subtitle = "", startTime = 0L, sport = "Football", category = "Soccer",
+                        streamUrl = "", imageUrl = null, isLive = m.isLive,
+                        score = if (m.homeScore != null && m.awayScore != null) "${m.homeScore} - ${m.awayScore}" else null,
+                        provider = "OpenLigaDB",
+                    ))
+                }
+            }
+
+            // 5. Ergast (F1)
+            runCatching {
+                val season = java.time.Year.now().value
+                ErgastClient.fetchStandings(season).take(10).forEachIndexed { i, r ->
+                    results.add(UnifiedLiveEvent(
+                        id = "erg_f1_${season}_$i", title = "${r.driver ?: "TBD"} — ${r.name}",
+                        subtitle = "F1 Standings", startTime = 0L, sport = "Motorsport", category = "F1",
+                        streamUrl = "", imageUrl = null, isLive = false,
+                        score = "P${(i + 1)}", provider = "Ergast",
+                    ))
+                }
+            }
+
+            // 6. BallDontLie
+            runCatching {
+                BallDontLieClient.fetchGames().take(10).forEach { g ->
+                    results.add(UnifiedLiveEvent(
+                        id = "bdl_${g.id}", title = "${g.awayTeam} @ ${g.homeTeam}",
+                        subtitle = "Basketball", startTime = 0L, sport = "Basketball", category = "NBA/College",
+                        streamUrl = "", imageUrl = null, isLive = g.isLive,
+                        score = if (g.homeScore != null && g.awayScore != null) "${g.awayScore} - ${g.homeScore}" else null,
+                        provider = "BallDontLie",
+                    ))
+                }
+            }
+
+            // 7. StreamEast (scrape)
+            runCatching {
+                StreamEastClient.fetchEvents().forEach { ev ->
+                    ev.channels.firstOrNull()?.let { ch ->
+                        results.add(UnifiedLiveEvent(
+                            id = "se_${ev.id}_${ch.channelId}", title = ev.eventName,
+                            subtitle = ev.category, startTime = ev.startEpochMs, sport = ev.category, category = ev.category,
+                            streamUrl = ch.embedUrl ?: "", imageUrl = null, isLive = ev.isLive,
+                            provider = "StreamEast",
+                        ))
+                    }
+                }
+            }
+
+            _uiState.value = _uiState.value.copy(
+                unifiedLiveEvents = results.sortedWith(compareBy({ !it.isLive }, { it.startTime })),
+                unifiedLiveLoading = false,
+            )
+        }
+    }
+
+    fun loadSportCategories() {
+        scope.launch {
+            val cats = mutableListOf<SportCategory>()
+            runCatching { WeStreamClient.fetchAvailableSports().forEach { s ->
+                cats.add(SportCategory(id = "ws_$s", name = s, sport = s, source = "WeStream"))
+            }}
+            runCatching { EmbedSportexClient.fetchCategories().forEach { c ->
+                cats.add(SportCategory(id = "esx_$c", name = c, sport = c, source = "EmbedSportex"))
+            }}
+            runCatching { SportSRCClient.fetchSports().forEach { s ->
+                cats.add(SportCategory(id = "src_$s", name = s, sport = s, source = "SportSRC"))
+            }}
+            _uiState.value = _uiState.value.copy(sportCategories = cats)
         }
     }
 

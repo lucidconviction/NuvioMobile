@@ -386,7 +386,7 @@ private fun NSURLResponse?.toDownloadResult(): IosDownloadResult {
 @OptIn(ExperimentalForeignApi::class)
 private fun downloadsDirectoryPath(): String {
     val root = NSHomeDirectory().trimEnd('/')
-    val path = "$root/Documents/nuvio_downloads"
+    val path = "$root/Documents/RdNutz_downloads"
     NSFileManager.defaultManager.createDirectoryAtPath(
         path = path,
         withIntermediateDirectories = true,

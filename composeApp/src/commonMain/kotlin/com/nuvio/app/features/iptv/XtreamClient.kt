@@ -95,4 +95,122 @@ object XtreamClient {
         val base = server.trimEnd('/')
         return "$base/live/$username/$password/$streamId.ts"
     }
+
+    fun parseVodStreams(
+        response: String,
+        server: String,
+        username: String,
+        password: String,
+    ): List<XtreamMovie> {
+        val movies = mutableListOf<XtreamMovie>()
+        try {
+            val arr = json.decodeFromString<JsonArray>(response)
+            for (element in arr) {
+                val obj = element.jsonObject
+                val streamId = obj["stream_id"]?.jsonPrimitive?.content ?: continue
+                val name = obj["name"]?.jsonPrimitive?.content ?: "Unknown"
+                val containerExtension = obj["container_extension"]?.jsonPrimitive?.content ?: "mp4"
+                val url = buildXtreamMovieUrl(server, username, password, streamId, containerExtension)
+                movies.add(
+                    XtreamMovie(
+                        id = streamId,
+                        name = name,
+                        streamId = streamId,
+                        cover = obj["stream_icon"]?.jsonPrimitive?.content?.ifBlank { null },
+                        backdrop = obj["backdrop_path"]?.jsonPrimitive?.content?.ifBlank { null },
+                        plot = obj["plot"]?.jsonPrimitive?.content?.ifBlank { null },
+                        releaseDate = obj["release_date"]?.jsonPrimitive?.content?.ifBlank { null },
+                        cast = obj["cast"]?.jsonPrimitive?.content?.ifBlank { null },
+                        director = obj["director"]?.jsonPrimitive?.content?.ifBlank { null },
+                        genre = obj["genre"]?.jsonPrimitive?.content?.ifBlank { null },
+                        rating = obj["rating"]?.jsonPrimitive?.content?.ifBlank { null },
+                        year = obj["releasedate"]?.jsonPrimitive?.content?.ifBlank { null },
+                        duration = obj["duration"]?.jsonPrimitive?.content?.ifBlank { null },
+                        categoryId = obj["category_id"]?.jsonPrimitive?.content?.ifBlank { null },
+                        videoUrl = url,
+                    )
+                )
+            }
+        } catch (_: Exception) { }
+        return movies
+    }
+
+    fun parseSeries(
+        response: String,
+        server: String,
+        username: String,
+        password: String,
+    ): List<XtreamSeries> {
+        val series = mutableListOf<XtreamSeries>()
+        try {
+            val arr = json.decodeFromString<JsonArray>(response)
+            for (element in arr) {
+                val obj = element.jsonObject
+                val seriesId = obj["series_id"]?.jsonPrimitive?.content ?: continue
+                val name = obj["name"]?.jsonPrimitive?.content ?: "Unknown"
+                val seasonsJson = obj["seasons"]?.jsonArray
+                val seasons = seasonsJson?.mapNotNull { sEl ->
+                    val sObj = sEl.jsonObject
+                    val seasonId = sObj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                    val seasonName = sObj["name"]?.jsonPrimitive?.content ?: ""
+                    val seasonNum = sObj["season_number"]?.jsonPrimitive?.content?.toIntOrNull()
+                    val episodesJson = sObj["episodes"]?.jsonArray
+                    val episodes = episodesJson?.mapNotNull { eEl ->
+                        val eObj = eEl.jsonObject
+                        val epId = eObj["id"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                        val epName = eObj["name"]?.jsonPrimitive?.content ?: ""
+                        val epNum = eObj["episode_number"]?.jsonPrimitive?.content?.toIntOrNull()
+                        val epSeason = eObj["season_number"]?.jsonPrimitive?.content?.toIntOrNull()
+                        val epDuration = eObj["duration"]?.jsonPrimitive?.content
+                        val epCover = eObj["cover"]?.jsonPrimitive?.content?.ifBlank { null }
+                        val epExt = eObj["container_extension"]?.jsonPrimitive?.content ?: "mp4"
+                        val epUrl = buildXtreamSeriesUrl(server, username, password, seriesId, seasonId, epId, epExt)
+                        XtreamEpisode(
+                            id = epId,
+                            name = epName,
+                            episodeNumber = epNum,
+                            seasonNumber = epSeason,
+                            duration = epDuration,
+                            cover = epCover,
+                            videoUrl = epUrl,
+                            containerExtension = epExt,
+                        )
+                    } ?: emptyList()
+                    XtreamSeason(
+                        id = seasonId,
+                        name = seasonName,
+                        seasonNumber = seasonNum,
+                        cover = sObj["cover"]?.jsonPrimitive?.content?.ifBlank { null },
+                        episodes = episodes,
+                    )
+                }
+                series.add(
+                    XtreamSeries(
+                        id = seriesId,
+                        name = name,
+                        cover = obj["cover"]?.jsonPrimitive?.content?.ifBlank { null },
+                        backdrop = obj["backdrop_path"]?.jsonPrimitive?.content?.ifBlank { null },
+                        plot = obj["plot"]?.jsonPrimitive?.content?.ifBlank { null },
+                        releaseDate = obj["release_date"]?.jsonPrimitive?.content?.ifBlank { null },
+                        cast = obj["cast"]?.jsonPrimitive?.content?.ifBlank { null },
+                        genre = obj["genre"]?.jsonPrimitive?.content?.ifBlank { null },
+                        seasons = seasons ?: emptyList(),
+                        lastModified = obj["last_modified"]?.jsonPrimitive?.content?.ifBlank { null },
+                        categoryId = obj["category_id"]?.jsonPrimitive?.content?.ifBlank { null },
+                    )
+                )
+            }
+        } catch (_: Exception) { }
+        return series
+    }
+
+    private fun buildXtreamMovieUrl(server: String, username: String, password: String, streamId: String, extension: String): String {
+        val base = server.trimEnd('/')
+        return "$base/movie/$username/$password/$streamId.$extension"
+    }
+
+    private fun buildXtreamSeriesUrl(server: String, username: String, password: String, seriesId: String, seasonId: String, episodeId: String, extension: String): String {
+        val base = server.trimEnd('/')
+        return "$base/series/$username/$password/$seasonId/$episodeId.$extension"
+    }
 }

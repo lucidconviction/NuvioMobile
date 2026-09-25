@@ -20,6 +20,21 @@ import androidx.core.view.WindowInsetsControllerCompat
 import kotlin.math.roundToInt
 
 @Composable
+actual fun openInWebViewPlayer(url: String, title: String) {
+    val context = LocalContext.current
+    val intent = WebViewPlayerActivity.newIntent(context, url, title)
+    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    context.startActivity(intent)
+}
+
+actual fun openInWebViewPlayerLaunch(url: String, title: String) {
+    val context = com.nuvio.app.appContext ?: return
+    val intent = WebViewPlayerActivity.newIntent(context, url, title)
+    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    context.startActivity(intent)
+}
+
+@Composable
 actual fun LockPlayerToLandscape() {
     val activity = LocalContext.current.findActivity() ?: return
     if (!activity.shouldForceLandscapePlayer()) return

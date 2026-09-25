@@ -1,31 +1,51 @@
 package com.nuvio.app.features.settings
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Link
-import androidx.compose.material.icons.rounded.Notifications
+
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nuvio.app.core.build.AppVersionConfig
+import com.nuvio.app.core.ui.NuvioThemeTokens
+import com.nuvio.app.core.ui.nuvio
+import com.nuvio.app.features.downloads.DownloadItem
+import com.nuvio.app.features.downloads.DownloadStatus
+import com.nuvio.app.features.downloads.DownloadsRepository
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.compose_about_made_with
 import nuvio.composeapp.generated.resources.compose_about_version_format
@@ -52,7 +72,6 @@ import nuvio.composeapp.generated.resources.compose_settings_root_notifications_
 import nuvio.composeapp.generated.resources.compose_settings_root_switch_profile_description
 import nuvio.composeapp.generated.resources.compose_settings_root_switch_profile_title
 import nuvio.composeapp.generated.resources.compose_settings_root_trakt_description
-import androidx.compose.ui.platform.LocalUriHandler
 import nuvio.composeapp.generated.resources.compose_settings_root_about_section
 import nuvio.composeapp.generated.resources.compose_settings_root_account_section
 import nuvio.composeapp.generated.resources.compose_settings_root_advanced_description
@@ -103,13 +122,6 @@ internal fun LazyListScope.settingsRootContent(
                         )
                         SettingsGroupDivider(isTablet = isTablet)
                     }
-                    SettingsNavigationRow(
-                        title = stringResource(Res.string.compose_settings_page_account),
-                        description = stringResource(Res.string.compose_settings_root_account_description),
-                        icon = Icons.Rounded.AccountCircle,
-                        isTablet = isTablet,
-                        onClick = onAccountClick,
-                    )
                     SettingsGroupDivider(isTablet = isTablet)
                     SettingsNavigationRow(
                         title = stringResource(Res.string.compose_settings_page_trakt),
@@ -149,6 +161,18 @@ internal fun LazyListScope.settingsRootContent(
                         title = stringResource(Res.string.compose_settings_root_downloads_title),
                         description = stringResource(Res.string.compose_settings_root_downloads_description),
                         icon = Icons.Rounded.CloudDownload,
+                        isTablet = isTablet,
+                        onClick = onDownloadsClick,
+                    )
+                    SettingsGroupDivider(isTablet = isTablet)
+                    SettingsNavigationRow(
+                        title = stringResource(Res.string.compose_settings_root_downloads_title),
+                        description = stringResource(Res.string.compose_settings_root_downloads_description),
+                        icon = Icons.Rounded.CloudDownload,
+                        isTablet = isTablet,
+                        onClick = onDownloadsClick,
+                    )
+                    DownloadsPreviewCard(
                         isTablet = isTablet,
                         onClick = onDownloadsClick,
                     )
@@ -288,4 +312,155 @@ internal fun LazyListScope.settingsRootContent(
             )
         }
     }
+}
+
+private fun fmtBytes(bytes: Long): String {
+    if (bytes <= 0L) return "0 B"
+    val kib = 1024.0
+    val mib = kib * 1024.0
+    val gib = mib * 1024.0
+    val value = bytes.toDouble()
+    return when {
+        value >= gib -> "${((value / gib) * 10.0).toInt() / 10.0} GB"
+        value >= mib -> "${((value / mib) * 10.0).toInt() / 10.0} MB"
+        value >= kib -> "${((value / kib) * 10.0).toInt() / 10.0} KB"
+        else -> "$bytes B"
+    }
+}
+
+@Composable
+private fun DownloadsPreviewCard(
+    isTablet: Boolean,
+    onClick: () -> Unit,
+) {
+    val uiState by remember {
+        DownloadsRepository.ensureLoaded()
+        DownloadsRepository.uiState
+    }.collectAsStateWithLifecycle()
+
+    val activeList: List<DownloadItem> = uiState.items.filter { it.status != DownloadStatus.Completed }
+    val completedList: List<DownloadItem> = uiState.items.filter { it.status == DownloadStatus.Completed }
+
+    val totalBytes: Long = uiState.items.sumOf { it.totalBytes ?: 0L }
+    val usedBytes: Long = uiState.items.filter { it.status == DownloadStatus.Completed }.sumOf { it.totalBytes ?: 0L }
+
+    val tokens = MaterialTheme.nuvio
+    val horizontalPadding = if (isTablet) 20.dp else 16.dp
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = horizontalPadding, vertical = 8.dp)
+            .clickable(onClick = onClick),
+        shape = tokens.shapes.compactCard,
+        color = tokens.colors.surfaceCard.copy(alpha = 0.5f),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(Res.string.compose_settings_root_downloads_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = tokens.colors.textPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "${activeList.size} active  •  ${completedList.size} completed",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = tokens.colors.textMuted,
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            if (activeList.isNotEmpty()) {
+                val previewItems = activeList.take(3)
+                for (i in previewItems.indices) {
+                    DownloadsPreviewRow(item = previewItems[i], tokens = tokens)
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+                if (activeList.size > 3) {
+                    Text(
+                        text = "+${activeList.size - 3} more",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = tokens.colors.textMuted,
+                    )
+                }
+            } else if (completedList.isNotEmpty()) {
+                Text(
+                    text = "${completedList.size} completed, ${fmtBytes(usedBytes)} used",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = tokens.colors.textMuted,
+                )
+            } else {
+                Text(
+                    text = stringResource(Res.string.compose_settings_root_downloads_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = tokens.colors.textMuted,
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = if (totalBytes > 0L) (usedBytes.toDouble() / totalBytes.toDouble()).toFloat() else 0f,
+                modifier = Modifier.fillMaxWidth(),
+                color = tokens.colors.accent,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DownloadsPreviewRow(
+    item: DownloadItem,
+    tokens: NuvioThemeTokens,
+) {
+    val progress = if ((item.totalBytes ?: 0L) > 0) {
+        (item.downloadedBytes ?: 0).toFloat() / (item.totalBytes ?: 0L).toFloat()
+    } else {
+        0f
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(
+            modifier = Modifier.size(28.dp),
+            color = tokens.colors.accent.copy(alpha = tokens.opacity.pressed),
+            shape = tokens.shapes.compactCard,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.CloudDownload,
+                contentDescription = null,
+                tint = tokens.colors.accent,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.title,
+                style = MaterialTheme.typography.bodySmall,
+                color = tokens.colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = item.status.name,
+                style = MaterialTheme.typography.bodySmall,
+                color = tokens.colors.textMuted,
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "${(progress * 100).toInt()}%",
+            style = MaterialTheme.typography.bodySmall,
+            color = tokens.colors.textMuted,
+        )
+    }
+    LinearProgressIndicator(
+        progress = progress,
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        color = tokens.colors.accent,
+    )
 }

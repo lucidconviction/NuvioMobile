@@ -136,6 +136,9 @@ data class SportsUiState(
     val pflLoading: Boolean = false,
     val powerSlapEvents: List<PowerSlapEvent> = emptyList(),
     val powerSlapLoading: Boolean = false,
+    val unifiedLiveEvents: List<UnifiedLiveEvent> = emptyList(),
+    val unifiedLiveLoading: Boolean = false,
+    val sportCategories: List<SportCategory> = emptyList(),
     val sync2CalEventsByLeague: Map<String, List<Sync2CalEvent>> = emptyMap(),
     val sync2CalLoading: Boolean = false,
     val sync2CalTvChannels: Map<Long, List<Sync2CalTvChannel>> = emptyMap(),
@@ -150,3 +153,24 @@ sealed class SportsTab {
     data object News : SportsTab()
     data object Highlights : SportsTab()
 }
+
+data class SportCategory(
+    val id: String,
+    val name: String,
+    val sport: String,
+    val source: String,
+)
+
+data class UnifiedLiveEvent(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val startTime: Long,
+    val sport: String,
+    val category: String,
+    val streamUrl: String,
+    val imageUrl: String? = null,
+    val isLive: Boolean = false,
+    val score: String? = null,
+    val provider: String = "",
+)

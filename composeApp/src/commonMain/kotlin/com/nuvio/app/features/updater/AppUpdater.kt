@@ -38,6 +38,7 @@ import com.nuvio.app.core.build.AppFeaturePolicy
 import com.nuvio.app.core.build.AppVersionConfig
 import com.nuvio.app.core.i18n.localizedByteUnit
 import com.nuvio.app.core.ui.NuvioToastController
+import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.addons.httpRequestRaw
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -47,12 +48,30 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 
-private const val appUpdateBaseUrl = "https://apps.rdnutz.us/"
-private val apkFileNamePattern = Regex("Nuvio-Mobile-(\\d{4}-\\d{2}-\\d{2})\\.apk")
+private const val githubReleasesApiUrl = "https://api.github.com/repos/LucidConviction/NuvioMobile/releases"
+
+@Serializable
+private data class GithubRelease(
+    val tag_name: String,
+    val name: String? = null,
+    val body: String? = null,
+    val assets: List<GithubAsset> = emptyList(),
+)
+
+@Serializable
+private data class GithubAsset(
+    val name: String,
+    val browser_download_url: String,
+    val size: Long? = null,
+)
+
+private val githubJson = Json { ignoreUnknownKeys = true; isLenient = true }
 
 data class AppUpdate(
     val tag: String,
@@ -118,34 +137,38 @@ private object VersionUtils {
 }
 
     private object AppUpdaterRepository {
+    private fun isProductionApk(name: String): Boolean {
+        return name.contains("release", ignoreCase = true) || name.startsWith("Nuvio-Mobile-")
+    }
+
+    private fun isDebugApk(name: String): Boolean {
+        return name.contains("debug", ignoreCase = true)
+    }
+
     suspend fun getLatestChannelUpdate(): Result<AppUpdate> = runCatching {
-        val response = httpRequestRaw(
-            method = "GET",
-            url = appUpdateBaseUrl,
-            headers = mapOf(
-                "User-Agent" to "NuvioMobile",
-            ),
-            body = "",
-        )
-        if (response.status !in 200..299) {
-            error("Update server returned ${response.status}")
-        }
+        val releasesJson = httpGetText(githubReleasesApiUrl)
+        val releases = githubJson.decodeFromString<List<GithubRelease>>(releasesJson)
 
-        val newestMatch = apkFileNamePattern.findAll(response.body)
-            .map { it.groupValues[1] }
-            .maxByOrNull { it } ?: error("No APK found on update server")
+        val releaseWithApk = releases.firstOrNull { release ->
+            release.assets.any { asset ->
+                isProductionApk(asset.name) || isDebugApk(asset.name)
+            }
+        } ?: error("No APK release found on GitHub")
 
-        val filename = "Nuvio-Mobile-$newestMatch.apk"
-        val fullUrl = appUpdateBaseUrl + filename
+        val productionAsset = releaseWithApk.assets.firstOrNull { isProductionApk(it.name) }
+        val debugAsset = releaseWithApk.assets.firstOrNull { isDebugApk(it.name) }
+        val asset = productionAsset ?: debugAsset ?: error("No APK asset in release ${releaseWithApk.tag_name}")
+
+        val tag = releaseWithApk.tag_name.removePrefix("v").removePrefix("V")
 
         AppUpdate(
-            tag = newestMatch,
-            title = "Nuvio Mobile Update",
-            notes = "",
-            releaseUrl = fullUrl,
-            assetName = filename,
-            assetUrl = fullUrl,
-            assetSizeBytes = null,
+            tag = tag,
+            title = releaseWithApk.name ?: "Nuvio Mobile Update",
+            notes = releaseWithApk.body?.trim()?.ifBlank { null } ?: "",
+            releaseUrl = "https://github.com/LucidConviction/NuvioMobile/releases/tag/${releaseWithApk.tag_name}",
+            assetName = asset.name,
+            assetUrl = asset.browser_download_url,
+            assetSizeBytes = asset.size,
         )
     }
 }

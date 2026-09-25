@@ -101,4 +101,45 @@ actual object IptvStorage {
     actual fun saveFingerprint(data: String) {
         preferences?.edit()?.putString("portal_fingerprint", data)?.apply()
     }
+
+    actual fun hasSeededDefaultM3u(): Boolean =
+        preferences?.getBoolean("default_m3u_seeded", false) ?: false
+
+    actual fun markDefaultM3uSeeded() {
+        preferences?.edit()?.putBoolean("default_m3u_seeded", true)?.apply()
+    }
+
+    actual fun loadLastRefresh(key: String): Long? {
+        val dir = cacheDir ?: return null
+        val file = File(dir, "last_refresh_${key.hashCode()}.json")
+        if (!file.exists()) return null
+        return try {
+            file.readText().toLongOrNull()
+        } catch (_: Exception) { null }
+    }
+
+    actual fun saveLastRefresh(key: String, timestamp: Long) {
+        val dir = cacheDir ?: return
+        val file = File(dir, "last_refresh_${key.hashCode()}.json")
+        try { file.writeText(timestamp.toString()) } catch (_: IOException) { }
+    }
+
+    actual fun loadSearchQuery(): String? =
+        preferences?.getString("iptv_search_query", null)
+
+    actual fun saveSearchQuery(query: String) {
+        preferences?.edit()?.putString("iptv_search_query", query)?.apply()
+    }
+
+    actual fun loadInstalledPortals(): String? {
+        val dir = cacheDir ?: return null
+        val file = File(dir, "installed_portals.json")
+        return if (file.exists()) try { file.readText() } catch (e: IOException) { Logger.e(e) { "Failed to read installed portals" }; null } else null
+    }
+
+    actual fun saveInstalledPortals(data: String) {
+        val dir = cacheDir ?: return
+        val file = File(dir, "installed_portals.json")
+        try { file.writeText(data) } catch (e: IOException) { Logger.e(e) { "Failed to write installed portals" } }
+    }
 }

@@ -2,6 +2,7 @@ package com.nuvio.app.features.downloads
 
 import android.content.Context
 import android.content.Intent
+import android.os.Environment
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -53,7 +54,7 @@ internal actual object DownloadsPlatformDownloader {
                 return@launch
             }
 
-            val downloadsDir = File(context.filesDir, "downloads").apply { mkdirs() }
+            val downloadsDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "RdNutz").apply { mkdirs() }
             val destination = File(downloadsDir, request.destinationFileName)
             val tempFile = File(downloadsDir, "${request.destinationFileName}.part")
 
@@ -165,7 +166,7 @@ internal actual object DownloadsPlatformDownloader {
 
     actual fun removePartialFile(destinationFileName: String): Boolean {
         val context = appContext ?: return false
-        val downloadsDir = File(context.filesDir, "downloads")
+        val downloadsDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "RdNutz")
         val tempFile = File(downloadsDir, "$destinationFileName.part")
         if (!tempFile.exists()) return true
         return runCatching { tempFile.delete() }.getOrDefault(false)
@@ -184,14 +185,14 @@ internal actual object DownloadsPlatformDownloader {
                 ?.name
                 ?.takeIf { it.isNotBlank() }
             ?: return null
-        val downloadsDir = File(context.filesDir, "downloads")
+        val downloadsDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "RdNutz")
         val localFile = File(downloadsDir, fileName)
         return localFile.takeIf { it.exists() }?.toURI()?.toString()
     }
 
     actual fun openDownloadsDirectory(): Boolean {
         val context = appContext ?: return false
-        val downloadsDir = File(context.filesDir, "downloads").apply { mkdirs() }
+        val downloadsDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "RdNutz").apply { mkdirs() }
         val uri = runCatching {
             FileProvider.getUriForFile(
                 context,

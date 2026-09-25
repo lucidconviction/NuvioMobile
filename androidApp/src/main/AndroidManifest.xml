@@ -93,6 +93,12 @@
             android:name="com.nuvio.app.features.downloads.DownloadsNotificationActionReceiver"
             android:exported="false" />
 
+        <activity
+            android:name="com.nuvio.app.features.player.WebViewPlayerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:theme="@style/Theme.Nuvio" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

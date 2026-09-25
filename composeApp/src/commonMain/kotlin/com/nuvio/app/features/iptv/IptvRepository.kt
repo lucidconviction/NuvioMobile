@@ -45,19 +45,13 @@ object IptvRepository {
 
     private val IPTV_ORG_URL = "https://iptv-org.github.io/iptv/index.m3u"
     private val IPTV_ORG_NAME = "iptv-org"
-    private val NETSMUTT_M3U_URL = "https://iptv.rdnutz.us/Nett_Smutt_2.0.m3u"
-    private val NETSMUTT_M3U_NAME = "NetSmutt"
-    private val NETSMUTT_3_M3U_URL = "https://raw.githubusercontent.com/lucidconviction/NuvioMobile/cmp-rewrite/New%20working%20scrapers/Nett_Smutt_3.0.m3u"
-    private val NETSMUTT_3_M3U_NAME = "Nett_Smutt_3.0"
-    private val XXX_2_M3U_URL = "https://raw.githubusercontent.com/lucidconviction/NuvioMobile/cmp-rewrite/New%20working%20scrapers/XXX_2.m3u"
-    private val XXX_2_M3U_NAME = "XXX_2"
+    private val NETSMUTT_M3U_URL = "https://raw.githubusercontent.com/lucidconviction/NuvioMobile/cmp-rewrite/New%20working%20scrapers/Nett_Smutt_3.0.m3u"
+    private val NETSMUTT_M3U_NAME = "Nett_Smutt_3.0"
     private val MJH_EPG_URL = "https://raw.githubusercontent.com/matthuisman/i.mjh.nz/master/all/epg.xml"
     private val MJH_EPG_NAME = "i.mjh.nz EPG"
 
     val PREDEFINED_M3U_PLAYLISTS = listOf(
         NETSMUTT_M3U_NAME to NETSMUTT_M3U_URL,
-        NETSMUTT_3_M3U_NAME to NETSMUTT_3_M3U_URL,
-        XXX_2_M3U_NAME to XXX_2_M3U_URL,
         IPTV_ORG_NAME to IPTV_ORG_URL
     )
 
@@ -70,31 +64,12 @@ object IptvRepository {
         hasLoaded = true
         try {
             loadFromStorage()
-            seedDefaultM3uIfNeeded()
         } catch (e: Exception) {
             e.printStackTrace()
             settings = IptvPlaylistSettings()
             saveToStorage()
             refreshUi()
         }
-    }
-
-    private fun seedDefaultM3uIfNeeded() {
-        if (IptvStorage.hasSeededDefaultM3u()) return
-        val url = NETSMUTT_M3U_URL
-        val name = NETSMUTT_M3U_NAME
-        val existing = settings.m3uPlaylists.any { it.url == url }
-        if (existing) {
-            IptvStorage.markDefaultM3uSeeded()
-            return
-        }
-        val id = nextId("m3u")
-        val playlist = M3uPlaylist(id = id, name = name, url = url)
-        settings = settings.copy(m3uPlaylists = settings.m3uPlaylists + playlist)
-        saveToStorage()
-        IptvStorage.markDefaultM3uSeeded()
-        refreshUi()
-        scope.launch { refreshM3uChannels(id) }
     }
 
     private fun loadFromStorage() {
@@ -114,6 +89,11 @@ object IptvRepository {
         saveToStorage()
         updateCachedAllChannels()
         refreshUi()
+        for (playlist in settings.m3uPlaylists) {
+            if (playlist.channels.isEmpty() && playlist.url.isNotBlank()) {
+                scope.launch { refreshM3uChannels(playlist.id) }
+            }
+        }
     }
 
     private fun saveToStorage() {
@@ -235,7 +215,10 @@ object IptvRepository {
                 saveToStorage()
                 refreshUi()
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            Logger.e(e) { "Failed to refresh M3U playlist: $url" }
+            _uiState.value = _uiState.value.copy(error = "Failed to load $name: ${e.message}")
+        }
     }
 
     fun addM3uPlaylist(name: String, url: String) {
@@ -797,26 +780,6 @@ object IptvRepository {
     fun hasNetSmuttPlaylist(): Boolean =
         settings.m3uPlaylists.any { it.url == NETSMUTT_M3U_URL }
 
-    fun addNettSmutt3Playlist() {
-        val exists = settings.m3uPlaylists.any { it.url == NETSMUTT_3_M3U_URL }
-        if (!exists) {
-            addM3uPlaylist(NETSMUTT_3_M3U_NAME, NETSMUTT_3_M3U_URL)
-        }
-    }
-
-    fun hasNettSmutt3Playlist(): Boolean =
-        settings.m3uPlaylists.any { it.url == NETSMUTT_3_M3U_URL }
-
-    fun addXXX2Playlist() {
-        val exists = settings.m3uPlaylists.any { it.url == XXX_2_M3U_URL }
-        if (!exists) {
-            addM3uPlaylist(XXX_2_M3U_NAME, XXX_2_M3U_URL)
-        }
-    }
-
-    fun hasXXX2Playlist(): Boolean =
-        settings.m3uPlaylists.any { it.url == XXX_2_M3U_URL }
-
     fun addToHistory(channelId: String) {
         val current = settings.channelHistory.toMutableList()
         current.remove(channelId)
@@ -1138,12 +1101,20 @@ private data class StoredXtreamAccount(
     val channels: List<StoredIptvChannel> = emptyList(),
     val categories: List<StoredXtreamCategory> = emptyList(),
     val info: StoredXtreamInfo? = null,
+    val movies: List<StoredXtreamMovie> = emptyList(),
+    val series: List<StoredXtreamSeries> = emptyList(),
+    val vodCategories: List<StoredXtreamCategory> = emptyList(),
+    val seriesCategories: List<StoredXtreamCategory> = emptyList(),
 ) {
     fun toAccount() = XtreamAccount(
         id = id, name = name, server = server, username = username, password = password,
         channels = channels.map { it.toChannel() },
         categories = categories.map { XtreamCategory(it.id, it.name) },
         info = info?.toInfo(),
+        movies = movies.map { it.toMovie() },
+        series = series.map { it.toSeries() },
+        vodCategories = vodCategories.map { XtreamCategory(it.id, it.name) },
+        seriesCategories = seriesCategories.map { XtreamCategory(it.id, it.name) },
     )
 
     companion object {
@@ -1152,6 +1123,10 @@ private data class StoredXtreamAccount(
             channels = emptyList(),
             categories = a.categories.map { StoredXtreamCategory(it.id, it.name) },
             info = a.info?.let { StoredXtreamInfo.fromInfo(it) },
+            movies = a.movies.map { StoredXtreamMovie.fromMovie(it) },
+            series = a.series.map { StoredXtreamSeries.fromSeries(it) },
+            vodCategories = a.vodCategories.map { StoredXtreamCategory(it.id, it.name) },
+            seriesCategories = a.seriesCategories.map { StoredXtreamCategory(it.id, it.name) },
         )
     }
 }
@@ -1206,6 +1181,113 @@ private data class StoredStalkerAccount(
 
 @Serializable
 private data class StoredXtreamCategory(val id: String, val name: String)
+
+@Serializable
+private data class StoredXtreamMovie(
+    val id: String,
+    val name: String,
+    val streamId: String,
+    val cover: String? = null,
+    val backdrop: String? = null,
+    val plot: String? = null,
+    val releaseDate: String? = null,
+    val cast: String? = null,
+    val director: String? = null,
+    val genre: String? = null,
+    val rating: String? = null,
+    val year: String? = null,
+    val duration: String? = null,
+) {
+    fun toMovie() = XtreamMovie(
+        id = id, name = name, streamId = streamId, cover = cover, backdrop = backdrop,
+        plot = plot, releaseDate = releaseDate, cast = cast, director = director,
+        genre = genre, rating = rating, year = year, duration = duration,
+    )
+
+    companion object {
+        fun fromMovie(m: XtreamMovie) = StoredXtreamMovie(
+            id = m.id, name = m.name, streamId = m.streamId, cover = m.cover,
+            backdrop = m.backdrop, plot = m.plot, releaseDate = m.releaseDate,
+            cast = m.cast, director = m.director, genre = m.genre, rating = m.rating,
+            year = m.year, duration = m.duration,
+        )
+    }
+}
+
+@Serializable
+private data class StoredXtreamSeries(
+    val id: String,
+    val name: String,
+    val cover: String? = null,
+    val backdrop: String? = null,
+    val plot: String? = null,
+    val releaseDate: String? = null,
+    val cast: String? = null,
+    val genre: String? = null,
+    val seasons: List<StoredXtreamSeason> = emptyList(),
+    val lastModified: String? = null,
+) {
+    fun toSeries() = XtreamSeries(
+        id = id, name = name, cover = cover, backdrop = backdrop, plot = plot,
+        releaseDate = releaseDate, cast = cast, genre = genre,
+        seasons = seasons.map { it.toSeason() }, lastModified = lastModified,
+    )
+
+    companion object {
+        fun fromSeries(s: XtreamSeries) = StoredXtreamSeries(
+            id = s.id, name = s.name, cover = s.cover, backdrop = s.backdrop,
+            plot = s.plot, releaseDate = s.releaseDate, cast = s.cast, genre = s.genre,
+            seasons = s.seasons.map { StoredXtreamSeason.fromSeason(it) },
+            lastModified = s.lastModified,
+        )
+    }
+}
+
+@Serializable
+private data class StoredXtreamSeason(
+    val id: String,
+    val name: String,
+    val seasonNumber: Int? = null,
+    val cover: String? = null,
+    val episodes: List<StoredXtreamEpisode> = emptyList(),
+) {
+    fun toSeason() = XtreamSeason(
+        id = id, name = name, seasonNumber = seasonNumber, cover = cover,
+        episodes = episodes.map { it.toEpisode() },
+    )
+
+    companion object {
+        fun fromSeason(s: XtreamSeason) = StoredXtreamSeason(
+            id = s.id, name = s.name, seasonNumber = s.seasonNumber, cover = s.cover,
+            episodes = s.episodes.map { StoredXtreamEpisode.fromEpisode(it) },
+        )
+    }
+}
+
+@Serializable
+private data class StoredXtreamEpisode(
+    val id: String,
+    val name: String,
+    val episodeNumber: Int? = null,
+    val seasonNumber: Int? = null,
+    val duration: String? = null,
+    val cover: String? = null,
+    val videoUrl: String? = null,
+    val containerExtension: String? = null,
+) {
+    fun toEpisode() = XtreamEpisode(
+        id = id, name = name, episodeNumber = episodeNumber, seasonNumber = seasonNumber,
+        duration = duration, cover = cover, videoUrl = videoUrl, containerExtension = containerExtension,
+    )
+
+    companion object {
+        fun fromEpisode(e: XtreamEpisode) = StoredXtreamEpisode(
+            id = e.id, name = e.name, episodeNumber = e.episodeNumber,
+            seasonNumber = e.seasonNumber, duration = e.duration, cover = e.cover,
+            videoUrl = e.videoUrl, containerExtension = e.containerExtension,
+        )
+    }
+}
 
 @Serializable
 private data class StoredEpgSource(val id: String, val name: String, val url: String)

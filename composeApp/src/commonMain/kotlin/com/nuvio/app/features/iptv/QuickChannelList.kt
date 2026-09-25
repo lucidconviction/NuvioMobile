@@ -50,6 +50,16 @@ object QuickChannelList {
 
     fun unpin(displayName: String) { pinnedNames.remove(displayName) }
 
+    fun getCustomChannels(): List<QuickChannel> = CustomQuickChannelStore.loadChannels()
+
+    fun addCustomChannel(channel: QuickChannel) {
+        CustomQuickChannelStore.addChannel(channel)
+    }
+
+    fun removeCustomChannel(displayName: String) {
+        CustomQuickChannelStore.removeChannel(displayName)
+    }
+
     private val regionUs = listOf("us", "usa", "united states")
     private val regionCa = listOf("ca", "canada", "canadian", "canadien", "canadiens")
     private val regionUk = listOf("uk", "united kingdom", "britain", "british", "england")

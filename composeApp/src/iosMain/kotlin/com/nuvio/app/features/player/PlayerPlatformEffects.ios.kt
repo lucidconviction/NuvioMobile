@@ -64,6 +64,8 @@ actual fun rememberPlayerGestureController(): PlayerGestureController? {
     return controller
 }
 
+actual fun openInWebViewPlayerLaunch(url: String, title: String) = Unit
+
 private class IOSPlayerGestureController : PlayerGestureController {
     private val volumeView = MPVolumeView().apply {
         hidden = true

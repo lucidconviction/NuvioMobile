@@ -23,4 +23,16 @@ internal expect object IptvStorage {
 
     fun loadFingerprint(): String?
     fun saveFingerprint(data: String)
+
+    fun hasSeededDefaultM3u(): Boolean
+    fun markDefaultM3uSeeded()
+
+    fun loadLastRefresh(key: String): Long?
+    fun saveLastRefresh(key: String, timestamp: Long)
+
+    fun loadSearchQuery(): String?
+    fun saveSearchQuery(query: String)
+
+    fun loadInstalledPortals(): String?
+    fun saveInstalledPortals(data: String)
 }

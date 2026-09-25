@@ -116,4 +116,51 @@ actual object IptvStorage {
     actual fun saveFingerprint(data: String) {
         NSUserDefaults.standardUserDefaults.setObject(data, forKey = "portal_fingerprint")
     }
+
+    actual fun hasSeededDefaultM3u(): Boolean =
+        NSUserDefaults.standardUserDefaults.boolForKey("default_m3u_seeded")
+
+    actual fun markDefaultM3uSeeded() {
+        NSUserDefaults.standardUserDefaults.setBool(true, forKey = "default_m3u_seeded")
+    }
+
+    private fun lastRefreshPath(key: String): String {
+        val paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true)
+        val dir = paths.first() as String
+        return "$dir/last_refresh_${key.hashCode()}.json"
+    }
+
+    actual fun loadLastRefresh(key: String): Long? {
+        val path = lastRefreshPath(key)
+        val content = NSString.stringWithContentsOfFile(path, encoding = NSUTF8StringEncoding, error = null) as? String ?: return null
+        return content.toLongOrNull()
+    }
+
+    actual fun saveLastRefresh(key: String, timestamp: Long) {
+        val path = lastRefreshPath(key)
+        (timestamp.toString() as NSString).writeToFile(path, atomically = true, encoding = NSUTF8StringEncoding, error = null)
+    }
+
+    actual fun loadSearchQuery(): String? =
+        NSUserDefaults.standardUserDefaults.stringForKey("iptv_search_query")
+
+    actual fun saveSearchQuery(query: String) {
+        NSUserDefaults.standardUserDefaults.setObject(query, forKey = "iptv_search_query")
+    }
+
+    private fun installedPortalsPath(): String {
+        val paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true)
+        val dir = paths.first() as String
+        return "$dir/installed_portals.json"
+    }
+
+    actual fun loadInstalledPortals(): String? {
+        val path = installedPortalsPath()
+        return NSString.stringWithContentsOfFile(path, encoding = NSUTF8ModelError, error = null) as? String
+    }
+
+    actual fun saveInstalledPortals(data: String) {
+        val path = installedPortalsPath()
+        (data as NSString).writeToFile(path, atomically = true, encoding = NSUTF8ModelError, error = null)
+    }
 }
