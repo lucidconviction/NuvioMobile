@@ -763,6 +763,11 @@ private fun FeaturedBentoSection(
                     if (!ch.logo.isNullOrBlank()) {
                         AsyncImage(model = ch.logo, contentDescription = ch.name,
                             modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    } else {
+                        ChannelLogo(
+                            modifier = Modifier.fillMaxSize(),
+                            channel = ch,
+                        )
                     }
                     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.85f)))))
                     Box(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
@@ -949,9 +954,10 @@ private fun TvChannelCard(
             AsyncImage(model = channel.logo, contentDescription = channel.name,
                 modifier = Modifier.fillMaxSize().padding(24.dp), contentScale = ContentScale.Fit)
         } else {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.LiveTv, null, tint = onsurfaceContainerHigh.copy(alpha = 0.3f), modifier = Modifier.size(48.dp))
-            }
+            ChannelLogo(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                channel = channel,
+            )
         }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.85f)))))
         Box(Modifier.align(Alignment.TopStart).padding(8.dp)) {
@@ -1643,6 +1649,11 @@ private fun QuickAccessCard(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize().align(Alignment.Center),
                 )
+            } else {
+                ChannelLogo(
+                    modifier = Modifier.fillMaxSize().align(Alignment.Center),
+                    channel = channel,
+                )
             }
             Box(
                 modifier = Modifier.fillMaxSize().background(
@@ -1848,25 +1859,30 @@ private fun ChannelCard(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize().align(Alignment.Center),
                     )
+                } else {
+                    ChannelLogo(
+                        modifier = Modifier.fillMaxSize().align(Alignment.Center),
+                        channel = channel,
+                    )
                 }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        if (channel.logo.isNullOrBlank())
+                            Brush.verticalGradient(listOf(surfaceContainerHigh.copy(alpha = 0.3f), surfaceContainerLow))
+                        else
+                            Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.7f)))
+                    ),
+            )
+            if (channel.logo.isNullOrBlank()) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            if (channel.logo.isNullOrBlank())
-                                Brush.verticalGradient(listOf(surfaceContainerHigh.copy(alpha = 0.3f), surfaceContainerLow))
-                            else
-                                Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.7f)))
-                        ),
-                )
-                if (channel.logo.isNullOrBlank()) {
-                    Box(
-                        modifier = Modifier.size(36.dp).align(Alignment.Center).clip(CircleShape).background(primary.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Filled.LiveTv, contentDescription = null, tint = onsurfaceContainerHigh, modifier = Modifier.size(18.dp))
-                    }
+                    modifier = Modifier.size(36.dp).align(Alignment.Center).clip(CircleShape).background(primary.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.LiveTv, contentDescription = null, tint = onsurfaceContainerHigh, modifier = Modifier.size(18.dp))
                 }
+            }
                 Box(
                     modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter)
                         .background(Brush.verticalGradient(listOf(Color.Transparent, ObsidianBg.copy(alpha = 0.85f))))
@@ -2317,7 +2333,11 @@ private fun PlaylistChannelRow(channel: IptvChannel, onClick: () -> Unit) {
                 modifier = Modifier.size(30.dp).clip(RoundedCornerShape(6.dp)),
                 contentScale = ContentScale.Crop,
             )
-            Spacer(Modifier.width(10.dp))
+        } else {
+            ChannelLogo(
+                modifier = Modifier.size(30.dp).clip(RoundedCornerShape(6.dp)),
+                channel = channel,
+            )
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(channel.name, color = onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -2488,8 +2508,7 @@ private fun playChannel(channel: IptvChannel, onPlayChannel: ((PlayerLaunch) -> 
         historyChannelLogos = history.map { it.logo ?: "" },
         historyChannelIds = history.map { it.id },
     )
-    val id = PlayerLaunchStore.put(launch)
-    PlayerLaunchStore.get(id)?.let { onPlayChannel?.invoke(it) }
+    onPlayChannel?.invoke(launch)
 }
 
 // ── Add Source Bottom Sheet ──────────────────────────────────────────────

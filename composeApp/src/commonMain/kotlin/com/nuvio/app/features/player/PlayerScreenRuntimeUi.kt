@@ -187,6 +187,38 @@ internal fun PlayerScreenRuntime.RenderPlayerRuntimeUi() {
             )
         }
 
+        // IPTV auto-advance: when a live channel stream fails, switch to the next channel
+        val iptvAutoAdvanceUrls = args.iptvChannelUrls
+        val isIptvAutoAdvance = args.parentMetaId == "iptv" &&
+            iptvAutoAdvanceUrls != null && iptvAutoAdvanceUrls.isNotEmpty()
+        if (isIptvAutoAdvance) {
+            LaunchedEffect(errorMessage, args.iptvCurrentChannelIndex, iptvAutoAdvanceUrls) {
+                val msg = errorMessage ?: return@LaunchedEffect
+                val chIdx = args.iptvCurrentChannelIndex
+                val nextIdx = (chIdx + 1).coerceIn(0, iptvAutoAdvanceUrls.size - 1)
+                if (nextIdx == chIdx) return@LaunchedEffect
+                val chNames = args.iptvChannelNames
+                val chLogos = args.iptvChannelLogos
+                val nextLogo = chLogos?.getOrNull(nextIdx).takeIf { !it.isNullOrBlank() }
+                val currentLaunch = PlayerLaunchStore.get(args.launchId)
+                val nextLaunch = currentLaunch?.copy(
+                    title = chNames?.getOrNull(nextIdx) ?: "",
+                    sourceUrl = iptvAutoAdvanceUrls[nextIdx],
+                    streamTitle = chNames?.getOrNull(nextIdx) ?: "",
+                    currentChannelIndex = nextIdx,
+                    logo = nextLogo,
+                    poster = nextLogo,
+                    initialPositionMs = 0L,
+                    initialProgressFraction = null,
+                )
+                if (nextLaunch != null) {
+                    errorMessage = null
+                    flushWatchProgress()
+                    args.onSwitchIptvChannel?.invoke(PlayerLaunchStore.put(nextLaunch))
+                }
+            }
+        }
+
         AnimatedVisibility(
             visible = pausedOverlayVisible && !controlsVisible && !playerControlsLocked,
             enter = fadeIn(animationSpec = tween(durationMillis = 220)),

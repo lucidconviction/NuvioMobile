@@ -90,10 +90,34 @@ object IptvRepository {
         updateCachedAllChannels()
         refreshUi()
         for (playlist in settings.m3uPlaylists) {
-            if (playlist.channels.isEmpty() && playlist.url.isNotBlank()) {
-                scope.launch { refreshM3uChannels(playlist.id) }
+            if (playlist.url.isNotBlank()) {
+                val key = m3uCacheKey(playlist)
+                val needsRefresh = playlist.channels.isEmpty() || isCacheExpired(key)
+                if (needsRefresh) {
+                    scope.launch { refreshM3uChannels(playlist.id) }
+                }
             }
         }
+        for (account in settings.xtreamAccounts) {
+            val key = xtreamCacheKey(account)
+            val needsRefresh = account.channels.isEmpty() || isCacheExpired(key)
+            if (needsRefresh) {
+                scope.launch { refreshXtreamChannels(account.id) }
+            }
+        }
+        for (account in settings.stalkerAccounts) {
+            val key = stalkerCacheKey(account)
+            val needsRefresh = account.channels.isEmpty() || isCacheExpired(key)
+            if (needsRefresh) {
+                scope.launch { refreshStalkerChannels(account.id) }
+            }
+        }
+    }
+
+    private fun isCacheExpired(key: String): Boolean {
+        val lastRefresh = IptvStorage.loadLastRefresh(key) ?: return true
+        val now = TraktPlatformClock.nowEpochMs()
+        return (now - lastRefresh) > CHANNEL_CACHE_TTL_MS
     }
 
     private fun saveToStorage() {
@@ -120,85 +144,50 @@ object IptvRepository {
     }
 
     private fun hydrateChannels(s: IptvPlaylistSettings): IptvPlaylistSettings {
+        val now = TraktPlatformClock.nowEpochMs()
         return s.copy(
             m3uPlaylists = s.m3uPlaylists.map { p ->
                 val key = m3uCacheKey(p)
                 val cached = loadChannelsFromCacheRaw(key)
-                val now = TraktPlatformClock.nowEpochMs()
-                val lastRefresh = IptvStorage.loadLastRefresh(key)
-                val expired = lastRefresh == null || (now - lastRefresh) > CHANNEL_CACHE_TTL_MS
-                if (cached != null && cached.isNotEmpty() && !expired) {
-                    p.copy(channels = cached)
-                } else if (cached != null && cached.isNotEmpty() && expired) {
-                    scheduleRefresh(key, p.url, p.name)
+                if (cached != null && cached.isNotEmpty()) {
                     p.copy(channels = cached)
                 } else if (p.channels.isNotEmpty()) {
                     saveChannelsToCache(key, p.channels)
                     IptvStorage.saveLastRefresh(key, now)
                     p
                 } else {
-                    scheduleRefresh(key, p.url, p.name)
                     p
                 }
             },
             xtreamAccounts = s.xtreamAccounts.map { a ->
                 val key = xtreamCacheKey(a)
                 val cached = loadChannelsFromCacheRaw(key)
-                val now = TraktPlatformClock.nowEpochMs()
-                val lastRefresh = IptvStorage.loadLastRefresh(key)
-                val expired = lastRefresh == null || (now - lastRefresh) > CHANNEL_CACHE_TTL_MS
-                if (cached != null && cached.isNotEmpty() && !expired) {
-                    a.copy(channels = cached)
-                } else if (cached != null && cached.isNotEmpty() && expired) {
-                    scheduleRefresh(key, a.server, a.name)
+                if (cached != null && cached.isNotEmpty()) {
                     a.copy(channels = cached)
                 } else if (a.channels.isNotEmpty()) {
                     saveChannelsToCache(key, a.channels)
                     IptvStorage.saveLastRefresh(key, now)
                     a
                 } else {
-                    scheduleRefresh(key, a.server, a.name)
                     a
                 }
             },
             stalkerAccounts = s.stalkerAccounts.map { a ->
                 val key = stalkerCacheKey(a)
                 val cached = loadChannelsFromCacheRaw(key)
-                val now = TraktPlatformClock.nowEpochMs()
-                val lastRefresh = IptvStorage.loadLastRefresh(key)
-                val expired = lastRefresh == null || (now - lastRefresh) > CHANNEL_CACHE_TTL_MS
-                if (cached != null && cached.isNotEmpty() && !expired) {
-                    a.copy(channels = cached)
-                } else if (cached != null && cached.isNotEmpty() && expired) {
-                    scheduleRefresh(key, a.server, a.name)
+                if (cached != null && cached.isNotEmpty()) {
                     a.copy(channels = cached)
                 } else if (a.channels.isNotEmpty()) {
                     saveChannelsToCache(key, a.channels)
                     IptvStorage.saveLastRefresh(key, now)
                     a
                 } else {
-                    scheduleRefresh(key, a.server, a.name)
                     a
                 }
-            },
+             },
         )
     }
 
-    private fun scheduleRefresh(cacheKey: String, url: String, name: String) {
-        scope.launch {
-            when {
-                cacheKey.startsWith("xtream:") -> {
-                    val acct = settings.xtreamAccounts.find { xtreamCacheKey(it) == cacheKey }
-                    if (acct != null) runCatching { refreshXtreamChannels(acct.id) }
-                }
-                cacheKey.startsWith("stalker:") -> {
-                    val acct = settings.stalkerAccounts.find { stalkerCacheKey(it) == cacheKey }
-                    if (acct != null) runCatching { refreshStalkerChannels(acct.id) }
-                }
-                else -> runCatching { refreshM3uPlaylistInternal(url, name, cacheKey) }
-            }
-        }
-    }
 
     private suspend fun refreshM3uPlaylistInternal(url: String, name: String, cacheKey: String) {
         try {

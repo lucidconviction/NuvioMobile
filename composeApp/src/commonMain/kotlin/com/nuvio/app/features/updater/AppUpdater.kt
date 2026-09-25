@@ -409,6 +409,10 @@ fun AppUpdaterHost(
         controller.ensureAutoCheckStarted()
     }
 
+    LaunchedEffect(controller) {
+        controller.startBackgroundPolling()
+    }
+
     if (!state.showDialog) return
 
     val showPrimaryAction =

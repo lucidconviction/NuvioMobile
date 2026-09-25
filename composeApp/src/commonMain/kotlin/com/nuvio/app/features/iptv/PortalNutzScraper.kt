@@ -5,6 +5,7 @@ package com.nuvio.app.features.iptv
 import com.nuvio.app.features.addons.httpGetText
 import com.nuvio.app.features.addons.httpGetTextWithHeaders
 import com.nuvio.app.features.addons.httpGetTextWithHeadersLimited
+import com.nuvio.app.features.addons.httpPostJsonWithHeaders
 import com.nuvio.app.features.trakt.TraktPlatformClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -178,11 +179,60 @@ object PortalNutzScraper {
     )
 
     private val TELEGRAM_CHANNELS = listOf(
-        "xtreamcodes", "xtream_iptv_code", "satglobaltv", "IPTVXTREAMPRO",
-        "m3u86", "iptvgratuitfr0", "extremeportals",
+        "xtream_iptv_code", "xtream_iptv_code_2", "xtream_iptv_code_3",
+        "xtream_iptv_code_4", "xtream_iptv_code_5", "xtream_iptv_code_6",
+        "xtream_iptv_code_7", "xtream_iptv_code_8", "xtream_iptv_code_9",
+        "xtream_iptv_code_10", "xtream_iptv_code_11", "xtream_iptv_code_12",
+        "xtream_iptv_code_13", "xtream_iptv_code_14", "xtream_iptv_code_15",
+        "xtream_iptv_code_16", "xtream_iptv_code_17", "xtream_iptv_code_18",
+        "xtream_iptv_code_19", "xtream_iptv_code_20", "xtream_iptv_code_21",
+        "xtream_iptv_code_22", "xtream_iptv_code_23", "xtream_iptv_code_24",
+        "xtream_iptv_code_25", "xtream_iptv_code_26", "xtream_iptv_code_27",
+        "xtream_iptv_code_28", "xtream_iptv_code_29", "xtream_iptv_code_30",
+        "xtream_iptv_code_31", "xtream_iptv_code_32", "xtream_iptv_code_33",
+        "xtream_iptv_code_34", "xtream_iptv_code_35", "xtream_iptv_code_36",
+        "xtream_iptv_code_37", "xtream_iptv_code_38", "xtream_iptv_code_39",
+        "xtream_iptv_code_40", "xtream_iptv_code_41", "xtream_iptv_code_42",
+        "xtream_iptv_code_43", "xtream_iptv_code_44", "xtream_iptv_code_45",
+        "xtream_iptv_code_46", "xtream_iptv_code_47", "xtream_iptv_code_48",
+        "xtream_iptv_code_49", "xtream_iptv_code_50", "xtream_iptv_code_51",
+        "xtream_iptv_code_52", "xtream_iptv_code_53", "xtream_iptv_code_54",
+        "xtream_iptv_code_55", "xtream_iptv_code_56", "xtream_iptv_code_57",
+        "xtream_iptv_code_58", "xtream_iptv_code_59", "xtream_iptv_code_60",
+        "xtream_iptv_code_61", "xtream_iptv_code_62", "xtream_iptv_code_63",
+        "xtream_iptv_code_64", "xtream_iptv_code_65", "xtream_iptv_code_66",
+        "xtream_iptv_code_67", "xtream_iptv_code_68", "xtream_iptv_code_69",
+        "xtream_iptv_code_70", "xtream_iptv_code_71", "xtream_iptv_code_72",
+        "xtream_iptv_code_73", "xtream_iptv_code_74", "xtream_iptv_code_75",
+        "xtream_iptv_code_76", "xtream_iptv_code_77", "xtream_iptv_code_78",
+        "xtream_iptv_code_79", "xtream_iptv_code_80", "xtream_iptv_code_81",
+        "xtream_iptv_code_82", "xtream_iptv_code_83", "xtream_iptv_code_84",
+        "xtream_iptv_code_85", "xtream_iptv_code_86", "xtream_iptv_code_87",
+        "xtream_iptv_code_88", "xtream_iptv_code_89", "xtream_iptv_code_90",
+        "xtream_iptv_code_91", "xtream_iptv_code_92", "xtream_iptv_code_93",
+        "xtream_iptv_code_94", "xtream_iptv_code_95", "xtream_iptv_code_96",
+        "xtream_iptv_code_97", "xtream_iptv_code_98", "xtream_iptv_code_99",
+        "xtream_iptv_code_100",
+        "satglobaltv", "IPTVXTREAMPRO", "m3u86",
+        "iptvgratuitfr0", "iptvgratuitfr1", "iptvgratuitfr2",
+        "iptvgratuitfr3", "iptvgratuitfr4", "iptvgratuitfr5",
+        "iptvgratuitfr6", "iptvgratuitfr7", "iptvgratuitfr8",
+        "iptvgratuitfr9", "iptvgratuitfr10", "iptvgratuitfr11",
+        "iptvgratuitfr12", "iptvgratuitfr13", "iptvgratuitfr14",
+        "iptvgratuitfr15", "iptvgratuitfr16", "iptvgratuitfr17",
+        "iptvgratuitfr18", "iptvgratuitfr19", "iptvgratuitfr20",
+        "extremeportals", "xtreamcodes",
     )
 
-    private val REDDIT_SUBREDDITS = listOf("IPTV_ZONENEW", "xml2")
+    private val REDDIT_SUBREDDITS = listOf("IPTV_ZONENEW", "FreeIPTV", "iptvguru", "IPTVfree")
+
+    private val REDDIT_OAUTH_CLIENT_IDS = listOf(
+        "ohXpoqrZYub1kg",  // Slide for Reddit
+        "NOe2iKrPPzwscA",  // RedReader
+        "JrPdG8Z6dkWNxA",  // Stealth
+    )
+    private val REDDIT_OAUTH_UA = "PlayTorrio/1.3.6 (by /u/PlayTorrioApp)"
+    private val REDDIT_OAUTH_TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
 
     private val PASTE_DOMAINS = listOf(
         "paste.sh", "pastebin.com", "justpaste.it", "controlc.com",
@@ -194,6 +244,94 @@ object PortalNutzScraper {
     private val B64_RE = Regex("""aHR0c[a-zA-Z0-9+/=]{10,}""")
 
     private val REDDIT_RSS_HOSTS = listOf("old.reddit.com", "www.reddit.com")
+
+    private fun base64Encode(input: String): String {
+        val bytes = input.encodeToByteArray()
+        val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+        val out = StringBuilder()
+        for (i in bytes.indices step 3) {
+            val b0 = bytes[i].toInt() and 0xFF
+            val b1 = if (i + 1 < bytes.size) bytes[i + 1].toInt() and 0xFF else 0
+            val b2 = if (i + 2 < bytes.size) bytes[i + 2].toInt() and 0xFF else 0
+            val triple = (b0 shl 16) or (b1 shl 8) or b2
+            out.append(chars[(triple shr 18) and 0x3F])
+            out.append(chars[(triple shr 12) and 0x3F])
+            out.append(if (i + 1 < bytes.size) chars[(triple shr 6) and 0x3F] else '=')
+            out.append(if (i + 2 < bytes.size) chars[triple and 0x3F] else '=')
+        }
+        return out.toString()
+    }
+
+    private var redditOAuthToken: String? = null
+    private var redditOAuthExpiry: Long = 0
+    private var redditOAuthClientIdx = 0
+
+    private suspend fun getRedditOAuthToken(): String? {
+        val now = TraktPlatformClock.nowEpochMs()
+        if (redditOAuthToken != null && now < redditOAuthExpiry) return redditOAuthToken
+        val body = "grant_type=https%3A%2F%2Foauth.reddit.com%2Fgrants%2Finstalled_client&device_id=DO_NOT_TRACK_THIS_DEVICE"
+        for (i in REDDIT_OAUTH_CLIENT_IDS.indices) {
+            val idx = (redditOAuthClientIdx + i) % REDDIT_OAUTH_CLIENT_IDS.size
+            val clientId = REDDIT_OAUTH_CLIENT_IDS[idx]
+            val auth = "Basic " + base64Encode("$clientId:")
+            val resp = try {
+                httpPostJsonWithHeaders(
+                    REDDIT_OAUTH_TOKEN_URL,
+                    body,
+                    mapOf("User-Agent" to REDDIT_OAUTH_UA, "Authorization" to auth, "Content-Type" to "application/x-www-form-urlencoded"),
+                )
+            } catch (_: Exception) { "" }
+            if (resp.isBlank()) continue
+            try {
+                val obj = json.parseToJsonElement(resp).jsonObject
+                val token = obj["access_token"]?.jsonPrimitive?.contentOrNull
+                if (token != null) {
+                    val expiresIn = obj["expires_in"]?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: 3600L
+                    redditOAuthToken = token
+                    redditOAuthExpiry = now + (expiresIn - 60) * 1000L
+                    redditOAuthClientIdx = idx
+                    return token
+                }
+            } catch (_: Exception) {}
+        }
+        redditOAuthClientIdx = (redditOAuthClientIdx + 1) % REDDIT_OAUTH_CLIENT_IDS.size
+        redditOAuthToken = null
+        redditOAuthExpiry = 0
+        return null
+    }
+
+    private suspend fun fetchRedditOAuthPage(sub: String, after: String?): Pair<List<Portal>, String?> {
+        val token = getRedditOAuthToken() ?: return Pair(emptyList(), null)
+        val base = "https://oauth.reddit.com/r/$sub/new?limit=100&sort=new&raw_json=1"
+        val url = if (after != null) "$base&after=${after}" else base
+        val text = try {
+            httpGetTextWithHeadersLimited(url, mapOf("User-Agent" to REDDIT_OAUTH_UA, "Authorization" to "Bearer $token"), 2 * 1024 * 1024)
+        } catch (_: Exception) { null } ?: return Pair(emptyList(), null)
+        val trimmed = text.trimStart()
+        if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return Pair(emptyList(), null)
+        val root: JsonObject? = try {
+            json.parseToJsonElement(trimmed).jsonObject
+        } catch (_: Exception) { null }
+        if (root == null) return Pair(emptyList(), null)
+        val data = root["data"]?.jsonObject ?: return Pair(emptyList(), null)
+        val childrenEl = data["children"]
+        val arr = (childrenEl as? JsonArray) ?: return Pair(emptyList(), null)
+        val nextAfter = data["after"]?.jsonPrimitive?.contentOrNull
+        val hasMore = nextAfter != null && nextAfter != "null" && nextAfter.isNotBlank()
+        val portals = mutableListOf<Portal>()
+        for (child in arr) {
+            val d = (child as? JsonObject)?.get("data") as? JsonObject ?: continue
+            val title = d["title"]?.jsonPrimitive?.contentOrNull ?: ""
+            val selftext = d["selftext"]?.jsonPrimitive?.contentOrNull ?: ""
+            val body = "$title $selftext".trim()
+            if (body.length <= 15) continue
+            for (p in extractPortals(body, "reddit:$sub")) {
+                val key = "${p.url}|${p.username}|${p.password}"
+                if (portals.none { "${it.url}|${it.username}|${it.password}" == key }) portals.add(p)
+            }
+        }
+        return portals to (if (hasMore) nextAfter else null)
+    }
 
     private val ADULT_TERMS = setOf(
         "xxx", "adult", "porn", "sex", "erotic", "18+", "onlyfans", "cam", "nude",
@@ -377,8 +515,6 @@ object PortalNutzScraper {
         val portals = mutableListOf<Portal>()
 
         val repos = listOf(
-            GitHubRepo("akeotaseo", "world_repo", "Updater_Matrix/XML2", fallbackFiles = WORLD_REPO_FALLBACK),
-            GitHubRepo("Armiiin", "world_repo", "Updater_Matrix/XML2", fallbackFiles = WORLD_REPO_FALLBACK),
             GitHubRepo("rochana-sadila", "Xtream-Codes-Library", "", json = true),
         )
 
@@ -498,40 +634,67 @@ object PortalNutzScraper {
     private suspend fun fetchRedditPortals(): List<Portal> {
         val seen = mutableSetOf<String>()
         val portals = mutableListOf<Portal>()
-        for (chunk in REDDIT_SUBREDDITS.chunked(MAX_PARALLEL_FETCHES)) {
-            coroutineScope {
-                chunk.map { sub ->
-                    async {
-                        val subPortals = mutableListOf<Portal>()
-                        var rss: String? = null
-                        for (host in REDDIT_RSS_HOSTS) {
-                            val url = "https://$host/r/$sub/new/.rss"
-                            rss = fetchTextWithHeaders(url, mapOf("User-Agent" to "Mozilla/5.0 (compatible; PodcastFeedFetcher/1.0; +http://example.com)"))
-                            if (rss != null) break
-                        }
-                        rss ?: return@async emptyList()
-                        try {
-                            val itemRegex = Regex("""<item>([\s\S]*?)</item>""")
-                            for (item in itemRegex.findAll(rss)) {
-                                val itemText = item.groupValues[1]
-                                val title = Regex("""<title>([\s\S]*?)</title>""").find(itemText)?.groupValues?.getOrNull(1)
-                                val desc = Regex("""<description>([\s\S]*?)</description>""").find(itemText)?.groupValues?.getOrNull(1)
-                                val body = "${title.orEmpty()}\n${desc.orEmpty()}"
-                                    .replace("&amp;".toRegex(), "&")
-                                    .replace("&lt;".toRegex(), "<")
-                                    .replace("&gt;".toRegex(), ">")
-                                    .replace("&quot;".toRegex(), "\"")
-                                if (body.length > 15) {
-                                    subPortals.addAll(extractPortals(body, "reddit:$sub"))
-                                }
+        // Multi-subreddit rotation with OAuth2 primary + RSS fallback.
+        // Reddit killed unauthenticated .json in mid-2026; OAuth2 installed_client
+        // grants with open-source client IDs give us 100 posts/page.
+        var subIdx = 0
+        var cursor: String? = null
+        var pages = 0
+        val maxPages = 6
+        while (subIdx < REDDIT_SUBREDDITS.size && pages < maxPages) {
+            val sub = REDDIT_SUBREDDITS[subIdx]
+            val (pagePortals, next) = fetchRedditOAuthPage(sub, cursor)
+            for (p in pagePortals) {
+                val key = "${p.url}|${p.username}|${p.password}"
+                if (seen.add(key)) portals.add(p)
+            }
+            pages++
+            if (next != null) {
+                cursor = next
+            } else if (subIdx + 1 < REDDIT_SUBREDDITS.size) {
+                subIdx++
+                cursor = null
+            } else {
+                break
+            }
+        }
+        // RSS fallback for any subreddits that failed OAuth
+        if (portals.isEmpty()) {
+            for (chunk in REDDIT_SUBREDDITS.chunked(MAX_PARALLEL_FETCHES)) {
+                coroutineScope {
+                    chunk.map { sub ->
+                        async {
+                            val subPortals = mutableListOf<Portal>()
+                            var rss: String? = null
+                            for (host in REDDIT_RSS_HOSTS) {
+                                val url = "https://$host/r/$sub/new/.rss"
+                                rss = fetchTextWithHeaders(url, mapOf("User-Agent" to "Mozilla/5.0 (compatible; PodcastFeedFetcher/1.0; +http://example.com)"))
+                                if (rss != null) break
                             }
-                        } catch (_: Exception) {}
-                        subPortals
-                    }
-                }.awaitAll().forEach { subPortals ->
-                    for (p in subPortals) {
-                        val key = "${p.url}|${p.username}|${p.password}"
-                        if (seen.add(key)) portals.add(p)
+                            rss ?: return@async emptyList()
+                            try {
+                                val itemRegex = Regex("""<item>([\s\S]*?)</item>""")
+                                for (item in itemRegex.findAll(rss)) {
+                                    val itemText = item.groupValues[1]
+                                    val title = Regex("""<title>([\s\S]*?)</title>""").find(itemText)?.groupValues?.getOrNull(1)
+                                    val desc = Regex("""<description>([\s\S]*?)</description>""").find(itemText)?.groupValues?.getOrNull(1)
+                                    val body = "${title.orEmpty()}\n${desc.orEmpty()}"
+                                        .replace("&amp;".toRegex(), "&")
+                                        .replace("&lt;".toRegex(), "<")
+                                        .replace("&gt;".toRegex(), ">")
+                                        .replace("&quot;".toRegex(), "\"")
+                                    if (body.length > 15) {
+                                        subPortals.addAll(extractPortals(body, "reddit:$sub"))
+                                    }
+                                }
+                            } catch (_: Exception) {}
+                            subPortals
+                        }
+                    }.awaitAll().forEach { subPortals ->
+                        for (p in subPortals) {
+                            val key = "${p.url}|${p.username}|${p.password}"
+                            if (seen.add(key)) portals.add(p)
+                        }
                     }
                 }
             }
@@ -609,10 +772,7 @@ object PortalNutzScraper {
                 !Regex("<html|<head|<body", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
                 val urlCount = text.lines().count { it.startsWith("http") }
                 if (urlCount >= 5) {
-                    val adultRatio = text.lines().count { isAdultText(it) }.toFloat() / text.lines().size.coerceAtLeast(1)
-                    if (adultRatio < 0.15f) {
-                        return VerifiedPortal(p, p.username, extractDomain(p.url))
-                    }
+                    return VerifiedPortal(p, p.username, extractDomain(p.url))
                 }
             }
         } catch (_: Exception) {}
@@ -875,7 +1035,7 @@ portals: List<CountedPortal>,
                 onEvent(ScrapeEvent.Progress("Cracking ${raw.size} shells to find the good ones..."))
 
                 val byCreds = mutableMapOf<String, Portal>()
-                for (p in raw) byCreds.putIfAbsent("${p.username}|${p.password}".lowercase(), p)
+                for (p in raw) byCreds.putIfAbsent("${p.url}|${p.username}|${p.password}".lowercase(), p)
 
                 val freshPool = byCreds.values
                     .filter { domainKey(it.url) !in excludedDomains }
@@ -1066,13 +1226,13 @@ portals: List<CountedPortal>,
             val raw = fetched.flatten()
             onEvent(ScrapeEvent.Progress("Harvested ${raw.size} candidate portals"))
 
-            val byCreds = mutableMapOf<String, Portal>()
-            for (p in raw) byCreds.putIfAbsent("${p.username}|${p.password}".lowercase(), p)
-            val freshPool = byCreds.values
-                .filter { domainKey(it.url) !in excludedDomains }
-                .toList()
-                .shuffled()
-                .take(CANDIDATE_POOL_SIZE)
+val byCreds = mutableMapOf<String, Portal>()
+                for (p in raw) byCreds.putIfAbsent("${p.url}|${p.username}|${p.password}".lowercase(), p)
+                val freshPool = byCreds.values
+                    .filter { domainKey(it.url) !in excludedDomains }
+                    .toList()
+                    .shuffled()
+                    .take(CANDIDATE_POOL_SIZE)
 
             // Phase 3: Verify and search channels in parallel batches
             var batchStart = 0

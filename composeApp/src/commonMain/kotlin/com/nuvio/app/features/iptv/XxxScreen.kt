@@ -96,7 +96,8 @@ fun XxxScreen(
 
     LaunchedEffect(Unit) {
         categories = XxxClient.getCategories()
-        loadVideos("")
+        selectedCategory = categories.firstOrNull()
+        loadVideos("", selectedCategory)
     }
 
     LaunchedEffect(selectedCategory) {

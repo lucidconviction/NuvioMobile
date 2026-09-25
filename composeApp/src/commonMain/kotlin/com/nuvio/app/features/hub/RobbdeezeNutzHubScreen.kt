@@ -184,7 +184,11 @@ fun RobbdeezeNutzHubScreen(
     }
 
     PlatformBackHandler(enabled = subScreen != HubSubScreen.Hub) {
-        navigateBack()
+        if (HubReturnStore.xxxScreen == "Xxx") {
+            HubReturnStore.xxxScreen = ""
+        } else {
+            navigateBack()
+        }
     }
 
     BoxWithConstraints(
@@ -231,7 +235,7 @@ fun RobbdeezeNutzHubScreen(
                             if (HubReturnStore.xxxScreen == "Xxx") {
                                 XxxScreen(modifier = Modifier.fillMaxSize())
                             } else {
-                                IptvScreen(modifier = Modifier.fillMaxSize(), scrollToTopRequests = iptvScrollToTopRequests, onMultiWindowAdded = { pushNav(HubSubScreen.Multi) }, isTabletLayout = isTablet)
+                                IptvScreen(modifier = Modifier.fillMaxSize(), scrollToTopRequests = iptvScrollToTopRequests, onPlayChannel = onPlayChannelSave, onMultiWindowAdded = { pushNav(HubSubScreen.Multi) }, isTabletLayout = isTablet)
                             }
                         }
                     }

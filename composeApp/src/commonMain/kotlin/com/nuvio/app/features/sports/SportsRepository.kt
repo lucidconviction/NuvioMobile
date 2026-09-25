@@ -20,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.decodeFromString
@@ -419,14 +420,17 @@ object SportsRepository {
             Sync2CalRepository.loadAllEvents()
             sync2CalCollectorJob?.cancel()
             sync2CalCollectorJob = scope.launch {
-                Sync2CalRepository.eventsByLeague.collect { events ->
-                    Sync2CalRepository.tvChannelsByEvent.collect { channels ->
-                        _uiState.value = _uiState.value.copy(
-                            sync2CalEventsByLeague = events,
-                            sync2CalTvChannels = channels,
-                            sync2CalLoading = false,
-                        )
-                    }
+                combine(
+                    Sync2CalRepository.eventsByLeague,
+                    Sync2CalRepository.tvChannelsByEvent,
+                ) { events, channels ->
+                    events to channels
+                }.collect { (events, channels) ->
+                    _uiState.value = _uiState.value.copy(
+                        sync2CalEventsByLeague = events,
+                        sync2CalTvChannels = channels,
+                        sync2CalLoading = false,
+                    )
                 }
             }
         }
