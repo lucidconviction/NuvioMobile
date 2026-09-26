@@ -1174,7 +1174,23 @@ private fun Page1Live(
             ) {
                 // ── Sports Streams ──
                 val liveStreams = uiState.unifiedLiveEvents.filter { it.streamUrl.isNotBlank() }
-                if (liveStreams.isNotEmpty()) {
+                if (uiState.unifiedLiveLoading) {
+                    item {
+                        Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(color = Primary)
+                                Spacer(Modifier.height(8.dp))
+                                Text("Loading live streams...", color = OnSurfaceVariant, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                } else if (liveStreams.isEmpty()) {
+                    item {
+                        Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                            Text("No live streams available right now", color = OnSurfaceVariant)
+                        }
+                    }
+                } else {
                     item {
                         SportsStreamsSection(
                             events = liveStreams,

@@ -702,7 +702,7 @@ object SportsRepository {
             val streamedCategories = listOf("football", "basketball", "hockey", "baseball", "motor-sports", "tennis", "rugby", "fight", "american-football", "golf", "cricket", "darts")
             for (cat in streamedCategories) {
                 runCatching {
-                    val matches = StreamedPkClient.fetchMatches(cat).take(15)
+                    val matches = StreamedPkClient.fetchMatches(cat).take(8)
                     for (m in matches) {
                         var embedUrl = ""
                         for (src in m.sources) {
@@ -725,7 +725,7 @@ object SportsRepository {
             runCatching {
                 val sportsrcCategories = listOf("basketball", "football", "baseball", "hockey", "motor-sports", "rugby", "tennis", "fight", "american-football", "golf", "cricket", "darts")
                 for (cat in sportsrcCategories) {
-                    val matches = SportSRCClient.fetchMatches(cat).take(10)
+                    val matches = SportSRCClient.fetchMatches(cat).take(5)
                     for (m in matches) {
                         val streams = SportSRCClient.fetchMatchStreams(m.id, cat)
                         val embedUrl = streams.firstOrNull()?.embedUrl ?: ""
