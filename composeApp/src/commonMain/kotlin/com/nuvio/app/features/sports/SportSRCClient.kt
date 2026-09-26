@@ -99,11 +99,11 @@ object SportSRCClient {
         return result
     }
 
-    suspend fun fetchMatchDetail(id: String): SportSRCMatch? {
+    suspend fun fetchMatchDetail(id: String, category: String): SportSRCMatch? {
         return try {
             withTimeout(15_000) {
                 val body = httpGetTextWithHeaders(
-                    "$baseUrl?data=detail&id=$id",
+                    "$baseUrl?data=detail&id=$id&category=$category",
                     mapOf("User-Agent" to "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36"),
                 )
                 val obj = Json.parseToJsonElement(body).jsonObject
@@ -121,6 +121,44 @@ object SportSRCClient {
             }
         } catch (_: Exception) {
             null
+        }
+    }
+
+    data class StreamSource(
+        val id: String,
+        val embedUrl: String,
+        val language: String,
+        val hd: Boolean,
+    )
+
+    suspend fun fetchMatchStreams(id: String, category: String): List<StreamSource> {
+        return try {
+            withTimeout(15_000) {
+                val body = httpGetTextWithHeaders(
+                    "$baseUrl?data=detail&id=$id&category=$category",
+                    mapOf("User-Agent" to "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36"),
+                )
+                val obj = Json.parseToJsonElement(body).jsonObject
+                val sources = obj["sources"]?.jsonArray
+                val result = mutableListOf<StreamSource>()
+                if (sources != null) {
+                    for (el in sources) {
+                        val s = el.jsonObject
+                        val url = s["embedUrl"]?.jsonPrimitive?.contentOrNull
+                        if (!url.isNullOrBlank()) {
+                            result.add(StreamSource(
+                                id = s["id"]?.jsonPrimitive?.contentOrNull ?: "",
+                                embedUrl = url,
+                                language = s["language"]?.jsonPrimitive?.contentOrNull ?: "",
+                                hd = s["hd"]?.jsonPrimitive?.contentOrNull?.toBoolean() ?: false,
+                            ))
+                        }
+                    }
+                }
+                result
+            }
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 }

@@ -698,69 +698,26 @@ object SportsRepository {
             _uiState.value = _uiState.value.copy(unifiedLiveLoading = true)
             val results = mutableListOf<UnifiedLiveEvent>()
 
-            // 1. WeStream
-            runCatching {
-                WeStreamClient.fetchLiveMatches().forEach { m ->
-                    results.add(UnifiedLiveEvent(
-                        id = "ws_${m.id}", title = m.title.ifBlank { "${m.homeTeam} vs ${m.awayTeam}" },
-                        subtitle = m.sport, startTime = m.startTime, sport = m.sport, category = m.sport,
-                        streamUrl = m.streamUrl, imageUrl = null, isLive = m.streamUrl.isNotBlank(),
-                        provider = "WeStream",
-                    ))
+            // ── SportSRC (only working API with real stream URLs) ──
+            val sportsrcCategories = listOf("basketball", "football", "baseball", "hockey", "motor-sports", "rugby", "tennis", "fight", "american-football", "golf", "cricket", "darts")
+            for (cat in sportsrcCategories) {
+                runCatching {
+                    val matches = SportSRCClient.fetchMatches(cat).take(15)
+                    for (m in matches) {
+                        val streams = SportSRCClient.fetchMatchStreams(m.id, cat)
+                        val embedUrl = streams.firstOrNull()?.embedUrl ?: ""
+                        results.add(UnifiedLiveEvent(
+                            id = "src_${m.id}", title = "${m.homeTeam} vs ${m.awayTeam}",
+                            subtitle = m.league, startTime = m.startTime,
+                            sport = cat, category = cat,
+                            streamUrl = embedUrl, imageUrl = null, isLive = embedUrl.isNotBlank(),
+                            score = m.score.ifBlank { null }, provider = "SportSRC",
+                        ))
+                    }
                 }
             }
 
-            // 2. EmbedSportex
-            runCatching {
-                EmbedSportexClient.fetchLiveMatches().forEach { m ->
-                    results.add(UnifiedLiveEvent(
-                        id = "esx_${m.id}", title = m.title, subtitle = m.category,
-                        startTime = m.startTime, sport = m.category, category = m.category,
-                        streamUrl = m.embedUrl, imageUrl = null, isLive = m.isLive,
-                        provider = "EmbedSportex",
-                    ))
-                }
-            }
-
-            // 3. SportSRC
-            runCatching {
-                SportSRCClient.fetchMatches("").forEach { m ->
-                    results.add(UnifiedLiveEvent(
-                        id = "src_${m.id}", title = "${m.homeTeam} vs ${m.awayTeam}",
-                        subtitle = m.league, startTime = m.startTime, sport = m.league, category = m.league,
-                        streamUrl = "", imageUrl = null, isLive = false,
-                        score = m.score, provider = "SportSRC",
-                    ))
-                }
-            }
-
-            // 4. OpenLigaDB
-            runCatching {
-                OpenLigaDBClient.fetchLiveMatches().forEach { m ->
-                    results.add(UnifiedLiveEvent(
-                        id = "oldb_${m.id}", title = "${m.homeTeam} vs ${m.awayTeam}",
-                        subtitle = "", startTime = 0L, sport = "Football", category = "Soccer",
-                        streamUrl = "", imageUrl = null, isLive = m.isLive,
-                        score = if (m.homeScore != null && m.awayScore != null) "${m.homeScore} - ${m.awayScore}" else null,
-                        provider = "OpenLigaDB",
-                    ))
-                }
-            }
-
-            // 5. Ergast (F1)
-            runCatching {
-                val season = java.time.Year.now().value
-                ErgastClient.fetchStandings(season).take(10).forEachIndexed { i, r ->
-                    results.add(UnifiedLiveEvent(
-                        id = "erg_f1_${season}_$i", title = "${r.driver ?: "TBD"} — ${r.name}",
-                        subtitle = "F1 Standings", startTime = 0L, sport = "Motorsport", category = "F1",
-                        streamUrl = "", imageUrl = null, isLive = false,
-                        score = "P${(i + 1)}", provider = "Ergast",
-                    ))
-                }
-            }
-
-            // 6. BallDontLie
+            // ── BallDontLie (stats only, no streams) ──
             runCatching {
                 BallDontLieClient.fetchGames().take(10).forEach { g ->
                     results.add(UnifiedLiveEvent(
@@ -770,20 +727,6 @@ object SportsRepository {
                         score = if (g.homeScore != null && g.awayScore != null) "${g.awayScore} - ${g.homeScore}" else null,
                         provider = "BallDontLie",
                     ))
-                }
-            }
-
-            // 7. StreamEast (scrape)
-            runCatching {
-                StreamEastClient.fetchEvents().forEach { ev ->
-                    ev.channels.firstOrNull()?.let { ch ->
-                        results.add(UnifiedLiveEvent(
-                            id = "se_${ev.id}_${ch.channelId}", title = ev.eventName,
-                            subtitle = ev.category, startTime = ev.startEpochMs, sport = ev.category, category = ev.category,
-                            streamUrl = ch.embedUrl ?: "", imageUrl = null, isLive = ev.isLive,
-                            provider = "StreamEast",
-                        ))
-                    }
                 }
             }
 
