@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -698,47 +699,63 @@ object SportsRepository {
             _uiState.value = _uiState.value.copy(unifiedLiveLoading = true)
             val results = mutableListOf<UnifiedLiveEvent>()
 
-            // ── StreamedPk (primary: matches include sources, stream endpoint gives embed URLs) ──
-            val streamedCategories = listOf("football", "basketball", "hockey", "baseball", "motor-sports", "tennis", "rugby", "fight", "american-football", "golf", "cricket", "darts")
-            for (cat in streamedCategories) {
-                runCatching {
-                    val matches = StreamedPkClient.fetchMatches(cat).take(8)
-                    for (m in matches) {
-                        var embedUrl = ""
-                        for (src in m.sources) {
-                            val streams = StreamedPkClient.fetchStreams(src.source, src.id)
-                            val url = streams.firstOrNull()?.embedUrl
-                            if (!url.isNullOrBlank()) { embedUrl = url; break }
+            try {
+                withTimeout(45_000) {
+                    // ── StreamedPk (primary) — parallel per-category fetches ──
+                    val streamedCategories = listOf("football", "basketball", "hockey", "baseball", "motor-sports", "tennis", "rugby", "fight", "american-football", "golf", "cricket", "darts")
+                    val streamedDeferreds = streamedCategories.map { cat ->
+                        async {
+                            val matches = StreamedPkClient.fetchMatches(cat).take(5)
+                            val out = mutableListOf<UnifiedLiveEvent>()
+                            for (m in matches) {
+                                var embedUrl = ""
+                                for (src in m.sources) {
+                                    val streams = StreamedPkClient.fetchStreams(src.source, src.id)
+                                    val url = streams.firstOrNull()?.embedUrl
+                                    if (!url.isNullOrBlank()) { embedUrl = url; break }
+                                }
+                                if (embedUrl.isNotBlank()) {
+                                    out.add(UnifiedLiveEvent(
+                                        id = "spk_${m.id}", title = m.title,
+                                        subtitle = m.teams?.home?.name?.let { "$it vs ${m.teams.away?.name ?: ""}" } ?: "",
+                                        startTime = m.date, sport = cat, category = cat,
+                                        streamUrl = embedUrl, imageUrl = m.poster, isLive = true,
+                                        provider = "StreamedPk",
+                                    ))
+                                }
+                            }
+                            out
                         }
-                        results.add(UnifiedLiveEvent(
-                            id = "spk_${m.id}", title = m.title,
-                            subtitle = m.teams?.home?.name?.let { "$it vs ${m.teams.away?.name ?: ""}" } ?: "",
-                            startTime = m.date, sport = cat, category = cat,
-                            streamUrl = embedUrl, imageUrl = m.poster, isLive = embedUrl.isNotBlank(),
-                            provider = "StreamedPk",
-                        ))
                     }
-                }
-            }
+                    streamedDeferreds.forEach { d -> results.addAll(d.await()) }
 
-            // ── SportSRC (fallback for matches not on StreamedPk) ──
-            runCatching {
-                val sportsrcCategories = listOf("basketball", "football", "baseball", "hockey", "motor-sports", "rugby", "tennis", "fight", "american-football", "golf", "cricket", "darts")
-                for (cat in sportsrcCategories) {
-                    val matches = SportSRCClient.fetchMatches(cat).take(5)
-                    for (m in matches) {
-                        val streams = SportSRCClient.fetchMatchStreams(m.id, cat)
-                        val embedUrl = streams.firstOrNull()?.embedUrl ?: ""
-                        results.add(UnifiedLiveEvent(
-                            id = "src_${m.id}", title = "${m.homeTeam} vs ${m.awayTeam}",
-                            subtitle = m.league, startTime = m.startTime,
-                            sport = cat, category = cat,
-                            streamUrl = embedUrl, imageUrl = null, isLive = embedUrl.isNotBlank(),
-                            score = m.score.ifBlank { null }, provider = "SportSRC",
-                        ))
+                    // ── SportSRC (fallback) — parallel per-category ──
+                    val sportsrcCategories = listOf("basketball", "football", "baseball", "hockey", "motor-sports", "rugby", "tennis", "fight", "american-football", "golf", "cricket", "darts")
+                    val srcDeferreds = sportsrcCategories.map { cat ->
+                        async {
+                            val matches = SportSRCClient.fetchMatches(cat).take(3)
+                            val out = mutableListOf<UnifiedLiveEvent>()
+                            for (m in matches) {
+                                val streams = SportSRCClient.fetchMatchStreams(m.id, cat)
+                                val embedUrl = streams.firstOrNull()?.embedUrl ?: ""
+                                if (embedUrl.isNotBlank()) {
+                                    out.add(UnifiedLiveEvent(
+                                        id = "src_${m.id}", title = "${m.homeTeam} vs ${m.awayTeam}",
+                                        subtitle = m.league, startTime = m.startTime,
+                                        sport = cat, category = cat,
+                                        streamUrl = embedUrl, imageUrl = null, isLive = true,
+                                        score = m.score.ifBlank { null }, provider = "SportSRC",
+                                    ))
+                                }
+                            }
+                            out
+                        }
                     }
+                    srcDeferreds.forEach { d -> results.addAll(d.await()) }
                 }
-            }
+            } catch (_: TimeoutCancellationException) {
+                // partial results still usable
+            } catch (_: Exception) {}
 
             // ── BallDontLie (stats only, no streams) ──
             runCatching {
