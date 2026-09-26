@@ -698,11 +698,34 @@ object SportsRepository {
             _uiState.value = _uiState.value.copy(unifiedLiveLoading = true)
             val results = mutableListOf<UnifiedLiveEvent>()
 
-            // ── SportSRC (only working API with real stream URLs) ──
-            val sportsrcCategories = listOf("basketball", "football", "baseball", "hockey", "motor-sports", "rugby", "tennis", "fight", "american-football", "golf", "cricket", "darts")
-            for (cat in sportsrcCategories) {
+            // ── StreamedPk (primary: matches include sources, stream endpoint gives embed URLs) ──
+            val streamedCategories = listOf("football", "basketball", "hockey", "baseball", "motor-sports", "tennis", "rugby", "fight", "american-football", "golf", "cricket", "darts")
+            for (cat in streamedCategories) {
                 runCatching {
-                    val matches = SportSRCClient.fetchMatches(cat).take(15)
+                    val matches = StreamedPkClient.fetchMatches(cat).take(15)
+                    for (m in matches) {
+                        var embedUrl = ""
+                        for (src in m.sources) {
+                            val streams = StreamedPkClient.fetchStreams(src.source, src.id)
+                            val url = streams.firstOrNull()?.embedUrl
+                            if (!url.isNullOrBlank()) { embedUrl = url; break }
+                        }
+                        results.add(UnifiedLiveEvent(
+                            id = "spk_${m.id}", title = m.title,
+                            subtitle = m.teams?.home?.name?.let { "$it vs ${m.teams.away?.name ?: ""}" } ?: "",
+                            startTime = m.date, sport = cat, category = cat,
+                            streamUrl = embedUrl, imageUrl = m.poster, isLive = embedUrl.isNotBlank(),
+                            provider = "StreamedPk",
+                        ))
+                    }
+                }
+            }
+
+            // ── SportSRC (fallback for matches not on StreamedPk) ──
+            runCatching {
+                val sportsrcCategories = listOf("basketball", "football", "baseball", "hockey", "motor-sports", "rugby", "tennis", "fight", "american-football", "golf", "cricket", "darts")
+                for (cat in sportsrcCategories) {
+                    val matches = SportSRCClient.fetchMatches(cat).take(10)
                     for (m in matches) {
                         val streams = SportSRCClient.fetchMatchStreams(m.id, cat)
                         val embedUrl = streams.firstOrNull()?.embedUrl ?: ""
@@ -740,11 +763,8 @@ object SportsRepository {
     fun loadSportCategories() {
         scope.launch {
             val cats = mutableListOf<SportCategory>()
-            runCatching { WeStreamClient.fetchAvailableSports().forEach { s ->
-                cats.add(SportCategory(id = "ws_$s", name = s, sport = s, source = "WeStream"))
-            }}
-            runCatching { EmbedSportexClient.fetchCategories().forEach { c ->
-                cats.add(SportCategory(id = "esx_$c", name = c, sport = c, source = "EmbedSportex"))
+            runCatching { StreamedPkClient.fetchSports().forEach { s ->
+                cats.add(SportCategory(id = "spk_$s", name = s, sport = s, source = "StreamedPk"))
             }}
             runCatching { SportSRCClient.fetchSports().forEach { s ->
                 cats.add(SportCategory(id = "src_$s", name = s, sport = s, source = "SportSRC"))
